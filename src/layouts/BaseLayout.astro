@@ -1,6 +1,4 @@
 ---
-import '@fontsource/atkinson-hyperlegible/400.css';
-import '@fontsource/atkinson-hyperlegible/700.css';
 import '../styles/global.css';
 interface Props { title: string; description: string; pageClass?: string; }
 const { title, description, pageClass = '' } = Astro.props;
@@ -11,7 +9,7 @@ const { title, description, pageClass = '' } = Astro.props;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#F4F6F1" />
+    <meta name="theme-color" content="#f6f3ec" />
     <title>{title}</title>
   </head>
   <body class={pageClass}>

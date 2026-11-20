@@ -1,0 +1,119 @@
+import { readFile } from 'node:fs/promises';
+import type { Page } from '@playwright/test';
+
+// A stubbed Firebase for the browser tests: Google sign-in is a persisted Auth user and
+// the Realtime Database is answered over its WebSocket protocol from the tree below.
+// playwright.config.ts builds the site with the matching stub config.
+export const env = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+const stub = { apiKey: 'novel-stub-key', projectId: 'novel-stub', householdId: 'novel-stub-house' };
+const reader = { uid: 'novel-stub-reader', email: 'reader@example.com' };
+
+type Tree = { [key: string]: unknown };
+interface Point { title: string; locs: string[] }
+interface Timeline { owners: { id: string; domain: string }[]; points: Record<string, Point> }
+
+// A small made-up timeline: two axis Owners, two selectable lines, two bands.
+const fixture = (axisLabel: string) => ({
+  bands: ['开端', '后来'], axis: ['CH-Ann', 'TP-Ann-Bo'], axisLabel, defaultOn: ['CH-Cy'],
+  domains: [['CHARACTER', '人物'], ['LOCATION', '地点'], ['TOPIC', '主题']],
+  owners: [
+    { id: 'CH-Ann', domain: 'CHARACTER', name: 'Ann', desc: '主角', pts: [['E-9001', 'Ann 到码头', 1], ['E-9002@定约', 'Ann 定约', 0], ['E-9004', 'Ann 离开', 0]] },
+    { id: 'CH-Cy', domain: 'CHARACTER', name: 'Cy', desc: '旁观者', pts: [['E-9002@定约', 'Cy 旁观', 0], ['E-9003', 'Cy 独行，后见 E-9004', 0], ['E-9004', 'Cy 告别', 0]] },
+    { id: 'LOC-Dock', domain: 'LOCATION', name: '码头', desc: '', pts: [['E-9001', '相遇之处', 0]] },
+    { id: 'TP-Ann-Bo', domain: 'TOPIC', name: 'Ann与Bo', desc: '', pts: [['E-9001', '两人相遇', 1]] },
+  ],
+  points: {
+    'E-9001': { r: 0, b: 0, t: '在码头相遇', title: '相遇', time: '春', end: '', pt: '', story: '两人在码头相遇。', roles: { 'CH-Ann': '到达' }, locs: ['C1#P2'] },
+    'E-9002@定约': { r: 10, b: 0, t: '定下约定', title: '约定', time: '春末', end: '', pt: '当面定约', story: '', roles: {}, locs: ['C2#P5-P6'] },
+    'E-9003': { r: 20, b: 1, t: 'Cy 独行', title: '独行', time: '夏', end: '', pt: '', story: '', roles: { 'CH-Cy': '独自出发' }, locs: ['C2#P9'] },
+    'E-9004': { r: 30, b: 1, t: '告别', title: '告别', time: '秋', end: '', pt: '', story: '', roles: {}, locs: ['C3#P1'] },
+  },
+});
+
+const pageKey = (path: string) => Buffer.from(path).toString('base64url');
+// Reading pages for every link the timeline can make, shaped like the compiled KB.
+function stubBook(title: string, timeline: Timeline): Tree {
+  const pages: Record<string, [string, string]> = {
+    'INDEX.md': ['故事知识库', `<h1>故事知识库</h1><p>${title} 的总目录。<a href="CHRONOLOGY.md">CHRONOLOGY.md</a></p>` +
+      '<ul><li><a href="owners/CHARACTER/CH-Ann/START_HERE.md">CH-Ann</a> 主角</li><li><a href="owners/CHARACTER/CH-Cy/START_HERE.md">CH-Cy</a> 旁观者</li>' +
+      '<li><a href="owners/LOCATION/LOC-Dock/START_HERE.md">LOC-Dock</a> 相遇之处</li></ul>'],
+    'CHRONOLOGY.md': ['文字时间线', '<h1>文字时间线</h1>'],
+  };
+  const chapters: Record<string, number> = {};
+  for (const [pid, point] of Object.entries(timeline.points)) {
+    const [eid, name] = pid.split('@');
+    const page = pages[`events/${eid}.md`] ??= [`${eid} ${point.title}`, `<h1>${eid} ${point.title}</h1><p>参与：<a href="../owners/CHARACTER/CH-Ann/START_HERE.md">CH-Ann</a></p>`];
+    if (name) page[1] += `<h2><a id="at-${name}"></a>${name}</h2>${'<p>经过。</p>'.repeat(30)}`;
+    for (const loc of point.locs) {
+      const [, chapter, paragraph] = /^C(\d+)#P(\d+)/.exec(loc)!;
+      chapters[chapter] = Math.max(chapters[chapter] ?? 0, Number(paragraph));
+    }
+  }
+  for (const [chapter, last] of Object.entries(chapters)) {
+    const body = Array.from({ length: last + 30 }, (_, i) => `<p><a id="p${i + 1}"></a>[P${i + 1}] 第 ${chapter} 章正文。</p>`).join('');
+    pages[`source/C${chapter}.md`] = [`C${chapter}`, `<h4>第${chapter}章</h4>${body}`];
+  }
+  for (const owner of timeline.owners) {
+    for (const page of ['START_HERE.md', 'TIMELINE_INDEX.md']) {
+      pages[`owners/${owner.domain}/${owner.id}/${page}`] = [owner.id, `<h1>${owner.id}</h1><p>Basic：${owner.id} 的简介。</p>`];
+    }
+  }
+  const entries = Object.fromEntries(Object.entries(pages).map(([path, [pageTitle]]) => [pageKey(path), { path, title: pageTitle, section: '全局' }]));
+  return {
+    manifest: { title, scope: 'C1–C3', entries },
+    pages: Object.fromEntries(Object.entries(pages).map(([path, [, html]]) => [pageKey(path), html])),
+    search: Object.fromEntries(Object.entries(pages).map(([path, [pageTitle]]) => [pageKey(path), pageTitle])),
+    timeline: JSON.stringify(timeline),
+  };
+}
+
+// NOVEL_STUB_DB may name a full private payload ({manifest,pages,search,timeline}) for
+// the first book, e.g. for screenshots with the real data; it is never committed.
+async function database() {
+  const first = env.NOVEL_STUB_DB ? JSON.parse(await readFile(env.NOVEL_STUB_DB, 'utf8')) as Tree : stubBook('Maritime Story', fixture('Ann·Bo'));
+  const books: Record<string, Tree> = { 'maritime-story': first, 'second-book': stubBook('Second Book', fixture('第二本')) };
+  const catalog = Object.fromEntries(Object.entries(books).map(([slug, book]) => [slug, { title: (book.manifest as Tree).title, scope: (book.manifest as Tree).scope }]));
+  return { households: { [stub.householdId]: { members: { [reader.uid]: { email: reader.email } }, settings: { enrollmentOpen: false }, novelArchive: { catalog, books } } } } as Tree;
+}
+
+/** Stubs Firebase for `page`; returns the database paths the page reads. */
+export async function stubFirebase(page: Page, { signedIn = true } = {}) {
+  const db = await database();
+  const reads: string[] = [];
+  const at = (path: string) => path.split('/').filter(Boolean).reduce<unknown>((node, key) => (node as Tree | null)?.[key] ?? null, db);
+  if (signedIn) {
+    const user = {
+      uid: reader.uid, email: reader.email, emailVerified: true, isAnonymous: false,
+      providerData: [{ providerId: 'google.com', uid: 'google-reader', email: reader.email, displayName: null, phoneNumber: null, photoURL: null }],
+      stsTokenManager: { refreshToken: 'stub-refresh', accessToken: 'stub-access', expirationTime: Date.now() + 3_600_000 },
+      createdAt: '1', lastLoginAt: '1', apiKey: stub.apiKey, appName: `family-hub-${stub.projectId}`,
+    };
+    await page.addInitScript(([key, value]) => localStorage.setItem(key, value), [`firebase:authUser:${stub.apiKey}:family-hub-${stub.projectId}`, JSON.stringify(user)]);
+  }
+  await page.route(/identitytoolkit\.googleapis\.com/, (route) => route.fulfill({ json: { users: [{
+    localId: reader.uid, email: reader.email, emailVerified: true, createdAt: '1', lastLoginAt: '1',
+    providerUserInfo: [{ providerId: 'google.com', rawId: 'google-reader', email: reader.email }],
+  }] } }));
+  await page.routeWebSocket(/firebaseio\.com/, (ws) => {
+    const send = (data: unknown) => ws.send(JSON.stringify({ t: 'd', d: data }));
+    ws.send(JSON.stringify({ t: 'c', d: { t: 'h', d: { ts: Date.now(), v: '5', h: new URL(ws.url()).host, s: 'stub-session' } } }));
+    ws.onMessage((message) => {
+      let frame: { t?: string; d?: { r: number; a: string; b: { p?: string } } };
+      try { frame = JSON.parse(String(message)); } catch { return; }
+      if (frame?.t !== 'd' || !frame.d) return;
+      const { r, a, b } = frame.d;
+      if (b.p) reads.push(b.p);
+      if (a === 'q') send({ a: 'd', b: { p: b.p, d: at(b.p!) } });
+      send({ r, b: { s: 'ok', d: a === 'g' ? at(b.p!) : {} } });
+    });
+  });
+  return reads;
+}
+
+/** Collects uncaught page errors and console errors. */
+export function watchErrors(page: Page) {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(String(error)));
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  return errors;
+}

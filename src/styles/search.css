@@ -1,0 +1,21 @@
+/* Search overlay of the book page (/ or Ctrl/⌘K): grouped hits, filter chips, keyboard selection. */
+.search { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-start; justify-content: center; padding: 9vh 1rem 1rem; background: rgb(30 28 25 / .32); }
+.search-box { display: flex; flex-direction: column; width: min(46rem, 100%); max-height: 80vh; overflow: hidden; border-radius: 14px; background: var(--surface);
+  box-shadow: 0 24px 60px rgb(0 0 0 / .25); }
+.search-top { display: flex; align-items: center; gap: 8px; padding: 0 .5rem 0 .9rem; border-bottom: 1px solid var(--line); color: var(--ink-3); }
+.search-top input { flex: 1; min-width: 0; height: 3.6rem; border: 0; outline: 0; background: none; color: var(--ink); font-size: 1.125rem; }
+.search-chips { display: flex; gap: 6px; padding: .6rem .9rem; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+.search-list { overflow: auto; padding: .4rem 0 .6rem; overscroll-behavior: contain; }
+.search-list h5 { margin: .6rem 1rem .25rem; color: var(--ink-3); font-size: .8125rem; font-weight: 600; }
+.hit { display: block; padding: .5rem 1rem; color: inherit; text-decoration: none; }
+.hit b { display: block; font-size: 1rem; font-weight: 600; }
+.hit small { display: -webkit-box; overflow: hidden; color: var(--ink-2); font-size: .875rem; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.hit mark { border-radius: 2px; background: var(--mark); color: inherit; }
+.hit.sel, .hit:hover { background: var(--accent-soft); }
+.search-empty { padding: 1.6rem 1rem; color: var(--ink-3); text-align: center; }
+.search-foot { padding: .5rem .9rem; border-top: 1px solid var(--line); color: var(--ink-3); font-size: .8125rem; }
+@media (max-width: 860px) {
+  .search { align-items: stretch; padding: 0; }
+  .search-box { height: 100%; max-height: none; border-radius: 0; }
+  .search-foot { display: none; }
+}

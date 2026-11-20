@@ -1,13 +1,9 @@
 // The book page keeps all of its state in the URL:
-// /book/?book=<slug>&view=reader|timeline&doc=<path>#<fragment>.
-// `view` is omitted for the reader. New views (tabs) are added to novelViews.
+// /book/?book=<slug>&view=<view>&doc=<path>#<fragment>.
+// `view` is omitted for the reader; the views themselves are listed in views/registry.ts.
+import { routableViews, type NovelView } from './views/registry.ts';
 
-export const novelViews = [
-  { id: 'reader', label: '阅读器' },
-  { id: 'timeline', label: '时间线' },
-] as const;
-
-export type NovelView = (typeof novelViews)[number]['id'];
+export type { NovelView };
 
 export interface NovelRoute { book: string; view: NovelView; doc: string; hash: string; }
 
@@ -16,7 +12,7 @@ export function parseNovelRoute(url: URL): NovelRoute {
   const view = url.searchParams.get('view');
   return {
     book: /^[a-z0-9-]+$/.test(book) ? book : '',
-    view: novelViews.find((item) => item.id === view)?.id ?? 'reader',
+    view: routableViews.find((item) => item.id === view)?.id ?? 'reader',
     doc: url.searchParams.get('doc') ?? '',
     hash: url.hash,
   };
