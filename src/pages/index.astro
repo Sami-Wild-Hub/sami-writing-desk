@@ -1,0 +1,32 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { novelBooks } from '../config/books';
+
+const base = import.meta.env.BASE_URL;
+const withBase = (path: string) => `${base.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+---
+<BaseLayout title="小离总周报 · Sami Writing Desk" description="私人小说知识库：从事件、人物和时间线回到原文。" pageClass="home-page theme-lake">
+  <main id="main-content">
+    <header class="home-hero shell">
+      <p class="eyebrow">Sami Writing Desk</p>
+      <h1>小离总周报</h1>
+      <p class="home-lead">私人小说知识库：从事件、人物和时间线回到原文。每本书一个入口，登录家庭 Google 账号后阅读。</p>
+    </header>
+    <div class="home-directory shell">
+      <div class="book-list">
+        {novelBooks.map((book) => (
+          <a class="book-card" href={withBase(`/book/?book=${book.slug}`)} data-book={book.slug}>
+            <span class="book-card__tab" aria-hidden="true">
+              <svg class="module-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M9 3.5v17M12 8h4M12 12h4M12 16h3"/><path d="M4 7h2M4 11h2M4 15h2"/></svg>
+            </span>
+            <span class="book-card__body">
+              <span class="book-card__heading"><strong>{book.title}</strong><span aria-hidden="true">→</span></span>
+              <span class="book-card__meta"><b>私人资料</b><span>需要登录</span></span>
+            </span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="shell"><p>公开页面只有登录和阅读器外壳；小说内容只在家庭成员登录后从私有数据库读取。</p></div></footer>
+</BaseLayout>

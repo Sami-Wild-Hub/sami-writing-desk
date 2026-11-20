@@ -1,0 +1,25 @@
+{
+  "name": "sami-writing-desk",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "check": "astro check",
+    "build": "astro build",
+    "test:unit": "node --test tests/*.test.mjs",
+    "test:browser": "playwright test",
+    "verify": "pnpm run check && pnpm run build && pnpm run test:unit && pnpm run test:browser",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@fontsource/atkinson-hyperlegible": "^5.3.0",
+    "astro": "^5.12.8",
+    "firebase": "^12.1.0",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}

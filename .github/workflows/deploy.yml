@@ -1,0 +1,65 @@
+name: Deploy Sami Writing Desk to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.9.0
+          cache: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run verify
+      - name: Build Firebase production artifact
+        run: |
+          for key in PUBLIC_FIREBASE_API_KEY PUBLIC_FIREBASE_AUTH_DOMAIN PUBLIC_FIREBASE_PROJECT_ID PUBLIC_FIREBASE_DATABASE_URL PUBLIC_FIREBASE_APP_ID PUBLIC_FAMILY_HOUSEHOLD_ID; do
+            value="${!key}"
+            if [[ -z "${value//[[:space:]]/}" ]]; then
+              echo "::error::Missing production configuration: $key"
+              exit 1
+            fi
+          done
+          pnpm run build
+          node --test tests/privacy.test.mjs
+        env:
+          PUBLIC_FIREBASE_API_KEY: ${{ vars.PUBLIC_FIREBASE_API_KEY }}
+          PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.PUBLIC_FIREBASE_PROJECT_ID }}
+          PUBLIC_FIREBASE_DATABASE_URL: ${{ vars.PUBLIC_FIREBASE_DATABASE_URL }}
+          PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          PUBLIC_FIREBASE_APP_ID: ${{ vars.PUBLIC_FIREBASE_APP_ID }}
+          PUBLIC_FAMILY_HOUSEHOLD_ID: ${{ vars.PUBLIC_FAMILY_HOUSEHOLD_ID }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
