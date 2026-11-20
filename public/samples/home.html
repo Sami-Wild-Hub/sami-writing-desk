@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>样稿 · 首页 · 小离总周报</title>
+<link rel="stylesheet" href="sample.css">
+<style>
+  .site { display: flex; align-items: center; gap: 12px; max-width: 1080px; height: 60px; margin: 0 auto; padding: 0 20px; }
+  .site .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .site .logo i { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px; background: var(--accent); color: #fff; font: 700 16px var(--serif); font-style: normal; }
+  .site .logo b { font-size: 17px; letter-spacing: .02em; }
+  .site .sp { flex: 1; }
+  .site .who { color: var(--ink-3); font-size: 13px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 8px 20px 80px; }
+  .greet { margin: 18px 0 22px; }
+  .greet h1 { margin: 0; font: 700 24px/1.35 var(--ui); }
+  .greet p { margin: 4px 0 0; color: var(--ink-2); }
+  .sec { display: flex; align-items: baseline; gap: 10px; margin: 30px 0 12px; }
+  .sec h2 { margin: 0; font-size: 16px; }
+  .sec .n { color: var(--ink-3); font-size: 13px; }
+  .sec .sp { flex: 1; }
+  .sec input { width: 200px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 13px; }
+  .shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .bookcard { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+  .bookcard .cover { display: flex; gap: 14px; padding: 16px; text-decoration: none; }
+  .spine { flex: none; width: 58px; height: 80px; border-radius: 4px 8px 8px 4px; background: linear-gradient(90deg, #18505a 0 7px, #1d5c68 7px); color: #e8f1ef;
+    display: flex; align-items: flex-end; padding: 6px 7px 7px 13px; font: 700 11px/1.2 var(--ui); box-shadow: inset -2px 0 0 rgb(255 255 255 / .12); }
+  .bookcard h3 { margin: 0; font-size: 18px; }
+  .bookcard .scope { margin: 2px 0 8px; color: var(--ink-3); font-size: 13px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--ink-2); font-size: 13px; }
+  .stats b { color: var(--ink); font-weight: 700; }
+  .last { margin: 0 16px; padding: 10px 12px; border-radius: 10px; background: var(--bg); font-size: 13px; color: var(--ink-2); text-decoration: none; display: block; }
+  .last b { color: var(--ink); font-weight: 600; }
+  .acts { display: flex; gap: 8px; padding: 12px 16px 16px; margin-top: auto; }
+  .acts a, .acts button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; border: 1px solid var(--line); border-radius: 9px;
+    background: var(--surface); color: var(--ink-2); font-size: 14px; font-weight: 600; text-decoration: none; }
+  .acts a:hover, .acts button:hover { border-color: var(--accent); color: var(--ink); }
+  .acts .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .acts .primary:hover { color: #fff; background: var(--accent-ink); }
+  .acts .soon { color: var(--ink-3); }
+  .ghost { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 240px; border: 1.5px dashed var(--line-2); border-radius: 14px; color: var(--ink-3); font-size: 14px; text-align: center; padding: 20px; }
+  .ghost b { color: var(--ink-2); }
+  .weekly { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .weekly a { display: block; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); text-decoration: none; font-size: 13px; color: var(--ink-2); }
+  .weekly a:hover { border-color: var(--accent); }
+  .weekly b { display: block; margin-bottom: 4px; color: var(--ink); font-size: 15px; }
+  .weekly small { color: var(--ink-3); }
+  @media (max-width: 860px) {
+    .site { padding: 0 14px; height: 54px; }
+    .site .who { display: none; }
+    .wrap { padding: 4px 14px 60px; }
+    .greet h1 { font-size: 21px; }
+    .sec input { width: 140px; }
+    .shelf { grid-template-columns: 1fr; }
+    .ghost { min-height: 120px; }
+    .weekly { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="ribbon">样稿：书名之外的人物、地点、事件、正文均为虚构占位 · <a href="./">返回样稿目录</a></div>
+<header class="site">
+  <a class="logo" href="home.html"><i>离</i><b>小离总周报</b></a>
+  <span class="sp"></span>
+  <span class="who">小离 · 家庭成员</span>
+  <button class="avatar" aria-label="账号：小离" onclick="toast('已登录：小离 · 家庭成员')">离</button>
+</header>
+<main class="wrap">
+  <section class="greet">
+    <h1>下午好，小离</h1>
+    <p>上次读到 Maritime Story 第4章，3 天前。</p>
+  </section>
+
+  <div class="sec"><h2>书架</h2><span class="n">1 本</span><span class="sp"></span><input type="search" placeholder="找书名…" aria-label="找书名" id="q"></div>
+  <div class="shelf" id="shelf">
+    <article class="bookcard" data-title="Maritime Story">
+      <a class="cover" href="reader.html">
+        <span class="spine">MS</span>
+        <div>
+          <h3>Maritime Story</h3>
+          <p class="scope">已处理正文：第1–17章 · 11月18日同步</p>
+          <div class="stats"><span><b>13</b> 人物与设定</span><span><b>25</b> 事件</span><span><b>6</b> 时段</span></div>
+        </div>
+      </a>
+      <a class="last" href="reader.html#ch4:p12"><b>继续阅读</b> · 第4章·12段 · “火灭以后，程叔坐在灯塔下面的石头上……”</a>
+      <div class="acts">
+        <a class="primary" href="reader.html">阅读</a>
+        <a href="timeline.html">时间线</a>
+        <button type="button" class="soon" data-soon>校稿台</button>
+      </div>
+    </article>
+    <div class="ghost"><b>下一本书</b>书稿同步进来后会出现在这里<br>书多了以后：按最近阅读排序，可按书名筛选</div>
+  </div>
+
+  <div class="sec"><h2>本周</h2><span class="n">只列和书相关的变化</span></div>
+  <div class="weekly">
+    <a href="reader.html#events"><b>新同步 3 章</b>第15–17章进了知识库，新增 4 个事件<br><small>11月18日</small></a>
+    <a href="timeline.html#p-024"><b>时间线更新</b>“罗盘归位”一段补上了出处<br><small>11月18日</small></a>
+    <a href="reader.html#o-shen"><b>人物页更新</b>沈砚秋的起点页加了 2 个关键事件<br><small>11月18日</small></a>
+  </div>
+</main>
+<script src="sample-data.js"></script>
+<script src="sample.js"></script>
+<script>
+  document.getElementById('q').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    document.querySelectorAll('#shelf .bookcard').forEach((c) => { c.hidden = q && !c.dataset.title.toLowerCase().includes(q); });
+  });
+</script>
+</body>
+</html>

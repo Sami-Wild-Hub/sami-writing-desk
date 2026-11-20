@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>样稿 · 时间线 · 小离总周报</title>
+<link rel="stylesheet" href="sample.css">
+<style>
+  .tlpage { display: grid; grid-template-columns: 268px minmax(0, 1fr); min-height: calc(100vh - var(--bar-h)); }
+  .tlmain { min-width: 0; background: var(--surface); }
+  .btn { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--surface); color: var(--ink-2); font-size: 13px; text-decoration: none; white-space: nowrap; }
+  .btn:hover { border-color: var(--line-2); color: var(--ink); }
+  .btn.primary { background: var(--axis); border-color: var(--axis); color: #fff; }
+  .btn:disabled { opacity: .4; cursor: default; }
+
+  /* side: 时段 + 线路 */
+  .side .navlink .bn { color: var(--ink-3); font-size: 12px; min-width: 1.2em; }
+  .side .ln-head { display: flex; align-items: center; gap: 6px; margin: 18px 8px 6px; }
+  .side .ln-head h3 { margin: 0; flex: 1; }
+  .side .ln-head .btn { height: 26px; padding: 0 8px; font-size: 12px; }
+  .side .dom { display: flex; align-items: center; gap: 6px; margin: 10px 8px 2px; color: var(--ink-2); font-size: 13px; font-weight: 600; }
+  .side .dom .n { color: var(--ink-3); font-weight: 400; font-size: 12px; flex: 1; }
+  .side .dom button { border: 0; background: none; color: var(--accent-ink); font-size: 12px; padding: 2px 4px; }
+  .own { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 3px 8px; border-radius: 7px; font-size: 14px; cursor: pointer; }
+  .own:hover { background: var(--hover); }
+  .own input { margin: 0; width: 16px; height: 16px; accent-color: var(--axis); }
+  .own .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .own .tag { font-size: 10px; color: #fff; background: var(--axis); border-radius: 4px; padding: 1px 5px; }
+  .own .ct { font-size: 12px; color: var(--ink-3); }
+
+  /* tools under the top bar */
+  .tools { position: sticky; top: var(--bar-h); z-index: 30; background: rgb(255 253 248 / .96); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+  .t1 { display: flex; align-items: center; gap: 8px; padding: 8px 14px 4px; }
+  .t1 h2 { margin: 0 4px 0 0; font-size: 15px; white-space: nowrap; }
+  .t1 .sp { flex: 1; }
+  .find { display: flex; align-items: center; gap: 6px; flex: 1; max-width: 330px; min-width: 0; height: 34px; padding: 0 4px 0 10px;
+    border: 1px solid var(--line); border-radius: 9px; background: var(--bg); color: var(--ink-3); }
+  .find input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font-size: 14px; color: var(--ink); }
+  .find .cnt { font-size: 12px; white-space: nowrap; }
+  .find button { width: 26px; height: 26px; border: 0; border-radius: 6px; background: none; color: var(--ink-2); }
+  .find button:hover { background: var(--hover); }
+  .find:not(.has-q) button { display: none; }
+  .t1 .btn.only-phone { display: none; }
+  .now { display: flex; align-items: center; gap: 8px; padding: 0 14px; height: 22px; color: var(--ink-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .now b { color: var(--ink-2); font-weight: 600; }
+  .strip { position: relative; height: 30px; overflow: hidden; }
+  .strip .tick { position: absolute; bottom: 0; width: 0; height: 7px; border-left: 3px solid; }
+  .strip .chip2 { position: absolute; top: 3px; display: flex; align-items: center; gap: 4px; height: 21px; padding: 0 7px 0 4px; font-size: 12px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; white-space: nowrap; }
+  .strip .chip2.axis { background: var(--axis); color: #fff; border-color: var(--axis); padding-left: 8px; max-width: 62vw; overflow: hidden; text-overflow: ellipsis; display: block; line-height: 19px; }
+
+  /* lanes and rows (geometry ported from the live view) */
+  .tl { position: relative; padding: 4px 0 140px; }
+  .tl svg { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+  .tl svg .hit { pointer-events: all; cursor: pointer; }
+  .band { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; padding: 12px 12px 4px; border-top: 1px dashed var(--line-2); font-size: 12px; color: var(--ink-3); scroll-margin-top: 140px; }
+  .band b { color: var(--ink); font-size: 13px; font-weight: 700; }
+  .row { position: relative; padding: var(--rp) 12px var(--rp) 0; cursor: pointer; line-height: var(--lh); font-size: var(--fs); min-height: var(--rh); border-radius: 6px; }
+  .row:hover .tx { text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+  .row.open .tx { font-weight: 700; }
+  .row .who { display: inline-flex; gap: 3px; margin-right: 6px; vertical-align: 1px; }
+  .row .who i { font-style: normal; font-size: calc(var(--fs) - 2px); padding: 0 6px; border-radius: 8px; color: #fff; line-height: 1.5; white-space: nowrap; }
+  .row .id { color: var(--ink-3); font-size: calc(var(--fs) - 3px); margin-left: 6px; white-space: nowrap; }
+  .row .key { color: var(--star); font-size: calc(var(--fs) - 3px); margin-right: 3px; }
+  .row mark { background: var(--mark); color: inherit; border-radius: 2px; }
+  .row.cur { background: linear-gradient(90deg, transparent, var(--mark) 30%, transparent); }
+  .tl.overview .row .tx, .tl.overview .row .id, .tl.overview .row .who, .tl.overview .row .key { display: none; }
+  .tl.overview .band { padding: 3px 12px 1px; margin-top: 0; font-size: 11px; }
+  .tl.overview .band b { font-size: 11px; font-weight: 600; }
+  .card { margin: 4px 14px 12px 0; padding: 12px 14px; border: 1px solid var(--line); border-left: 3px solid var(--axis); border-radius: 10px;
+    background: #fff; font-size: 14px; line-height: 1.7; cursor: default; box-shadow: 0 2px 8px rgb(30 28 25 / .06); overflow-wrap: anywhere; }
+  .card h4 { margin: 0; font-size: 16px; }
+  .card h4 a { text-decoration: none; }
+  .card h4 a:hover { color: var(--accent); }
+  .card .meta { color: var(--ink-3); font-size: 12px; margin: 2px 0 8px; }
+  .card dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+  .card dt { color: var(--ink-3); font-size: 13px; white-space: nowrap; }
+  .card dd { margin: 0; }
+  .card dd a { color: var(--accent-ink); text-decoration: none; }
+  .card .persp div { margin: 2px 0; }
+  .card .oc { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; white-space: nowrap; }
+  .card .loc { display: inline-block; font-size: 12px; color: var(--ink-2); background: var(--sunk); border-radius: 5px; padding: 0 6px; margin: 2px 4px 0 0; }
+  .card .walks { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .card .walk { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+  .card .walk .nm { min-width: 5.5em; }
+  .card .walk .btn { height: 30px; }
+  .card .acts { display: flex; gap: 8px; margin-top: 10px; }
+  .card .acts .sp { flex: 1; }
+
+  @media (max-width: 1180px) { .tlpage { grid-template-columns: 252px minmax(0, 1fr); } }
+  @media (max-width: 860px) {
+    .tlpage { display: block; }
+    .t1 { padding: 6px 8px 4px; gap: 6px; }
+    .t1 h2 { display: none; }
+    .t1 .btn.only-phone { display: inline-flex; height: 34px; }
+    .seg button { min-width: 0; padding: 0 8px; }
+    .t1:has(.find.has-q) #dens { display: none; }   /* while finding, the box takes the row */
+    .find { max-width: none; }
+    .now { padding: 0 10px; }
+    .own, .side .dom button { min-height: 44px; }
+    .card { margin-right: 8px; font-size: 14px; }
+    .card .walk .btn { height: 36px; }
+  }
+</style>
+</head>
+<body>
+<div class="ribbon">样稿：书名之外的人物、地点、事件、正文均为虚构占位 · <a href="./">返回样稿目录</a></div>
+<header class="bar">
+  <a class="back" href="home.html" aria-label="返回书架"><svg class="i" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg><span>书架</span></a>
+  <div class="book"><b>Maritime Story</b><small>第1–17章 · 11月18日同步</small></div>
+  <span class="sp"></span>
+  <nav class="tabs" aria-label="视图">
+    <a href="reader.html">阅读</a>
+    <a href="timeline.html" aria-current="page">时间线</a>
+    <button type="button" class="soon" data-soon>校稿台 <span class="soon-tag">即将</span></button>
+  </nav>
+  <span class="sp"></span>
+  <button class="searchbtn" data-search><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>搜索人物、事件、原文<kbd>/</kbd></button>
+  <button class="iconbtn only-phone" data-search aria-label="搜索"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button>
+  <button class="avatar" aria-label="账号：小离" onclick="toast('已登录：小离 · 家庭成员')">离</button>
+</header>
+
+<div class="tlpage">
+  <aside class="side" aria-label="时段与线路"></aside>
+  <main class="tlmain">
+    <div class="tools">
+      <div class="t1">
+        <button type="button" class="btn primary only-phone" data-drawer>线路 <b data-nsel></b></button>
+        <h2>故事时间线</h2>
+        <label class="find"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+          <input type="text" enterkeyhint="search" placeholder="在时间线里找…" aria-label="在时间线里找"><span class="cnt"></span>
+          <button type="button" data-find="-1" aria-label="上一处">↑</button><button type="button" data-find="1" aria-label="下一处">↓</button></label>
+        <span class="sp"></span>
+        <span class="seg" id="dens" role="group" aria-label="疏密"><button data-z=".4">总览</button><button data-z=".7">紧凑</button><button data-z="1">标准</button></span>
+      </div>
+      <div class="now" aria-live="polite"></div>
+      <div class="strip" aria-hidden="true"></div>
+    </div>
+    <div class="tl"><svg aria-hidden="true"></svg><div class="rows"></div></div>
+  </main>
+</div>
+<div class="scrim"></div>
+
+<nav class="tabbar" aria-label="视图">
+  <a href="reader.html"><svg class="i" viewBox="0 0 24 24"><path d="M4 5.5C6.5 4.5 9.5 4.5 12 6c2.5-1.5 5.5-1.5 8-.5v13c-2.5-1-5.5-1-8 .5-2.5-1.5-5.5-1.5-8-.5z"/><path d="M12 6v13"/></svg>阅读</a>
+  <a href="timeline.html" aria-current="page"><svg class="i" viewBox="0 0 24 24"><path d="M6 3v18"/><circle cx="6" cy="7" r="2"/><circle cx="6" cy="15" r="2"/><path d="M10 7h10M10 15h7"/></svg>时间线</a>
+  <button type="button" data-soon><svg class="i" viewBox="0 0 24 24"><path d="M5 19h14M7 15l9-9 3 3-9 9H7z"/></svg>校稿台</button>
+  <button type="button" data-search><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>搜索</button>
+</nav>
+
+<script src="sample-data.js"></script>
+<script src="sample.js"></script>
+<script>
+(() => {
+  const S = SAMPLE;
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const narrow = () => innerWidth <= 860;
+  const $ = (s) => document.querySelector(s);
+  const side = $('.side'), tools = $('.tools'), strip = $('.strip'), nowEl = $('.now'), tl = $('.tl'), svg = $('.tl svg'), rowsEl = $('.rows');
+  const findIn = $('.find input'), cnt = $('.find .cnt');
+
+  /* ---------- model + layout: same rules as src/lib/novelTimelineModel.ts ---------- */
+  const COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
+  const DASHES = ['', '7 4', '2 4', '10 3 2 3', '1 3', '12 5'];
+  const AX = new Set(S.axis), OWN = {}, OWNERS_OF = {}, KEYPT = new Set();
+  let k = 0;
+  const ordered = S.owners.map((o) => {
+    const line = { ...o, axis: AX.has(o.id), text: {}, color: '', dash: '' };
+    o.pts.forEach(([pid, t]) => { line.text[pid] = t; (OWNERS_OF[pid] ||= []).push(o.id); });
+    if (!line.axis) { line.color = COLORS[k % 8]; line.dash = DASHES[Math.floor(k / 8) % DASHES.length]; k++; }
+    return (OWN[o.id] = line);
+  });
+  ordered.filter((o) => o.axis).forEach((o) => o.pts.forEach(([pid, , key]) => { if (key) KEYPT.add(pid); }));
+  const R = (p) => S.points[p].r;
+  const layout = (selected) => {
+    const sel = ordered.filter((o) => selected.has(o.id) && !o.axis);
+    const axisPts = new Set(); ordered.filter((o) => o.axis).forEach((o) => o.pts.forEach((p) => axisPts.add(p[0])));
+    const vis = new Set(axisPts); sel.forEach((o) => o.pts.forEach((p) => vis.add(p[0])));
+    const pts = [...vis].sort((a, b) => R(a) - R(b)), idx = {}; pts.forEach((p, i) => { idx[p] = i; });
+    const primary = {}; sel.forEach((o) => o.pts.forEach((p) => { if (!axisPts.has(p[0]) && !primary[p[0]]) primary[p[0]] = o.id; }));
+    const exc = [], seqs = {};
+    for (const o of sel) {
+      const seq = o.pts.map((p) => p[0]).sort((a, b) => idx[a] - idx[b]); seqs[o.id] = seq;
+      let i = 0;
+      while (i < seq.length) {
+        if (axisPts.has(seq[i])) { i++; continue; }
+        let j = i; while (j + 1 < seq.length && !axisPts.has(seq[j + 1])) j++;
+        exc.push({ o: o.id, s: i > 0 ? idx[seq[i - 1]] : idx[seq[i]], e: j < seq.length - 1 ? idx[seq[j + 1]] : idx[seq[j]], open0: i === 0, open1: j === seq.length - 1, pts: seq.slice(i, j + 1), slot: {} });
+        i = j + 1;
+      }
+    }
+    exc.sort((a, b) => a.s - b.s || (b.e - b.s) - (a.e - a.s));
+    const excOf = {}; exc.forEach((x, n) => x.pts.forEach((p) => { if (primary[p] === x.o) excOf[p] = n; }));
+    const rowMax = new Array(pts.length).fill(-1); let active = [];
+    for (let i = 0; i < pts.length; i++) {
+      active = active.filter((n) => exc[n].e >= i);
+      exc.forEach((x, n) => { if (x.s === i) active.push(n); });
+      active.sort((m, n) => exc[m].e - exc[n].e || exc[n].s - exc[m].s);
+      active.forEach((n, pos) => { exc[n].slot[i] = pos; });
+      rowMax[i] = active.length - 1;
+    }
+    const near = (i) => Math.max(...[-2, -1, 0, 1, 2].map((d) => (i + d >= 0 && i + d < rowMax.length ? rowMax[i + d] : -1)));
+    const textMax = rowMax.map((_, i) => near(i));
+    const gapMax = rowMax.map((_, i) => Math.max(textMax[i], i + 1 < textMax.length ? textMax[i + 1] : -1));
+    return { sel, axisPts, pts, idx, primary, exc, excOf, seqs, textMax, gapMax };
+  };
+  const smooth = (s) => {
+    let d = `M${s[0][0]},${s[0][1]}`;
+    for (let i = 1; i < s.length; i++) {
+      const [x0, y0] = s[i - 1], [x1, y1] = s[i];
+      if (Math.abs(x0 - x1) < .5) { d += `L${x1},${y1}`; continue; }
+      const m = Math.min(y1 - y0, 34), ys = y1 - m;
+      d += `L${x0},${ys}C${x0},${ys + m * .55} ${x1},${ys + m * .45} ${x1},${y1}`;
+    }
+    return d;
+  };
+  const swatch = (o, w = 22) => o.axis
+    ? `<svg width="${w}" height="10" aria-hidden="true"><line x1="1" y1="5" x2="${w - 1}" y2="5" stroke="var(--axis)" stroke-width="4" stroke-linecap="round"/></svg>`
+    : `<svg width="${w}" height="10" aria-hidden="true"><line x1="1" y1="5" x2="${w - 1}" y2="5" stroke="${o.color}" stroke-width="3" stroke-dasharray="${o.dash}" stroke-linecap="${o.dash ? 'butt' : 'round'}"/></svg>`;
+
+  const st = { sel: new Set(S.defaultOn), open: new Set(), z: 1, q: '', hit: -1 };
+  const stickyH = () => $('.bar').offsetHeight + tools.offsetHeight;
+
+  /* ---------- side: 时段 + 线路 ---------- */
+  const renderSide = (lay) => {
+    const perBand = S.bands.map((_, b) => lay.pts.filter((p) => S.points[p].b === b).length);
+    let h = `<h3>时段</h3>${S.bands.map((b, i) => `<a class="navlink" href="#band-${i}" data-band="${i}"><span class="bn">${i + 1}</span>${esc(b)}<span class="n">${perBand[i]}</span></a>`).join('')}`;
+    h += `<div class="ln-head"><h3>线路 · 已选 ${st.sel.size}</h3><button class="btn" data-all="1">全选</button><button class="btn" data-all="0">清空</button></div>`;
+    for (const [dom, label] of S.domains) {
+      const list = ordered.filter((o) => o.domain === dom); if (!list.length) continue;
+      h += `<div class="dom">${label} <span class="n">${list.length}</span>${list.some((o) => !o.axis) ? `<button data-dom="${dom}" data-v="1">全选</button><button data-dom="${dom}" data-v="0">清空</button>` : ''}</div>`;
+      h += list.map((o) => `<label class="own" title="${esc(o.desc)}"><input type="checkbox" data-o="${o.id}" ${o.axis || st.sel.has(o.id) ? 'checked' : ''} ${o.axis ? 'disabled' : ''}>${swatch(o)}<span class="nm">${esc(o.name)}</span>${o.axis ? '<span class="tag">主轴</span>' : `<span class="ct">${o.pts.length}</span>`}</label>`).join('');
+    }
+    side.innerHTML = h;
+    document.querySelectorAll('[data-nsel]').forEach((b) => { b.textContent = st.sel.size; });
+  };
+  side.addEventListener('change', (e) => { const id = e.target.dataset.o; if (!id) return; e.target.checked ? st.sel.add(id) : st.sel.delete(id); render(); side.querySelector(`[data-o="${id}"]`)?.focus(); });
+  side.addEventListener('click', (e) => {
+    const band = e.target.closest('[data-band]');
+    if (band) { e.preventDefault(); const el = document.getElementById('band-' + band.dataset.band); if (el) scrollTo({ top: el.getBoundingClientRect().top + scrollY - stickyH() + 2 }); return; }
+    const b = e.target.closest('button[data-all], button[data-dom]'); if (!b) return;
+    const v = b.dataset.all ?? b.dataset.v;
+    ordered.filter((o) => !o.axis && (b.dataset.all !== undefined || o.domain === b.dataset.dom)).forEach((o) => (v === '1' ? st.sel.add(o.id) : st.sel.delete(o.id)));
+    render();
+  });
+
+  /* ---------- render ---------- */
+  let L = null;
+  const matches = (pid, text) => st.q && [text, S.points[pid].title, S.points[pid].story].some((s) => s.includes(st.q));
+  const hl = (s) => (st.q ? esc(s).split(esc(st.q)).join(`<mark>${esc(st.q)}</mark>`) : esc(s));
+  const render = () => {
+    const lay = layout(st.sel), z = st.z, overview = z < .55, n = narrow();
+    const g = { axisX: n ? 14 : 22, laneW: (n ? 13 : 18) * Math.min(1.4, Math.max(.75, z)), rh: Math.max(7, 30 * z) };
+    const fs = Math.round(Math.min(16, Math.max(11, (n ? 14 : 15) * Math.sqrt(z))));
+    tl.classList.toggle('overview', overview);
+    tl.style.setProperty('--fs', fs + 'px'); tl.style.setProperty('--lh', fs * 1.5 + 'px'); tl.style.setProperty('--rh', g.rh + 'px');
+    tl.style.setProperty('--rp', overview ? '0px' : Math.max(2, (g.rh - fs * 1.5) / 2) + 'px');
+    const X = (l) => (l < 0 ? g.axisX : g.axisX + (l + 1) * g.laneW);
+    const pad = (l) => X(l) + (overview ? 8 : 12);
+    let h = '', lastBand = -1; const hits = [];
+    lay.pts.forEach((pid, i) => {
+      const P = S.points[pid];
+      if (P.b !== lastBand) { lastBand = P.b; h += `<div class="band" id="band-${P.b}" style="padding-left:${pad(lay.textMax[i])}px"><b>${esc(S.bands[P.b])}</b></div>`; }
+      const onAxis = lay.axisPts.has(pid);
+      const ls = (OWNERS_OF[pid] || []).filter((id) => st.sel.has(id) && !OWN[id].axis);
+      const owner = onAxis ? null : OWN[lay.primary[pid]];
+      const text = owner ? (owner.text[pid] || P.t) : P.t;
+      const open = st.open.has(pid), m = matches(pid, text);
+      if (m) hits.push(pid);
+      h += `<div class="row${open ? ' open' : ''}" data-p="${pid}" role="button" tabindex="0" aria-expanded="${open}" style="padding-left:${pad(lay.textMax[i])}px">` +
+        (KEYPT.has(pid) ? '<span class="key" title="主轴关键点">★</span>' : '') +
+        (ls.length ? `<span class="who">${ls.map((id) => `<i style="background:${OWN[id].color}">${esc(OWN[id].name)}</i>`).join('')}</span>` : '') +
+        `<span class="tx">${hl(text)}</span><span class="id">${S.pid(pid)}</span></div>`;
+      if (open) h += card(pid, pad(lay.gapMax[i]), lay);
+    });
+    rowsEl.innerHTML = h;
+    const y = {};
+    for (const r of rowsEl.children) if (r.dataset.p) { const cs = getComputedStyle(r); y[r.dataset.p] = r.offsetTop + (overview ? r.offsetHeight / 2 : parseFloat(cs.paddingTop) + parseFloat(cs.lineHeight) / 2); }
+    draw(lay, g, X, y);
+    L = { lay, g, X, y, hits };
+    cnt.textContent = st.q ? (hits.length ? `${Math.max(0, st.hit) + 1}/${hits.length}` : '0 处') : '';
+    document.querySelectorAll('#dens button').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.z) === st.z)));
+    renderSide(lay);
+    updateStrip();
+  };
+  const draw = (lay, g, X, y) => {
+    svg.setAttribute('width', tl.offsetWidth); svg.setAttribute('height', rowsEl.offsetHeight);
+    const xOf = (p) => (lay.axisPts.has(p) ? g.axisX : X(lay.exc[lay.excOf[p]].slot[lay.idx[p]]));
+    let under = '', lines = '', nodes = '';
+    const axisList = lay.pts.filter((p) => lay.axisPts.has(p));
+    if (axisList.length) lines += `<line x1="${g.axisX}" y1="${y[axisList[0]]}" x2="${g.axisX}" y2="${y[axisList.at(-1)]}" stroke="var(--axis)" stroke-width="4" stroke-linecap="round"/>`;
+    for (const x of lay.exc) {
+      const o = OWN[x.o], own = new Set(x.pts), s = [];
+      for (let i = x.s; i <= x.e; i++) {
+        const p = lay.pts[i];
+        const sx = (i === x.s && !x.open0) || (i === x.e && !x.open1) ? g.axisX : own.has(p) && lay.primary[p] !== x.o ? xOf(p) : X(x.slot[i]);
+        s.push([sx, y[p]]);
+      }
+      if (s.length > 1) { const d = smooth(s); under += `<path d="${d}" fill="none" stroke="var(--surface)" stroke-width="6"/>`; lines += `<path d="${d}" fill="none" stroke="${o.color}" stroke-width="2.5" stroke-dasharray="${o.dash}" stroke-linecap="round"/>`; }
+      if (x.open0) nodes += `<circle cx="${s[0][0]}" cy="${s[0][1] - 9}" r="2.5" fill="${o.color}"/>`;
+      if (x.open1) { const [ex, ey] = s.at(-1); nodes += `<line x1="${ex - 4}" y1="${ey + 9}" x2="${ex + 4}" y2="${ey + 9}" stroke="${o.color}" stroke-width="2.5"/>`; }
+    }
+    for (const p of lay.pts) {
+      const cx = xOf(p), cy = y[p], ax = lay.axisPts.has(p);
+      const shared = (OWNERS_OF[p] || []).filter((id) => st.sel.has(id) && !OWN[id].axis);
+      const r = (st.z < .55 ? .6 : 1) * (ax && KEYPT.has(p) ? 6.5 : 5), meet = !ax && shared.length > 1;
+      nodes += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${ax ? 'var(--axis)' : OWN[lay.primary[p]].color}" stroke="${meet ? 'var(--axis)' : 'var(--surface)'}" stroke-width="${meet ? 2.5 : 2}"/>`;
+      if (ax && shared.length && st.z >= .55) nodes += `<circle cx="${cx}" cy="${cy}" r="${r + 3.5}" fill="none" stroke="${OWN[shared[0]].color}" stroke-width="1.5" stroke-dasharray="${OWN[shared[0]].dash}"/>`;
+      if (st.open.has(p)) nodes += `<circle cx="${cx}" cy="${cy}" r="${r + 6}" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
+      nodes += `<circle class="hit" data-p="${p}" cx="${cx}" cy="${cy}" r="12" fill="transparent"/>`;
+    }
+    svg.innerHTML = under + lines + nodes;
+  };
+
+  /* ---------- card: same fields as the live view, plus 打开事件页 and 沿线上一件/下一件 ---------- */
+  const card = (pid, padLeft, lay) => {
+    const P = S.points[pid], [eid, pname] = pid.split('@');
+    const ev = `reader.html#e-${eid}${pname ? '@' + pname : ''}`;
+    const all = OWNERS_OF[pid] || [];
+    const persp = all.filter((id) => OWN[id].text[pid]).map((id) => `<div><span class="oc">${swatch(OWN[id], 14)}<a href="reader.html#o-${id}/t"><b>${esc(OWN[id].name)}</b></a></span>${esc(OWN[id].text[pid])}</div>`).join('');
+    const roles = Object.entries(P.roles).map(([id, t]) => `<div><a href="reader.html#o-${id}"><b>${esc(OWN[id].name)}</b></a>：${esc(t)}</div>`).join('');
+    let dl = '';
+    if (pname && P.pt) dl += `<dt>此点</dt><dd>${esc(P.pt)}</dd>`;
+    if (P.time) dl += `<dt>${pname ? '整件事时间' : '时间'}</dt><dd>${esc(P.time)}</dd>`;
+    if (P.end && !pname) dl += `<dt>结束</dt><dd>${esc(P.end)}</dd>`;
+    if (P.story) dl += `<dt>经过</dt><dd>${esc(P.story)}</dd>`;
+    if (roles) dl += `<dt>参与</dt><dd>${roles}</dd>`;
+    if (persp) dl += `<dt>各线</dt><dd class="persp">${persp}</dd>`;
+    if (P.locs.length) dl += `<dt>出处</dt><dd>${P.locs.map((l) => { const x = S.loc(l); return `<a class="loc" href="${x.href}">${x.label}</a>`; }).join('')}</dd>`;
+    const walk = (label, sw, seq) => {
+      const i = seq.indexOf(pid), prev = seq[i - 1], next = seq[i + 1];
+      return `<div class="walk">${sw}<span class="nm">${esc(label)}</span><button class="btn" data-go="${prev || ''}" ${prev ? '' : 'disabled'}>← ${prev ? S.pid(prev) : '无'}</button><button class="btn" data-go="${next || ''}" ${next ? '' : 'disabled'}>${next ? S.pid(next) : '无'} →</button></div>`;
+    };
+    let walks = lay.axisPts.has(pid) ? walk('主轴', swatch(OWN[S.axis[0]], 14), lay.pts.filter((p) => lay.axisPts.has(p))) : '';
+    lay.sel.filter((o) => o.text[pid] !== undefined).forEach((o) => { walks += walk(o.name, swatch(o, 14), lay.seqs[o.id]); });
+    return `<div class="card" style="margin-left:${padLeft}px" data-card="${pid}"><h4><a href="${ev}">${esc(P.title)}${pname ? ` · ${esc(pname)}` : ''}</a></h4>` +
+      `<div class="meta">${S.pid(pid)} · ${esc(S.bands[P.b])}</div><dl>${dl}</dl>` +
+      `<div class="walks">${walks}</div>` +
+      `<div class="acts"><a class="btn primary" href="${ev}">打开事件页</a><span class="sp"></span><button class="btn" data-close="${pid}">收起</button></div></div>`;
+  };
+
+  /* ---------- open / jump ---------- */
+  const rowEl = (pid) => [...rowsEl.children].find((r) => r.dataset.p === pid);
+  const toggle = (pid) => {
+    st.open.has(pid) ? st.open.delete(pid) : st.open.add(pid);
+    const before = rowEl(pid)?.getBoundingClientRect().top; render();
+    const after = rowEl(pid)?.getBoundingClientRect().top;
+    if (before != null && after != null) scrollBy({ top: after - before, behavior: 'instant' });
+  };
+  const jump = (pid, { open = true, from = null } = {}) => {
+    if (!S.points[pid]) return;
+    if (!L.lay.pts.includes(pid)) { const o = (OWNERS_OF[pid] || []).find((id) => !OWN[id].axis); if (o) { st.sel.add(o); toast(`已加入线路：${OWN[o].name}`); } }
+    if (from) st.open.delete(from);
+    if (open) st.open.add(pid);
+    render();
+    const r = rowEl(pid); if (!r) return;
+    scrollTo({ top: r.getBoundingClientRect().top + scrollY - stickyH() - 24, behavior: 'instant' });
+    r.classList.remove('cur'); void r.offsetWidth; r.classList.add('cur', 'flash');
+  };
+  tl.addEventListener('click', (e) => {
+    const go = e.target.closest('[data-go]'); if (go) { if (go.dataset.go) jump(go.dataset.go, { from: go.closest('.card').dataset.card }); return; }
+    const close = e.target.closest('[data-close]'); if (close) { toggle(close.dataset.close); return; }
+    if (e.target.closest('.card')) return;
+    const t = e.target.closest('[data-p]'); if (t) toggle(t.dataset.p);
+  });
+  tl.addEventListener('keydown', (e) => {
+    const row = e.target.closest('.row'); if (!row || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault(); toggle(row.dataset.p); rowEl(row.dataset.p)?.focus({ preventScroll: true });
+  });
+
+  /* ---------- find in timeline ---------- */
+  const step = (d) => { if (!L.hits.length) return; st.hit = (st.hit + d + L.hits.length) % L.hits.length; const pid = L.hits[st.hit]; jump(pid, { open: false }); };
+  findIn.addEventListener('input', () => { st.q = findIn.value.trim(); st.hit = -1; findIn.parentElement.classList.toggle('has-q', !!st.q); render(); if (L.hits.length) step(1); });
+  findIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1); } if (e.key === 'Escape') { findIn.value = ''; st.q = ''; findIn.parentElement.classList.remove('has-q'); render(); } });
+  document.querySelectorAll('[data-find]').forEach((b) => b.addEventListener('click', () => step(Number(b.dataset.find))));
+
+  /* ---------- density ---------- */
+  document.getElementById('dens').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-z]'); if (!b) return;
+    const anchor = [...rowsEl.children].find((r) => r.dataset.p && r.getBoundingClientRect().bottom >= stickyH());
+    const off = anchor ? anchor.getBoundingClientRect().top : 0;
+    st.z = Number(b.dataset.z); if (st.z < .55) st.open.clear();   // 总览 shows structure only
+    render();
+    const r = anchor && rowEl(anchor.dataset.p); if (r) scrollBy({ top: r.getBoundingClientRect().top - off, behavior: 'instant' });
+  });
+
+  /* ---------- sticky strip: lines at the current scroll position + current 时段 ---------- */
+  const updateStrip = () => {
+    if (!L) return;
+    const { lay, g, X, y } = L;
+    const tlTop = tl.getBoundingClientRect().top + scrollY;
+    const yy = scrollY + stickyH() - tlTop + 8;
+    const yi = (i) => y[lay.pts[i]];
+    let row = 0; while (row + 1 < lay.pts.length && yi(row + 1) <= yy) row++;
+    const active = lay.exc.filter((x) => yi(x.s) <= yy && yy <= yi(x.e) && x.slot[row] !== undefined).sort((a, b) => a.slot[row] - b.slot[row]);
+    const off = new Set(active.map((x) => x.o));
+    const merged = lay.sel.filter((o) => { const s = lay.seqs[o.id]; return !off.has(o.id) && y[s[0]] <= yy && yy <= y[s.at(-1)]; });
+    let h = `<div class="tick" style="left:${g.axisX - 1}px;border-color:var(--axis)"></div>`;
+    const chips = [{ x: g.axisX, html: `<span class="chip2 axis">${esc('主轴 ' + S.axisLabel + (merged.length ? ' ＋ ' + merged.map((o) => o.name).join('、') : ''))}</span>` }];
+    active.forEach((x) => { const o = OWN[x.o]; h += `<div class="tick" style="left:${X(x.slot[row]) - 1}px;border-color:${o.color}"></div>`; chips.push({ x: X(x.slot[row]), html: `<span class="chip2">${swatch(o, 16)}${esc(o.name)}</span>` }); });
+    strip.innerHTML = h + chips.map((c) => c.html).join('');
+    let left = 0;
+    strip.querySelectorAll('.chip2').forEach((el, i) => { const l = Math.max(Math.max(4, chips[i].x - 8), left); el.style.left = l + 'px'; left = l + el.offsetWidth + 4; });
+    const b = S.points[lay.pts[row]]?.b ?? 0;
+    nowEl.innerHTML = `时段 ${b + 1}/${S.bands.length} · <b>${esc(S.bands[b])}</b>`;
+    side.querySelectorAll('[data-band]').forEach((a) => (Number(a.dataset.band) === b ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
+  };
+  let raf = 0;
+  addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; updateStrip(); }); }, { passive: true });
+  let rw = 0; addEventListener('resize', () => { clearTimeout(rw); rw = setTimeout(render, 120); });
+
+  /* ---------- deep links from the reader: #p-<pid>, #line-<owner> ---------- */
+  const fromHash = () => {
+    const h = decodeURIComponent(location.hash.slice(1)); let m;
+    if ((m = /^p-(.+)$/.exec(h))) jump(m[1]);
+    else if ((m = /^line-(\w+)$/.exec(h)) && OWN[m[1]]) {
+      const o = OWN[m[1]];
+      if (!o.axis) { st.sel.add(o.id); render(); }
+      const first = [...o.pts].sort((a, b) => R(a[0]) - R(b[0]))[0][0];
+      jump(first, { open: false }); toast(o.axis ? `${o.name}在主轴上` : `已显示线路：${o.name}`);
+    }
+  };
+  addEventListener('hashchange', fromHash);
+  render(); fromHash();
+})();
+</script>
+</body>
+</html>
