@@ -1,6 +1,7 @@
 // The book page shell: sign-in gate, top bar, the views registered in views/registry.ts,
 // search overlay, 「← 返回」 and the status line. The URL is the only view state: user
 // navigation pushes it (go), history only re-renders it.
+import { ref } from 'firebase/database';
 import { novelBooks } from '../../config/books.ts';
 import { FirebaseHouseholdSession, hasCompleteFirebaseConfig, type FirebaseConfig, type HouseholdSessionStatus } from '../householdSession.ts';
 import { novelRouteHref, parseNovelRoute, type NovelRoute, type NovelView } from '../novelArchiveRoute.ts';
@@ -131,6 +132,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       href,
       readerHref: (path, hash = '') => (book.pathToKey.has(path) ? href({ view: 'reader', doc: path, hash }) : null),
       go: (route, via = 'nav') => go({ ...parseNovelRoute(url()), hash: '', ...route, book: slug }, via),
+      householdRef: (path) => ref(session.database, `households/${config.householdId}/${path}`),
       message, toast, setDrawer,
       sideHead: () => {
         const head = document.createElement('div');
@@ -198,7 +200,9 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       if (!await view.view.show(route, { latest, via, restore }) || !latest()) return;
       bar.setReady(true);
       bar.setBooks(catalog, route.book, (slug) => novelRouteHref(url(), { book: slug, view: route.view, doc: '', hash: '' }));
-      bar.setTabs(route.view, (id) => novelRouteHref(url(), { ...route, view: id as NovelView, hash: '' }));
+      // Other tabs keep the page that is open, but not a view's own doc (a 校稿 record).
+      const keep = (id: string) => id === route.view || opened.book.pathToKey.has(route.doc);
+      bar.setTabs(route.view, (id) => novelRouteHref(url(), { ...route, view: id as NovelView, doc: keep(id) ? route.doc : '', hash: '' }));
       const normal = novelRouteHref(url(), route);
       if (normal !== here()) history.replaceState(history.state, '', normal);
       // 「← 返回」 offers the way back after following a link; any other move retires it.

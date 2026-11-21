@@ -81,6 +81,15 @@ export async function stubFirebase(page: Page, { signedIn = true } = {}) {
   const db = await database();
   const reads: string[] = [];
   const at = (path: string) => path.split('/').filter(Boolean).reduce<unknown>((node, key) => (node as Tree | null)?.[key] ?? null, db);
+  const put = (path: string, value: unknown) => {
+    const keys = path.split('/').filter(Boolean);
+    const last = keys.pop()!;
+    const node = keys.reduce<Tree>((parent, key) => {
+      if (!parent[key] || typeof parent[key] !== 'object') parent[key] = {};
+      return parent[key] as Tree;
+    }, db);
+    if (value === null) delete node[last]; else node[last] = value;
+  };
   if (signedIn) {
     const user = {
       uid: reader.uid, email: reader.email, emailVerified: true, isAnonymous: false,
@@ -98,11 +107,14 @@ export async function stubFirebase(page: Page, { signedIn = true } = {}) {
     const send = (data: unknown) => ws.send(JSON.stringify({ t: 'd', d: data }));
     ws.send(JSON.stringify({ t: 'c', d: { t: 'h', d: { ts: Date.now(), v: '5', h: new URL(ws.url()).host, s: 'stub-session' } } }));
     ws.onMessage((message) => {
-      let frame: { t?: string; d?: { r: number; a: string; b: { p?: string } } };
+      let frame: { t?: string; d?: { r: number; a: string; b: { p?: string; d?: unknown } } };
       try { frame = JSON.parse(String(message)); } catch { return; }
       if (frame?.t !== 'd' || !frame.d) return;
       const { r, a, b } = frame.d;
       if (b.p) reads.push(b.p);
+      // Writes (set, update, remove) change the tree, so they survive a reload in the same test.
+      if (a === 'p') put(b.p!, b.d);
+      if (a === 'm') Object.entries(b.d as Tree).forEach(([key, value]) => put(`${b.p}/${key}`, value));
       if (a === 'q') send({ a: 'd', b: { p: b.p, d: at(b.p!) } });
       send({ r, b: { s: 'ok', d: a === 'g' ? at(b.p!) : {} } });
     });

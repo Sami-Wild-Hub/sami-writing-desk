@@ -4,12 +4,13 @@
 
 ## 视图与地址
 
-地址是唯一的视图状态（`src/lib/novelArchiveRoute.ts`）：`?book=<slug>&view=<view>&doc=<path>#<hash>`。`view` 现有 `reader`（默认，地址里省略）与 `timeline`。用户切书、切视图、点链接都写入地址（pushState）；浏览器前进后退只按地址重绘，不再写历史。
+地址是唯一的视图状态（`src/lib/novelArchiveRoute.ts`）：`?book=<slug>&view=<view>&doc=<path>#<hash>`。`view` 现有 `reader`（默认，地址里省略）、`timeline` 与 `proof`（校稿台，`doc` 是校稿记录 id，见 [proofdesk.md](proofdesk.md)）。用户切书、切视图、点链接都写入地址（pushState）；浏览器前进后退只按地址重绘，不再写历史。
 
 - **外壳**：`src/lib/archive/shell.ts`（登录门、顶栏、视图切换、检索浮层 `search.ts`、「← 返回」）。点正文里的链接跳转时显示「← 返回 <上一页>」。
-- **加一个视图**：在 `src/lib/views/<id>/` 写一个模块，默认导出 `CreateNovelView`（接口见 `views/types.ts`），再在 `views/registry.ts` 的 `novelViews` 加一行；只写 `soon` 不写 `load` 的条目显示为「即将」（现为校稿台）。
+- **加一个视图**：在 `src/lib/views/<id>/` 写一个模块，默认导出 `CreateNovelView`（接口见 `views/types.ts`），再在 `views/registry.ts` 的 `novelViews` 加一行；只写 `soon` 不写 `load` 的条目显示为「即将」。切换视图时只带上书页的 `doc`，视图自己的 `doc`（如校稿记录）不带过去。
 - **阅读器**：`src/lib/views/reader/`（目录、页面、悬停预览、阅读设置 Aa：字号与宋/黑，默认黑体）+ `src/styles/reader.css`。
 - **时间线**：`src/lib/views/timeline/`（主轴与线路、总览/紧凑/标准三档密度、查找、卡片）+ `src/lib/novelTimelineModel.ts` + `src/styles/timeline.css`。卡片里「打开事件页」进阅读器的事件页，出处跳到 `source/C#.md#p#`，线路名跳到该 Owner 的时间索引页。时间线数据是 `books/<slug>/timeline`，由 Novel 仓库 `site/sync_familyhub.py` 写成**一个 JSON 字符串**（RTDB 会丢掉空列表与空对象），页面登录后读取并 `JSON.parse`。
+- **校稿台**：`src/lib/views/proof/` + `src/styles/proof.css`，用法、存储与任务全文见 [proofdesk.md](proofdesk.md)。它是唯一会写数据库的视图（`households/<householdId>/proofdesk`）。
 - **样式**：`src/styles/global.css` 是共用的颜色、字号与布局（手机 / 1280 / 2560 同一套，宽屏放大字号、正文保持行长）；各视图样式单独一个文件。
 
 ## 权威与数据流

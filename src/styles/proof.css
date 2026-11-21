@@ -1,0 +1,102 @@
+/* 校稿台: history in the side column; the form, the two steps, and the proof view —
+   numbered draft on the left, each item beside its paragraph on the right. Phones stack:
+   items as a list first (tap to jump), then the draft with the quotes marked. */
+.proof .side .new { color: var(--accent-ink); font-weight: 600; }
+.proof .side .hist span { display: flex; flex-direction: column; min-width: 0; }
+.proof .side .hist b { overflow: hidden; font-weight: inherit; text-overflow: ellipsis; white-space: nowrap; }
+.proof .side .hist small { color: var(--ink-3); font-size: .8125rem; font-weight: 400; }
+.proof .hist-empty { margin: .25rem .5rem; font-size: .875rem; }
+.pmain { min-width: 0; max-width: 104rem; padding: 1.25rem 2rem 5rem; }
+.phead { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem .9rem; margin-bottom: 1rem; }
+.phead h2 { margin: 0; font-size: 1.375rem; line-height: 1.35; overflow-wrap: anywhere; }
+.phead .meta { color: var(--ink-3); font-size: .875rem; }
+.phead .sp, .prow-tools .sp { flex: 1; }
+.phead .btn { align-self: center; }
+.pmain .hint { margin: 0 0 1rem; color: var(--ink-3); font-size: .875rem; }
+.prow-tools .hint { margin: 0; }
+.pmain textarea, .pmain input[type=text] { width: 100%; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: 9px;
+  background: var(--surface); color: var(--ink); font: 1rem/1.7 var(--sans); }
+.pmain textarea { resize: vertical; }
+.pmain textarea:focus, .pmain input[type=text]:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.field { display: block; max-width: 60rem; margin-bottom: .9rem; }
+.field > span { display: block; margin-bottom: .3rem; color: var(--ink-2); font-size: .875rem; font-weight: 600; }
+.prow-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; max-width: 60rem; margin: .6rem 0; }
+.prow-tools .count { color: var(--ink-3); font-size: .875rem; }
+.btn.file { position: relative; overflow: hidden; }
+.btn.file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.perr { max-width: 60rem; margin: .6rem 0; padding: .6rem .8rem; border-radius: 9px; background: #fbe4df; color: #8a2a1c; font-size: .9375rem; }
+
+/* the two steps */
+.step { max-width: 60rem; margin: 0 0 1rem; padding: .9rem 1rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.step h3 { display: inline-flex; align-items: center; gap: .5rem; margin: 0; font-size: 1rem; }
+.step h3 b { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 50%;
+  background: var(--accent); color: #fff; font-size: .8125rem; }
+details.step > summary { cursor: pointer; list-style: none; }
+details.step > summary::-webkit-details-marker { display: none; }
+details.step > summary::after { content: '展开'; margin-left: .6rem; color: var(--ink-3); font-size: .8125rem; }
+details.step[open] > summary::after { content: '收起'; }
+details.step[open] > summary { margin-bottom: .6rem; }
+.step .task { margin-top: .3rem; }
+.step .task summary { color: var(--ink-3); font-size: .875rem; cursor: pointer; }
+.step .task textarea { margin-top: .4rem; color: var(--ink-2); font-size: .875rem; }
+
+/* result head */
+.result { margin-top: 1.5rem; scroll-margin-top: calc(var(--bar-h) + .75rem); }
+.rtabs { flex-wrap: wrap; margin-bottom: .75rem; }
+.pcount { margin: 0 0 .5rem; font-size: 1rem; font-weight: 600; }
+.pcount .warn, .pitem .warn { color: #8a2a1c; }
+.psum { max-width: 60rem; margin: 0 0 .75rem; color: var(--ink-2); }
+.pnote { margin: 0 0 .75rem; }
+.raw { max-width: 60rem; margin-bottom: 1rem; }
+.raw summary { color: var(--ink-3); font-size: .875rem; cursor: pointer; }
+.raw pre { max-height: 20rem; overflow: auto; padding: .6rem .8rem; border-radius: 9px; background: var(--sunk); font-size: .8125rem; white-space: pre-wrap; }
+
+/* the proof view: one row per paragraph, notes aligned to it */
+.pv { border-top: 1px solid var(--line); }
+.prow { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 2rem; padding: .6rem 0; border-bottom: 1px solid var(--line); }
+.prow.has { background: linear-gradient(90deg, transparent, rgb(251 233 173 / .12)); }
+.ptext { position: relative; margin: 0; padding-left: 3rem; font-size: var(--read-size); line-height: 1.9; }
+.ptext .pn { position: absolute; left: 0; top: .35em; width: 2.4rem; color: var(--ink-3); font-size: .75rem; line-height: 1.6; text-align: right; }
+.ptext mark { padding: 0 1px; border-radius: 3px; background: var(--mark); color: inherit; box-shadow: inset 0 -2px 0 rgb(176 96 28 / .45); cursor: pointer; }
+.pnotes { display: flex; flex-direction: column; gap: .6rem; min-width: 0; }
+.plist { display: none; }
+.pitem { padding: .7rem .85rem; border: 1px solid var(--line); border-left: 4px solid var(--ink-3); border-radius: 10px; background: var(--surface); cursor: pointer; }
+.pitem.lv-冲突 { border-left-color: #b3392a; }
+.pitem.lv-存疑 { border-left-color: var(--star); }
+.pitem.lv-提示 { border-left-color: var(--ink-3); }
+.pitem blockquote { margin: 0 0 .4rem; padding: 0; color: var(--ink); font-size: .9375rem; font-weight: 600; line-height: 1.6; }
+.pitem blockquote::before { content: '「'; }
+.pitem blockquote::after { content: '」'; }
+.pitem .tags { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: .35rem; }
+.pitem .pill.warn { background: #fbe4df; }
+.lv { display: inline-flex; align-items: center; min-height: 1.6rem; padding: 0 .55rem; border-radius: 999px; background: var(--sunk);
+  color: var(--ink-2); font-size: .8125rem; font-weight: 700; }
+.lv-冲突 .lv { background: #fbe4df; color: #8a2a1c; }
+.lv-存疑 .lv { background: #f8e9d6; color: #7a420f; }
+.pitem p { margin: .25rem 0 0; font-size: .9375rem; line-height: 1.65; }
+.pitem .issue { color: var(--ink); }
+.pitem .sugg, .pitem .ev { color: var(--ink-2); }
+.pitem .sugg b, .pitem .ev b { margin-right: .45rem; color: var(--ink-3); font-size: .8125rem; }
+.pitem .ev code { display: inline-block; margin: 0 .3rem .2rem 0; padding: 0 .35rem; border-radius: 5px; background: var(--sunk); font: .8125rem/1.6 var(--sans); }
+.pitem .prob { color: #8a2a1c; font-size: .8125rem; }
+.pitem.flash, .ptext mark.flash, .ptext.flash { animation: pflash 2.4s ease-out; }
+@keyframes pflash { 0%, 35% { box-shadow: 0 0 0 4px rgb(29 92 104 / .35); } 100% { box-shadow: 0 0 0 4px transparent; } }
+.orphan .ptext { padding-left: 0; font-size: .9375rem; }
+
+@media (min-width: 1800px) { .prow { gap: 3rem; } }
+@media (max-width: 860px) {
+  .pmain { padding: .9rem .9rem 5rem; }
+  .phead { align-items: center; gap: .3rem .6rem; }
+  .phead h2 { flex: 1 1 0; min-width: 0; font-size: 1.1875rem; }
+  .phead .sp { display: none; }
+  .phead .meta { order: 5; flex-basis: 100%; }
+  .step { padding: .75rem; }
+  .plist { display: flex; flex-direction: column; gap: .6rem; margin-bottom: 1.25rem; }
+  .prow { display: block; padding: .45rem 0; }
+  .prow .pnotes { display: none; }
+  .prow.orphan { display: none; }
+  .ptext { padding-left: 0; }
+  .ptext .pn { position: static; display: inline-block; width: auto; margin-right: .4em; vertical-align: 1px; }
+  .plist .pitem { scroll-margin-top: calc(var(--bar-h) + 1rem); }
+}
+@media (prefers-reduced-motion: reduce) { .pitem.flash, .ptext mark.flash, .ptext.flash { animation: none; } }
