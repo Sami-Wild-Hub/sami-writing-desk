@@ -89,3 +89,75 @@ test('paragraph links, search and reading settings', async ({ page }) => {
   await expect(title(page)).toHaveText('约定');
   expect(await font()).toBe('var(--serif)');
 });
+
+const tl = (page: Page) => page.locator('[data-view="timeline"] .tlv');
+const row = (page: Page, text: string) => tl(page).locator('.row').filter({ hasText: text });
+
+test('timeline cards lead to the source and back, densities keep the place', async ({ page }) => {
+  const errors = watchErrors(page);
+  await stubFirebase(page);
+  await page.goto('book/?book=maritime-story&view=timeline');
+  await expect(tab(page, '时间线')).toHaveAttribute('aria-current', 'page');
+  await expect(tl(page).locator('.row')).toHaveCount(4);
+  await expect(tl(page).locator('.strip .chip2.axis')).toContainText('Ann·Bo');
+  await expect(row(page, '后见')).toContainText('#9004');
+  await expect(tl(page).locator('[data-z]')).toHaveText(['总览', '紧凑', '标准']);
+  await expect(tl(page).locator('[data-z="1"]')).toHaveAttribute('aria-pressed', 'true');
+
+  await row(page, '后见').click();
+  const card = tl(page).locator('.card');
+  await expect(card.locator('h4')).toHaveText('独行');
+  await expect(card.locator('.acts a.btn.primary')).toHaveText('打开事件页');
+  await card.locator('a.loc').click();
+  await expectUrl(page, { book: 'maritime-story', doc: 'source/C2.md' }, '#p9');
+  await expect(doc(page).locator('[id="p9"]')).toBeInViewport();
+  await expect(page.locator('#novel-back')).toHaveText('返回 时间线');
+  await page.locator('#novel-back').click();
+  await expectUrl(page, { book: 'maritime-story', view: 'timeline' });
+  await expect(tl(page).locator('.card h4')).toHaveText('独行');
+
+  await tl(page).locator('[data-z="0.4"]').click();
+  await expect(tl(page).locator('.tl')).toHaveClass(/overview/);
+  await expect(tl(page).locator('.card')).toHaveCount(0);
+  await tl(page).locator('[data-z="1"]').click();
+  await expect(tl(page).locator('.tl')).not.toHaveClass(/overview/);
+
+  await tl(page).locator('.find input').fill('告别');
+  await expect(tl(page).locator('.find .cnt')).toHaveText('1/1');
+  await expect(row(page, '告别')).toHaveClass(/cur/);
+  expect(errors).toEqual([]);
+});
+
+test('reader links locate a point or a line, and each book keeps its own timeline', async ({ page }) => {
+  await stubFirebase(page);
+  await page.goto('book/?book=maritime-story&doc=events%2FE-9002.md');
+  await doc(page).locator('.doc-meta a.pill.accent').click();
+  await expectUrl(page, { book: 'maritime-story', view: 'timeline', doc: 'events/E-9002.md' }, '#p-E-9002@定约');
+  await expect(tl(page).locator('.row.cur')).toContainText('定下约定');
+  await expect(tl(page).locator('.card h4')).toHaveText('约定 · 定约');
+  await expect(page.locator('#novel-back')).toHaveText('返回 约定');
+
+  await tab(page, '阅读').click();
+  await expect(title(page)).toHaveText('约定');
+  await page.locator('.bar [data-drawer]').click();
+  await page.locator('.toc details[data-domain="LOCATION"] summary').click();
+  await page.locator('.toc a.navlink[href*="LOC-Dock"]').click();
+  await expect(title(page)).toHaveText('Dock');
+  await doc(page).getByRole('link', { name: '在时间线中看这条线 →' }).click();
+  await expect(page.locator('.toast')).toHaveText('已显示线路：码头');
+  await expect(tl(page).locator('[data-o="LOC-Dock"]')).toBeChecked();
+  await expect(tl(page).locator('.card h4')).toHaveText('约定 · 定约');
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.locator('.bar .book').click();
+  await page.locator('#novel-book-menu a[data-book-slug="second-book"]').click();
+  await expectUrl(page, { book: 'second-book', view: 'timeline' });
+  await expect(tl(page).locator('.strip .chip2.axis')).toContainText('第二本');
+  await expect(tl(page).locator('.card')).toHaveCount(0);
+  await page.goBack();
+  await expectUrl(page, { book: 'maritime-story', view: 'timeline', doc: 'owners/LOCATION/LOC-Dock/START_HERE.md' }, '#line-LOC-Dock');
+  await expect(tl(page).locator('.strip .chip2.axis')).toContainText('Ann·Bo');
+  await expect(tl(page).locator('.card h4')).toHaveText('约定 · 定约');
+  await tab(page, '阅读').click();
+  await expect(title(page)).toHaveText('Dock');
+});

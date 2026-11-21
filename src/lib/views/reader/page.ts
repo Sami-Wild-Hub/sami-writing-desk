@@ -7,7 +7,7 @@ import { esc } from '../../archive/ui.ts';
 import type { NovelViewHost } from '../types.ts';
 import { remapLinks } from './links.ts';
 
-export interface ReaderPage { inner: HTMLElement; title: string; info: PathInfo; }
+export interface ReaderPage { path: string; inner: HTMLElement; title: string; info: PathInfo; }
 
 const titleOf = (host: NovelViewHost, path: string) => {
   const key = host.pathToKey.get(path);
@@ -135,24 +135,26 @@ export function buildPage(host: NovelViewHost, path: string, html: string): Read
     `<div class="doc-meta">${meta.join('')}</div>${subtabs(host, path, info)}`;
   inner.append(prose);
   inner.insertAdjacentHTML('beforeend', pager(host, path, info));
-  return { inner, title, info };
+  return { path, inner, title, info };
 }
 
 /** Adds what the story timeline knows about this page: its line or point, and a chapter's events. */
 export function addTimelineBits(page: ReaderPage, rail: HTMLElement, data: NovelTimelineData, host: NovelViewHost) {
   const meta = page.inner.querySelector('.doc-meta')!;
   const { info } = page;
+  // the reader's page stays in the URL, so 阅读 returns to it
+  const timeline = (hash: string) => esc(host.href({ view: 'timeline', doc: page.path, hash }));
   if (info.kind === 'owner' || info.kind === 'record') {
     const line = data.owners.find((owner) => owner.id === info.owner);
     if (line) {
       meta.insertAdjacentHTML('beforeend', `<span class="pill">${line.pts.length} 个事件</span>` +
-        `<a class="pill accent" href="${esc(host.href({ view: 'timeline', doc: '', hash: `#line-${line.id}` }))}" data-novel-view="timeline">在时间线中看这条线 →</a>`);
+        `<a class="pill accent" href="${timeline(`#line-${line.id}`)}" data-novel-view="timeline">在时间线中看这条线 →</a>`);
     }
   } else if (info.event) {
     const pid = Object.keys(data.points).find((id) => id.split('@')[0] === info.event);
     if (pid) {
       meta.insertAdjacentHTML('beforeend', `<span class="pill">${esc(data.bands[data.points[pid].b] ?? '')}</span>` +
-        `<a class="pill accent" href="${esc(host.href({ view: 'timeline', doc: '', hash: `#p-${pid}` }))}" data-novel-view="timeline">在时间线中定位 →</a>`);
+        `<a class="pill accent" href="${timeline(`#p-${pid}`)}" data-novel-view="timeline">在时间线中定位 →</a>`);
     }
   } else if (info.kind === 'chapter') {
     const prefix = `C${info.chapter}#`;
