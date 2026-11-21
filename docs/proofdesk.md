@@ -48,7 +48,7 @@ Step = { status, attempt?, chat?, job?, error?, at? }
 - 网页只写两种东西：新请求（两项都是 `queued`），和重新发送（把整条或某一项的 `status` 改回 `queued`）。其余字段都由后台用服务账号写；数据库规则（FamilyHub 的 `database.rules.json`）不许成员写 `sending` 以后的状态、`fetch`、`error`、`reports`，也不许改已存的新稿。
 - `report` 是收到的回复原文，`parsed` 是读出的结果（JSON 字符串；读不出来时没有）。页面显示时以原文为准重新读一遍。
 
-**后台留档的** 私有仓库 `samidore/sami-writing-desk-data` 的 `proofdesk/<slug>/<id>/`：
+**后台留档的** 私有仓库 `samidore/sami-writing-desk-data` 分支 `proofdesk-store` 的 `proofdesk/<slug>/<id>/`：
 
 | 文件 | 内容 |
 | --- | --- |
@@ -59,10 +59,10 @@ Step = { status, attempt?, chat?, job?, error?, at? }
 
 ## 后台
 
-`samidore/Protocols` 的 `proofdesk/watch.py`（像 Runner 一样由计划任务启动，用法见那里的 `proofdesk/README.md`）。每隔几秒查一次 `status` 为 `queued`/`sending`/`sent` 的记录：
+`samidore/Protocols` 的 `proofdesk/watch.py`（像 Runner 一样由计划任务启动，用法见那里的 `proofdesk/README.md`）。跟着数据库的实时推送，每 10 秒推进一次 `status` 为 `queued`/`sending`/`sent` 的记录：
 
 1. 先把记录标成 `sending`，这样同一请求不会被取两次。
-2. Drive 来源先开一个 ChatGPT 对话取稿，取到后把 `draft` 写回数据库。
+2. Drive 来源先开一个 ChatGPT 对话取稿（以 Drive 上 `ChatGPT Manuscript` 里这本书的文件夹为准），取到后把 `draft` 写回数据库；找不到时记录失败，原因写在 `error`。
 3. 两项并行发送，各自记 `checks.<check>`（对话链接或 Luna 任务号）；同时最多一个 ChatGPT 对话、一个 Luna 在跑。
 4. 等报告出现在 data 仓库（默认最多 60 分钟），用和网页相同的规则读，把原文和读出的结果写进 `reports`。
 5. 两项都结束：都完成为 `done`；有一项失败为 `failed`，`error` 写明是哪一项、为什么。
