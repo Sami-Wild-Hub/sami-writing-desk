@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { findQuote, paraNumber, splitParagraphs } from '../src/lib/views/proof/paragraphs.ts';
 import { parseReport, placeItems } from '../src/lib/views/proof/report.ts';
-import { proofTask } from '../src/lib/views/proof/task.ts';
+import { newId, queuedRecord, reportsOf } from '../src/lib/views/proof/store.ts';
+import { CHECKS, TASKS, manuscriptTask, openTask } from '../src/lib/views/proof/task.ts';
+
+const cli = fileURLToPath(new URL('../src/lib/views/proof/cli.ts', import.meta.url));
 
 const item = { para: 'P2', quote: '铜钥匙', kind: '物品', level: '冲突', issue: '钥匙前文已交出。', evidence: ['事件编号'] };
 const reply = (body) => `好的：\n\`\`\`json\n${JSON.stringify(body, null, 2)}\n\`\`\`\n还需要什么告诉我。`;
@@ -26,21 +31,61 @@ test('paragraph labels and quotes are matched loosely across whitespace', () => 
   assert.equal(findQuote(text, ' '), null);
 });
 
-test('the task names the book, the rules and the reply format, then the numbered draft', () => {
-  const task = proofTask({ slug: 'maritime-story', title: 'C23 "初稿"', paras: splitParagraphs('甲。\n\n乙。') });
-  assert.match(task, /leahthemule\/novel-knowledge-base（main 分支）的 novels\/maritime-story\//);
-  assert.match(task, /contracts\/shared\/kb-use\/overview\.md/);
-  assert.match(task, /不要通读整个仓库/);
-  assert.match(task, /不查语病、文风、修辞/);
-  for (const kind of ['时间线', '人物', '知情', '地点', '物品', '时代', '情节']) assert.ok(task.includes(kind), kind);
-  assert.ok(task.includes('{"title": "C23 \\"初稿\\"", "items": ['), 'the title is JSON-quoted in the format line');
-  assert.ok(task.endsWith('新稿：\n[P1] 甲。\n[P2] 乙。\n'));
+test('both tasks name the book, the rules and the reply format, then the numbered draft', () => {
+  const input = { slug: 'maritime-story', title: 'C23 "初稿"', paras: splitParagraphs('甲。\n\n乙。') };
+  const open = openTask(input);
+  assert.match(open, /leahthemule\/novel-knowledge-base（main 分支）的 novels\/maritime-story\//);
+  assert.match(open, /contracts\/shared\/kb-use\/overview\.md/);
+  assert.match(open, /不要通读整个仓库/);
+  const manuscript = manuscriptTask(input);
+  assert.match(manuscript, /novels\/maritime-story\/manuscript\//);
+  assert.match(manuscript, /只读这个目录，不改、不提交任何文件/);
+  assert.match(manuscript, /和旧版本不同本身也不算错/);
+  for (const task of [open, manuscript]) {
+    assert.match(task, /不查语病、文风、修辞/);
+    for (const kind of ['时间线', '人物', '知情', '地点', '物品', '时代', '情节']) assert.ok(task.includes(kind), kind);
+    assert.ok(task.includes('{"title": "C23 \\"初稿\\"", "items": ['), 'the title is JSON-quoted in the format line');
+    assert.ok(task.endsWith('新稿：\n[P1] 甲。\n[P2] 乙。\n'));
+  }
 });
 
-test('docs/proofdesk.md shows the task text verbatim', async () => {
-  const docs = await readFile(new URL('../docs/proofdesk.md', import.meta.url), 'utf8');
-  const sample = proofTask({ slug: 'maritime-story', title: 'C23 初稿', paras: splitParagraphs('（新稿第一段）\n（新稿第二段）') });
-  assert.ok(docs.replaceAll('\r\n', '\n').includes(`\`\`\`text\n${sample}\`\`\``), 'docs/proofdesk.md is out of date with task.ts');
+test('docs/proofdesk.md shows both task texts verbatim', async () => {
+  const docs = (await readFile(new URL('../docs/proofdesk.md', import.meta.url), 'utf8')).replaceAll('\r\n', '\n');
+  const input = { slug: 'maritime-story', title: 'C23 初稿', paras: splitParagraphs('（新稿第一段）\n（新稿第二段）') };
+  for (const check of CHECKS) assert.ok(docs.includes(`\`\`\`text\n${TASKS[check](input)}\`\`\``), `docs/proofdesk.md is out of date with task.ts (${check})`);
+});
+
+test('the watcher CLI prints a task, reads a reply, and refuses an empty draft', () => {
+  const run = (args, input) => spawnSync(process.execPath, [cli, ...args], { input, encoding: 'utf8' });
+  const task = run(['task'], JSON.stringify({ check: 'manuscript', slug: 'maritime-story', title: 'T', draft: '# 第1章\n甲。' }));
+  assert.equal(task.status, 0);
+  assert.equal(task.stdout, manuscriptTask({ slug: 'maritime-story', title: 'T', paras: splitParagraphs('甲。') }));
+  assert.deepEqual(JSON.parse(run(['report'], reply({ items: [item] })).stdout), parseReport(reply({ items: [item] })));
+  const empty = run(['task'], JSON.stringify({ check: 'open', slug: 's', title: 'T', draft: '# 只有标题' }));
+  assert.equal(empty.status, 2);
+  assert.match(empty.stderr, /没有可编号的段落/);
+  assert.equal(run(['task'], JSON.stringify({ check: 'nope', slug: 's', title: 'T', draft: '甲' })).status, 2);
+  assert.equal(run([], '').status, 2);
+});
+
+test('a new request queues both checks and keeps only its own source', () => {
+  const base = { id: 'x', title: 'T', createdAt: 5, draft: '甲', driveName: '第22章' };
+  assert.deepEqual(queuedRecord({ ...base, source: 'paste' }), {
+    id: 'x', title: 'T', createdAt: 5, updatedAt: 5, source: 'paste', draft: '甲', status: 'queued',
+    checks: { manuscript: { status: 'queued' }, open: { status: 'queued' } },
+  });
+  const drive = queuedRecord({ ...base, source: 'drive' });
+  assert.equal(drive.driveName, '第22章');
+  assert.equal('draft' in drive, false);
+  assert.match(newId(Date.UTC(2026, 10, 21, 15, 30, 12)), /^20261121-153012-[0-9a-f]{4}$/);
+});
+
+test('reports are listed oldest first, per check', () => {
+  const r = (id, check, createdAt) => ({ id, check, attempt: 1, createdAt, report: '' });
+  const record = { reports: { b: r('b', 'open', 3), a: r('a', 'manuscript', 2), c: r('c', 'open', 1) } };
+  assert.deepEqual(reportsOf(record).map((x) => x.id), ['c', 'a', 'b']);
+  assert.deepEqual(reportsOf(record, 'open').map((x) => x.id), ['c', 'b']);
+  assert.deepEqual(reportsOf({}), []);
 });
 
 test('a reply is read from a code fence with chatter around it', () => {

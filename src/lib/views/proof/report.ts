@@ -1,6 +1,7 @@
-// Reads the report pasted back from ChatGPT: takes the first JSON object out of the text
-// (a code fence or chatter around it is fine), checks its shape, and keeps every item,
-// noting what is wrong with it instead of dropping it. placeItems ties items to the draft.
+// Reads a check's reply (the page and the host watcher, via cli.ts, use the same rules):
+// takes the first JSON object out of the text (a code fence or chatter around it is fine),
+// checks its shape, and keeps every item, noting what is wrong with it instead of dropping
+// it. placeItems ties items to the draft.
 import { findQuote, paraNumber, type Para } from './paragraphs.ts';
 import { KINDS, LEVELS } from './task.ts';
 
@@ -79,8 +80,8 @@ export function parseReport(pasted: string): ReportResult {
   return { ok: true, report: { title: text(value.title), summary: text(value.summary), items: value.items.map(readItem) } };
 }
 
-export interface PlacedItem {
-  item: ReportItem;
+export interface PlacedItem<T extends ReportItem = ReportItem> {
+  item: T;
   /** Index into the draft's paragraphs, or -1 when the item names no paragraph of this draft. */
   at: number;
   /** Where the quote is in that paragraph; null when it is not found there. */
@@ -88,12 +89,12 @@ export interface PlacedItem {
 }
 
 /** Items tied to their paragraph and quote, in the draft's order (unplaced ones last). */
-export function placeItems(paras: Para[], items: ReportItem[]): PlacedItem[] {
+export function placeItems<T extends ReportItem>(paras: Para[], items: T[]): PlacedItem<T>[] {
   const placed = items.map((item) => {
     const at = paraNumber(item.para) - 1;
     const para = paras[at];
     return { item, at: para ? at : -1, range: para ? findQuote(para.text, item.quote) : null };
   });
-  const key = (p: PlacedItem) => (p.at < 0 ? Infinity : p.at * 1e6 + (p.range?.[0] ?? 0));
+  const key = (p: PlacedItem<T>) => (p.at < 0 ? Infinity : p.at * 1e6 + (p.range?.[0] ?? 0));
   return placed.sort((a, b) => (key(a) - key(b)) || 0);
 }

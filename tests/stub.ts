@@ -76,10 +76,12 @@ async function database() {
   return { households: { [stub.householdId]: { members: { [reader.uid]: { email: reader.email } }, settings: { enrollmentOpen: false }, novelArchive: { catalog, books } } } } as Tree;
 }
 
-/** Stubs Firebase for `page`; returns the database paths the page reads. */
+/** Stubs Firebase for `page`; returns the database paths the page reads, with `server(path,
+ * value)` to change the tree as another writer would (the page's live listeners hear it). */
 export async function stubFirebase(page: Page, { signedIn = true } = {}) {
   const db = await database();
   const reads: string[] = [];
+  const listens = new Map<{ send(data: unknown): void }, Set<string>>();
   const at = (path: string) => path.split('/').filter(Boolean).reduce<unknown>((node, key) => (node as Tree | null)?.[key] ?? null, db);
   const put = (path: string, value: unknown) => {
     const keys = path.split('/').filter(Boolean);
@@ -105,6 +107,10 @@ export async function stubFirebase(page: Page, { signedIn = true } = {}) {
   }] } }));
   await page.routeWebSocket(/firebaseio\.com/, (ws) => {
     const send = (data: unknown) => ws.send(JSON.stringify({ t: 'd', d: data }));
+    const paths = new Set<string>();
+    const socket = { send };
+    listens.set(socket, paths);
+    ws.onClose(() => listens.delete(socket));
     ws.send(JSON.stringify({ t: 'c', d: { t: 'h', d: { ts: Date.now(), v: '5', h: new URL(ws.url()).host, s: 'stub-session' } } }));
     ws.onMessage((message) => {
       let frame: { t?: string; d?: { r: number; a: string; b: { p?: string; d?: unknown } } };
@@ -112,14 +118,23 @@ export async function stubFirebase(page: Page, { signedIn = true } = {}) {
       if (frame?.t !== 'd' || !frame.d) return;
       const { r, a, b } = frame.d;
       if (b.p) reads.push(b.p);
-      // Writes (set, update, remove) change the tree, so they survive a reload in the same test.
-      if (a === 'p') put(b.p!, b.d);
-      if (a === 'm') Object.entries(b.d as Tree).forEach(([key, value]) => put(`${b.p}/${key}`, value));
-      if (a === 'q') send({ a: 'd', b: { p: b.p, d: at(b.p!) } });
+      // Writes (set, update, remove) change the tree, so they survive a reload in the same test;
+      // like the real server, listeners hear the new data before the write is acknowledged.
+      if (a === 'p') server(b.p!, b.d);
+      if (a === 'm') Object.entries(b.d as Tree).forEach(([key, value]) => server(`${b.p}/${key}`, value));
+      if (a === 'q') { paths.add(b.p!); send({ a: 'd', b: { p: b.p, d: at(b.p!) } }); }
+      if (a === 'n') paths.delete(b.p!);
       send({ r, b: { s: 'ok', d: a === 'g' ? at(b.p!) : {} } });
     });
   });
-  return reads;
+  const server = (path: string, value: unknown) => {
+    put(path, value);
+    const norm = (p: string) => `/${p.split('/').filter(Boolean).join('/')}/`;
+    for (const [socket, paths] of listens) {
+      for (const p of paths) if (norm(path).startsWith(norm(p)) || norm(p).startsWith(norm(path))) socket.send({ a: 'd', b: { p, d: at(p) } });
+    }
+  };
+  return Object.assign(reads, { server, at });
 }
 
 /** Collects uncaught page errors and console errors. */

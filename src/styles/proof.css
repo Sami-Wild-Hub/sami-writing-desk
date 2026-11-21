@@ -1,4 +1,4 @@
-/* 校稿台: history in the side column; the form, the two steps, and the proof view —
+/* 校稿台: history in the side column; the form, the record's progress, and the proof view —
    numbered draft on the left, each item beside its paragraph on the right. Phones stack:
    items as a list first (tap to jump), then the draft with the quotes marked. */
 .proof .side .new { color: var(--accent-ink); font-weight: 600; }
@@ -26,23 +26,39 @@
 .btn.file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .perr { max-width: 60rem; margin: .6rem 0; padding: .6rem .8rem; border-radius: 9px; background: #fbe4df; color: #8a2a1c; font-size: .9375rem; }
 
-/* the two steps */
-.step { max-width: 60rem; margin: 0 0 1rem; padding: .9rem 1rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.step h3 { display: inline-flex; align-items: center; gap: .5rem; margin: 0; font-size: 1rem; }
-.step h3 b { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 50%;
-  background: var(--accent); color: #fff; font-size: .8125rem; }
-details.step > summary { cursor: pointer; list-style: none; }
-details.step > summary::-webkit-details-marker { display: none; }
-details.step > summary::after { content: '展开'; margin-left: .6rem; color: var(--ink-3); font-size: .8125rem; }
-details.step[open] > summary::after { content: '收起'; }
-details.step[open] > summary { margin-bottom: .6rem; }
-.step .task { margin-top: .3rem; }
-.step .task summary { color: var(--ink-3); font-size: .875rem; cursor: pointer; }
-.step .task textarea { margin-top: .4rem; color: var(--ink-2); font-size: .875rem; }
+.psource { margin-bottom: 1rem; }
+.btn.small { height: 1.875rem; padding: 0 .6rem; font-size: .8125rem; }
+
+/* the record's progress: one line per step */
+.pstatus { max-width: 60rem; margin: 0 0 1rem; padding: .8rem 1rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.pstatus-head { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .7rem; }
+.pstatus-head .hint { margin: 0; }
+.pstatus-head .sp { flex: 1; }
+.pstatus ol { margin: .6rem 0 0; padding: 0; list-style: none; }
+.pstep { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .7rem; padding: .55rem 0; border-top: 1px solid var(--line); }
+.pname { display: flex; flex: 1 1 14rem; flex-direction: column; min-width: 0; }
+.pname b { font-size: .9375rem; }
+.pname small { color: var(--ink-3); font-size: .8125rem; }
+.pref { font-size: .875rem; }
+.pref a { color: var(--accent-ink); font-weight: 600; text-decoration: none; }
+.pref a:hover { text-decoration: underline; }
+.pref code { padding: 0 .35rem; border-radius: 5px; background: var(--sunk); font-size: .8125rem; }
+.pstep .perr { flex-basis: 100%; margin: .2rem 0 0; }
+.pst { display: inline-flex; align-items: center; justify-content: center; min-width: 3.4rem; min-height: 1.6rem; padding: 0 .55rem;
+  border-radius: 999px; background: var(--sunk); color: var(--ink-2); font-size: .8125rem; font-weight: 700; }
+.pst.st-sending, .pst.st-sent { background: var(--accent-soft); color: var(--accent-ink); }
+.pst.st-sent::before { content: ''; width: .45rem; height: .45rem; margin-right: .35rem; border-radius: 50%; background: currentColor; animation: ppulse 1.6s ease-in-out infinite; }
+.pst.st-done { background: #e2efe3; color: #2b5e33; }
+.pst.st-failed { background: #fbe4df; color: #8a2a1c; }
+@keyframes ppulse { 50% { opacity: .25; } }
 
 /* result head */
 .result { margin-top: 1.5rem; scroll-margin-top: calc(var(--bar-h) + .75rem); }
-.rtabs { flex-wrap: wrap; margin-bottom: .75rem; }
+.pfilter, .rtabs { flex-wrap: wrap; margin: 0 .5rem .75rem 0; }
+.seg-label { display: inline-flex; align-items: center; padding: 0 .5rem; color: var(--ink-3); font-size: .875rem; font-weight: 700; }
+.pitem .src { display: inline-flex; align-items: center; min-height: 1.6rem; padding: 0 .55rem; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-ink); font-size: .8125rem; font-weight: 600; }
+.pitem[data-check="open"] .src { background: #ece6f3; color: #4b3a6b; }
 .pcount { margin: 0 0 .5rem; font-size: 1rem; font-weight: 600; }
 .pcount .warn, .pitem .warn { color: #8a2a1c; }
 .psum { max-width: 60rem; margin: 0 0 .75rem; color: var(--ink-2); }
@@ -90,7 +106,7 @@ details.step[open] > summary { margin-bottom: .6rem; }
   .phead h2 { flex: 1 1 0; min-width: 0; font-size: 1.1875rem; }
   .phead .sp { display: none; }
   .phead .meta { order: 5; flex-basis: 100%; }
-  .step { padding: .75rem; }
+  .pstatus { padding: .7rem .75rem; }
   .plist { display: flex; flex-direction: column; gap: .6rem; margin-bottom: 1.25rem; }
   .prow { display: block; padding: .45rem 0; }
   .prow .pnotes { display: none; }
@@ -99,4 +115,4 @@ details.step[open] > summary { margin-bottom: .6rem; }
   .ptext .pn { position: static; display: inline-block; width: auto; margin-right: .4em; vertical-align: 1px; }
   .plist .pitem { scroll-margin-top: calc(var(--bar-h) + 1rem); }
 }
-@media (prefers-reduced-motion: reduce) { .pitem.flash, .ptext mark.flash, .ptext.flash { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .pitem.flash, .ptext mark.flash, .ptext.flash, .pst.st-sent::before { animation: none; } }
