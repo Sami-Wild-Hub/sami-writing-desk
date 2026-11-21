@@ -42,7 +42,7 @@ class TimelinePanel {
     host.root.append(frame);
     const q = <T extends HTMLElement>(s: string) => frame.querySelector<T>(s)!;
     this.el = { side: q('.side'), body: q('.side-body'), tools: q('.tools'), strip: q('.strip'), now: q('.now'), tl: q('.tl'), rows: q('.rows'), find: q('.find'), cnt: q('.cnt'), dens: q('.dens') };
-    this.svg = frame.querySelector('svg')!;
+    this.svg = frame.querySelector('.tl svg')!;
     this.el.side.prepend(host.sideHead());
     q<HTMLInputElement>('.find input').value = this.st.q;
     this.el.find.classList.toggle('has-q', Boolean(this.st.q));
