@@ -35,13 +35,15 @@ function stepHtml(name: string, about: string, step: Step, resend: Check | '') {
     `<span class="pref">${link}${job}</span>${again}${step.error ? `<p class="perr">${esc(step.error)}</p>` : ''}</li>`;
 }
 
-/** The record's progress: one line per step, with links, reasons and resend buttons. */
+/** The record's progress: one line per step, with links, reasons and, once the record has
+ * ended (the watcher is not working on it), resend buttons. */
 export function statusHtml(record: ProofRecord) {
+  const ended = ENDED.includes(record.status);
   const steps = [
     record.source === 'drive' && record.fetch ? stepHtml(`取稿：${record.driveName ?? ''}`, ABOUT.fetch, record.fetch, '') : '',
-    ...CHECKS.map((c) => stepHtml(`${MARK[c]} ${NAME[c]}`, ABOUT[c], record.checks?.[c] ?? { status: 'queued' }, c)),
+    ...CHECKS.map((c) => stepHtml(`${MARK[c]} ${NAME[c]}`, ABOUT[c], record.checks?.[c] ?? { status: 'queued' }, ended ? c : '')),
   ];
-  const all = ENDED.includes(record.status) ? '<button type="button" class="btn" data-resend="">全部重新发送</button>' : '';
+  const all = ended ? '<button type="button" class="btn" data-resend="">全部重新发送</button>' : '';
   return `<section class="pstatus" aria-label="校稿进度" aria-live="polite"><div class="pstatus-head">${badge(record.status)}` +
     `<span class="hint">${record.status === 'done' ? '两项校验都已完成。' : record.status === 'failed' ? '有一项没完成，见下面的原因。' : '后台处理中，结果回来会自动显示。'}</span><span class="sp"></span>${all}</div>` +
     `${record.error ? `<p class="perr" role="alert">${esc(record.error)}</p>` : ''}<ol>${steps.join('')}</ol></section>`;
