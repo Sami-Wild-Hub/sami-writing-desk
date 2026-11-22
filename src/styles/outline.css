@@ -149,6 +149,7 @@
 .outline-view .control-grid { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .5rem .75rem; margin-top: .3rem; padding: .55rem .6rem; border-radius: 8px; background: var(--bg); }
 .outline-view .control-grid label { display: grid; gap: .15rem; color: var(--ink-3); font-size: .6875rem; font-weight: 600; }
 .outline-view .control-grid .delete-item { margin-left: auto; }
+.outline-view .pending-destination select { flex: 1 1 16rem; min-width: 0; }
 .outline-view .pending-title { color: var(--ink-3); font-size: .75rem; }
 
 /* ---------- inline editors and composers ---------- */

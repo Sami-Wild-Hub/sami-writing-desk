@@ -32,6 +32,7 @@ this.noticeKind = '';
 this.editing = null;
 this.composer = null;
 this.showOriginal = false;
+this.showWritten = { RELATIONSHIP: false, EVENT: false };
 this.disposed = false;
 this.online = () => { if (this.pendingWorkspace && (this.retrySave || this.localDirty)) { this.retrySave = false; this.queueCloudSave(); } };
 window.addEventListener('online', this.online);
@@ -65,6 +66,7 @@ this.removeUnit = this.model.removeUnit;
 this.reorder = this.model.reorder;
 this.switchKind = this.model.switchKind;
 this.switchEra = this.model.switchEra;
+this.toLibrary = this.model.toLibrary;
 this.wireDelegated();
 this.wireActions();
 this.sync();
@@ -217,7 +219,7 @@ downloadKept = async () => {
 };
 sync = () => {
   ({ data: this.data, state: this.state, storyMap: this.storyMap, unitMap: this.unitMap, activeBeat: this.activeBeat } = this.model);
-  this.templates = outlineTemplates(this.root, this.model, { openGroups: this.openGroups, searchText: this.searchText, showOriginal: this.showOriginal }, this.config);
+  this.templates = outlineTemplates(this.root, this.model, { openGroups: this.openGroups, searchText: this.searchText, showOriginal: this.showOriginal, showWritten: this.showWritten }, this.config);
  };
 render = () => {
   this.discardComposer(); this.sync(); this.model.refreshDerived();
@@ -308,16 +310,20 @@ this.root.addEventListener('click',e=>{
  const delGroup=e.target.closest('[data-delete-group]');if(delGroup){this.deleteNewGroup(delGroup.dataset.deleteGroup);return}
  const nav=e.target.closest('[data-choose-beat]');if(nav){this.model.activeBeat=nav.dataset.chooseBeat;this.sync();this.discardComposer();this.render();this.host.setDrawer(false);this.report('已切换至 '+this.activeBeat);return}
  const moveHere=e.target.closest('[data-move-here]');if(moveHere){this.discardComposer();this.moveUnit(moveHere.dataset.moveHere,this.activeBeat);return}
-  const add=e.target.closest('[data-add]');if(add){this.discardComposer();this.assign(add.dataset.add,this.activeBeat,add.dataset.era);return}
+  const add=e.target.closest('[data-add]');if(add){this.discardComposer();this.assign(add.dataset.add,this.activeBeat);return}
  const rem=e.target.closest('[data-remove]');if(rem){this.discardComposer();this.removeUnit(rem.dataset.remove);return}
  const step=e.target.closest('[data-step]');if(step){this.discardComposer();this.reorder(step.dataset.id,Number(step.dataset.step));return}
  const summary=e.target.closest('summary.group-summary');if(summary&&!this.searchText[summary.parentElement.dataset.kind]){const d=summary.parentElement,kind=d.dataset.kind,gid=d.dataset.group;if(d.open)this.openGroups[kind].delete(gid);else this.openGroups[kind].add(gid)}
 });
-this.root.addEventListener('submit',e=>{const form=e.target.closest('form[data-composer-type]');if(!form)return;e.preventDefault();this.submitComposer(form)});
+this.root.addEventListener('submit',e=>{
+ const pending=e.target.closest('form[data-to-library]');
+ if(pending){e.preventDefault();const [kind,...group]=pending.elements.namedItem('destination').value.split(':');this.toLibrary(pending.dataset.toLibrary,group.join(':'),kind,e.submitter?.value);return}
+ const form=e.target.closest('form[data-composer-type]');if(!form)return;e.preventDefault();this.submitComposer(form)});
 this.root.addEventListener('change',e=>{
  if(this.editing&&!e.target.closest('.inline-editor')&&!this.finishInline(true))return;
  if(e.target.matches('[data-move]')){const id=e.target.dataset.move,dest=e.target.value;e.target.value='';if(dest)this.moveUnit(id,dest);return}
  if(e.target.matches('[data-switch-kind]')){this.switchKind(e.target.dataset.switchKind,e.target.value);return}
+ if(e.target.matches('[data-show-written]')){this.showWritten[e.target.dataset.showWritten]=e.target.checked;this.render();return}
  if(e.target.matches('[data-switch-era]')){this.switchEra(e.target.dataset.switchEra,e.target.value);return}
   if(e.target.matches('[data-editorial-status]')){const u=this.unitMap[e.target.dataset.editorialStatus];if(u?.is_editorial_element){this.snapshot();u.status=e.target.value;this.saveLocal();this.render();this.report('写作状态已更新。')}return}
 });

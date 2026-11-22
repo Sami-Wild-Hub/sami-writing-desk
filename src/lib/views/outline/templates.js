@@ -2,7 +2,7 @@
 import { esc as html } from '../../archive/ui.ts';
 export function outlineTemplates(root, model, ui, config) {
  const { data, state, storyMap, unitMap, activeBeat, undoHistory, kindOf, placedList, orderedSelected, used } = model;
- const { openGroups, searchText, showOriginal } = ui;
+ const { openGroups, searchText, showOriginal, showWritten } = ui;
  const $ = id => root.querySelector(`[id="${html(id)}"]`);
  const timeOrder = ['CURRENT','PAST'];
  const acts = [...new Set(data.beats.map(b=>b.act))];
@@ -60,8 +60,11 @@ function candidateCard(u){if(u.is_editorial_element)return editorialCard(u,false
 function groupEligible(group,kind){return (group.kinds||[]).includes(kind)||group.default_kind===kind||data.plot_units.some(u=>u.storyline_group_id===group.id&&kindOf(u)===kind)}
 function renderLibrary(kind){const q=searchText[kind].trim().toLocaleLowerCase();let items=[],count=0;
  for(const group of data.storyline_groups){if(!groupEligible(group,kind))continue;if(!showOriginal&&!group.is_custom&&!data.plot_units.some(u=>u.is_editorial_element&&u.storyline_group_id===group.id&&kindOf(u)===kind))continue;
-  const available=data.plot_units.filter(u=>u.storyline_group_id===group.id&&u.era!=='UNASSIGNED'&&kindOf(u)===kind&&(u.is_editorial_element?(!used(u.unit_id)||state.placements[u.unit_id].beat_id!==activeBeat):showOriginal&&!used(u.unit_id)));
+  const hidden=u=>!showWritten[kind]&&u.is_editorial_element&&u.status==='WRITTEN';
+  const available=data.plot_units.filter(u=>u.storyline_group_id===group.id&&!hidden(u)&&u.era!=='UNASSIGNED'&&kindOf(u)===kind&&(u.is_editorial_element?(!used(u.unit_id)||state.placements[u.unit_id].beat_id!==activeBeat):showOriginal&&!used(u.unit_id)));
   const matched=available.filter(u=>!q||group.title.toLowerCase().includes(q)||(group.summary||'').toLowerCase().includes(q)||u.content.toLowerCase().includes(q)||String(u.element_title||'').toLowerCase().includes(q)||(u.details||[]).join(' ').toLowerCase().includes(q)||u.unit_id.toLowerCase().includes(q));
+  const elements=data.plot_units.filter(u=>u.is_editorial_element&&u.storyline_group_id===group.id&&kindOf(u)===kind);
+  if(!available.length&&elements.length&&elements.every(hidden))continue;
   if(q&&!matched.length&&!group.title.toLowerCase().includes(q)&&!(group.summary||'').toLowerCase().includes(q))continue;
   count+=matched.length;
   const sections=timeOrder.map(era=>{const xs=matched.filter(u=>u.era===era).sort((a,b)=>a.sequence-b.sequence||a.unit_id.localeCompare(b.unit_id));
@@ -73,8 +76,11 @@ function renderLibrary(kind){const q=searchText[kind].trim().toLocaleLowerCase()
  $((kind==='RELATIONSHIP'?'rel':'event')+'-left').textContent=`${count} 个可选`;
  return items.length?items.join(''):'<div class="empty">暂无匹配故事线。点击上方「＋ 新建故事线」。</div>';
 }
-function renderPending(){const xs=data.plot_units.filter(u=>u.era==='UNASSIGNED'&&!used(u.unit_id));$('pending-count').textContent=xs.length;
- $('pending-list').innerHTML=xs.length?xs.map(u=>`<article class="pending-card" data-pending-id="${html(u.unit_id)}"><div class="pending-title">${html(storyMap[u.storyline_group_id]?.title)} · ${html(u.unit_id)} · 顺序 #${u.sequence}</div><div class="pending-text">${editUnitText(u)}</div><div class="card-foot">${sourceDetails(u)}<div class="cardactions"><button class="pick" data-add="${html(u.unit_id)}" data-era="CURRENT">＋ 选入 Current</button><button class="pick" data-add="${html(u.unit_id)}" data-era="PAST">＋ 选入 Past</button>${kindSelect(u)}${eraSelect(u)}${u.is_custom?`<button class="delete-item" data-delete-unit="${html(u.unit_id)}">删除新增</button>`:''}</div></div></article>`).join(''):'<div class="empty">没有待定时间的情节点</div>';
+function destinationSelect(u){return `<select name="destination" required aria-label="${html(u.unit_id)} 放入的故事线"><option value="">选择故事线…</option>${['RELATIONSHIP','EVENT'].map(kind=>`<optgroup label="${kind==='RELATIONSHIP'?'Relationship':'Events'} 素材">${data.storyline_groups.filter(g=>groupEligible(g,kind)).map(g=>`<option value="${html(`${kind}:${g.id}`)}">${html(g.title)}</option>`).join('')}</optgroup>`).join('')}</select>`}
+// An original node leaves this list while an Element cites it; deleting that Element brings it back.
+function renderPending(){const cited=new Set(data.plot_units.filter(u=>u.is_editorial_element).flatMap(u=>u.source_unit_ids||[]));
+ const xs=data.plot_units.filter(u=>u.era==='UNASSIGNED'&&!used(u.unit_id)&&(u.is_editorial_element||!cited.has(u.unit_id)));$('pending-count').textContent=xs.length;
+ $('pending-list').innerHTML=xs.length?xs.map(u=>`<article class="pending-card" data-pending-id="${html(u.unit_id)}"><div class="pending-title">${html(storyMap[u.storyline_group_id]?.title)} · ${html(u.unit_id)} · 顺序 #${u.sequence}</div><div class="pending-text">${editUnitText(u)}</div><div class="card-foot">${sourceDetails(u)}<form class="cardactions pending-destination" data-to-library="${html(u.unit_id)}">${destinationSelect(u)}<button class="pick" name="era" value="CURRENT">放入 Current</button><button class="pick" name="era" value="PAST">放入 Past</button>${u.is_custom?`<button type="button" class="delete-item" data-delete-unit="${html(u.unit_id)}">删除新增</button>`:''}</form></div></article>`).join(''):'<div class="empty">没有未确定的情节点</div>';
 }
 function renderCounts(){const rows=data.storylines.filter(s=>!s.is_custom).map(s=>{const xs=data.plot_units.filter(u=>u.storyline_id===s.id&&!u.is_custom),c=era=>xs.filter(u=>u.era===era).length;
  return `<tr><td>${html(s.title)}</td><td class="num">${c('CURRENT')}</td><td class="num">${c('PAST')}</td><td class="num">${c('UNASSIGNED')}</td><td class="num"><strong>${xs.length}</strong></td></tr>`}).join('');$('original-counts').innerHTML=rows}

@@ -128,3 +128,24 @@ test('F29,33–38: optional placement, deletion guards, confirmation cancellatio
   await root.locator('#clear-beat').click();
   await expect(root.locator('#status')).toContainText('没有已选节点');
 });
+
+test('the library hides written Elements on request and receives pending nodes before any Beat does', async ({ page }) => {
+  const root = await open(page);
+  await chooseBeat(page, root, 'A3-B1');
+  await expect(root.locator('#rel-left')).toHaveText('4 个可选');
+  await root.locator('[data-show-written="RELATIONSHIP"]').check();
+  await expect(root.locator('#rel-left')).toHaveText('5 个可选');
+  await root.locator('[data-show-written="RELATIONSHIP"]').uncheck();
+
+  await root.locator('#pending-box > summary').click();
+  const pending = root.locator('[data-pending-id="U002"]');
+  await expect(pending.locator('[data-add]')).toHaveCount(0);
+  await pending.locator('[name="destination"]').selectOption('RELATIONSHIP:G02');
+  await pending.getByRole('button', { name: '放入 Past' }).click();
+  await expect(root.locator('#pending-count')).toHaveText('0');
+  await expect(root.locator('.board .card')).toHaveCount(0);
+  const card = root.locator('#rel-groups [data-group="G02"] .card', { hasText: 'U002 fictional turn' });
+  await expect(card).toBeVisible();
+  await card.locator('[data-add]').click();
+  await expect(root.locator('#rel-selected [data-selected-era="PAST"] .card')).toContainText('U002 fictional turn');
+});

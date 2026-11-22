@@ -68,8 +68,6 @@ export async function exerciseOutline(page, root) {
   await root.locator('#rel-search').fill('U001');
   await root.locator('[data-add="U001"]').click();
   await root.locator('#rel-search').fill('');
-  await root.locator('#pending-box > summary').click();
-  await root.locator('[data-add="U002"][data-era="PAST"]').click();
   await root.locator('[data-create-after="E001"]').click();
   await compose(root, 'Follow-up', 'A later fictional turn');
   await root.locator('[data-create-storyline="EVENT"]').click();
