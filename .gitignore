@@ -6,3 +6,4 @@ test-results/
 playwright-report/
 sync/outline/config.json
 sync/outline/*.log
+sync/outline/data.git/
