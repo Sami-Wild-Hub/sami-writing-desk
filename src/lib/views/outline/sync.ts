@@ -28,7 +28,12 @@ export function subscribe(
 ) {
   const ref = bookRef(householdRef, slug);
   const onError = (error: Error) => fail?.(error);
-  return onValue(ref, (snapshot) => next(snapshot.val() as OutlineSyncState | null), onError);
+  let state: OutlineSyncState | null = null;
+  let coordinator: OutlineSyncState['_coordinator'] = null;
+  const emit = () => next(state ? { ...state, _coordinator: coordinator } : null);
+  const stopBook = onValue(ref, snapshot => { state = snapshot.val(); emit(); }, onError);
+  const stopCoordinator = onValue(householdRef('outlineSync/_coordinator'), snapshot => { coordinator = snapshot.val(); emit(); }, onError);
+  return () => { stopBook(); stopCoordinator(); };
 }
 
 async function decodePacked(source: PackedFiles | null | undefined): Promise<DecodedFiles | null> {
@@ -77,14 +82,18 @@ export async function save(
   householdRef: (path: string) => DatabaseReference,
   slug: string,
   workspace: { plot_data: unknown; plan: unknown },
-  options: { base: string; uid: string; over?: string; previous?: OutlineSyncState['live']; at?: number; revision?: () => string },
+  options: { base: string; uid: string; over?: string; previous?: OutlineSyncState['live']; current?: OutlineSyncState['live']; at?: number; revision?: () => string },
 ) {
   const files = workspaceFiles(workspace);
   const live = {
     rev: (options.revision ?? newRevision)(), base: options.base, at: options.at ?? Date.now(), by: 'web' as const,
     uid: options.uid, over: options.over ?? '', plot: await pack(files.plot), plan: await pack(files.plan),
   };
-  const values: Record<string, unknown> = { live };
+  const values: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(live)) {
+    if ((key === 'plot' || key === 'plan') && options.current && normalized(files[key]) === normalized(await unpack(options.current[key]))) continue;
+    values[`live/${key}`] = value;
+  }
   const kept = keptValue(options.previous, options.uid, live.at);
   if (kept) values.kept = kept;
   await update(bookRef(householdRef, slug), values);
@@ -105,12 +114,12 @@ export async function resolve(
     const incoming = await decodePacked(state.incoming);
     if (!incoming || !state.incoming) throw new Error('仓库版本不可用');
     return save(householdRef, slug, { plot_data: incoming.plot_data, plan: incoming.plan_data }, {
-      base: live.rev, uid: options.uid, over: state.incoming.tree, previous: live, at: options.at, revision: options.revision,
+      base: live.rev, uid: options.uid, over: state.incoming.tree, previous: live, current: live, at: options.at, revision: options.revision,
     });
   }
   const over = action === 'keep-web' ? state.incoming?.tree : action === 'fix-repo' ? state.head?.repo?.tree : '';
   return save(householdRef, slug, workspace, {
-    base: live.rev, uid: options.uid, over: over ?? '', previous: action === 'use-local' ? live : undefined,
+    base: live.rev, uid: options.uid, over: over ?? '', previous: action === 'use-local' ? live : undefined, current: live,
     at: options.at, revision: options.revision,
   });
 }

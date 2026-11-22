@@ -22,3 +22,19 @@ test('outline web reads canonical maritime-story data and exposes repository con
   await expect(root.locator('.draft-notice')).toContainText('仓库有新版');
   await expect(root.getByRole('button', { name: '保留网页版' })).toBeVisible();
 });
+
+test('outline entry is rechecked after a missing head becomes available', async ({ page }) => {
+  test.skip(!existsSync(dataRepo), 'public CI has no sibling data repository');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const reads = await stubFirebase(page, { canonical: true });
+  const path = 'households/novel-stub-house/outlineSync/maritime-story/head';
+  const head = reads.at(path); reads.server(path, null);
+  await page.goto('book/?book=maritime-story');
+  await expect(page.locator('[data-novel-view="outline"]')).toBeHidden();
+  reads.server(path, head);
+  await page.locator('.book[data-menu]').click();
+  await page.locator('[data-book-slug="second-book"]').click();
+  await page.locator('.book[data-menu]').click();
+  await page.locator('[data-book-slug="maritime-story"]').click();
+  await expect(page.locator('[data-novel-view="outline"]')).toBeVisible();
+});

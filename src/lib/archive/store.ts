@@ -10,29 +10,9 @@ import { newBook, parseCatalog, parseSearch, validateManifest, type BookInfo, ty
 export function createStore(session: FirebaseHouseholdSession, householdId: string) {
   const root = `households/${householdId}/novelArchive`;
   const syncRoot = `households/${householdId}/outlineSync`;
-  const cachePrefix = `swd:archive:${householdId}:`;
   let generation = 0;
   let catalog: Record<string, BookInfo> = {};
   let books = new Map<string, LoadedBook>();
-
-  const cacheKey = (path: string) => `${cachePrefix}${path}`;
-  const readCache = (path: string) => {
-    try {
-      const raw = globalThis.localStorage.getItem(cacheKey(path));
-      return raw === null ? undefined : JSON.parse(raw) as unknown;
-    } catch { return undefined; }
-  };
-  const writeCache = (path: string, value: unknown) => {
-    try { globalThis.localStorage.setItem(cacheKey(path), JSON.stringify(value)); } catch { /* best effort */ }
-  };
-  const clearCache = () => {
-    try {
-      for (let index = globalThis.localStorage.length - 1; index >= 0; index -= 1) {
-        const key = globalThis.localStorage.key(index);
-        if (key?.startsWith(cachePrefix)) globalThis.localStorage.removeItem(key);
-      }
-    } catch { /* best effort */ }
-  };
 
   /** The value at a path below novelArchive; undefined when cleared or signed out meanwhile. */
   const read = async (path: string) => {
@@ -45,34 +25,12 @@ export function createStore(session: FirebaseHouseholdSession, householdId: stri
     const snapshot = await get(ref(session.database, `${syncRoot}/${path}`));
     return at === generation && session.getStatus().connection === 'connected' ? snapshot.val() as unknown : undefined;
   };
-  const cachedRead = async (path: string) => {
-    try {
-      const value = await read(path);
-      if (value !== undefined) writeCache(path, value);
-      return value;
-    } catch (error) {
-      const value = readCache(path);
-      if (value !== undefined) return value;
-      throw error;
-    }
-  };
-  const cachedSyncRead = async (path: string) => {
-    try {
-      const value = await readSync(path);
-      if (value !== undefined) writeCache(`sync/${path}`, value);
-      return value;
-    } catch (error) {
-      const value = readCache(`sync/${path}`);
-      if (value !== undefined) return value;
-      throw error;
-    }
-  };
 
   return {
-    clear() { generation += 1; catalog = {}; books = new Map(); clearCache(); },
+    clear() { generation += 1; catalog = {}; books = new Map(); },
     catalog: () => catalog,
     async loadCatalog() {
-      const data = await cachedRead('catalog');
+      const data = await read('catalog');
       if (data === undefined) return undefined;
       catalog = parseCatalog(data);
       return catalog;
@@ -80,7 +38,7 @@ export function createStore(session: FirebaseHouseholdSession, householdId: stri
     async book(slug: string) {
       const cached = books.get(slug);
       if (cached) return cached;
-      const data = await cachedRead(`books/${slug}/manifest`);
+      const data = await read(`books/${slug}/manifest`);
       if (data === undefined) return undefined;
       const manifest = validateManifest(data);
       if (!manifest) throw new Error('小说索引缺失或格式无效');
@@ -101,13 +59,13 @@ export function createStore(session: FirebaseHouseholdSession, householdId: stri
     },
     // Outline presence and content come from outlineSync, never novelArchive.
     outlineHead(slug: string, book: LoadedBook) {
-      book.outlineHeadRead ??= cachedSyncRead(`${slug}/head`).then(raw => raw === undefined ? undefined : raw as OutlineSyncState['head']);
+      book.outlineHeadRead ??= readSync(`${slug}/head`).then(raw => raw === undefined ? undefined : raw as OutlineSyncState['head']);
       return book.outlineHeadRead.then(
-        data => { if (data === undefined) book.outlineHeadRead = undefined; return data; },
+        data => { if (data == null) book.outlineHeadRead = undefined; return data; },
         (error: unknown) => { book.outlineHeadRead = undefined; throw error; });
     },
     outline(slug: string, book: LoadedBook) {
-      book.outlineSyncRead ??= cachedSyncRead(slug).then(raw => raw === undefined ? undefined : raw as OutlineSyncState);
+      book.outlineSyncRead ??= readSync(slug).then(raw => raw === undefined ? undefined : raw as OutlineSyncState);
       return book.outlineSyncRead.then(
         data => { if (data === undefined) book.outlineSyncRead = undefined; return data; },
         (error: unknown) => { book.outlineSyncRead = undefined; throw error; });

@@ -58,24 +58,6 @@ export function googleIdentity(user: Pick<User, 'uid' | 'email' | 'emailVerified
 const popupFallbackCodes = new Set(['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/web-storage-unsupported']);
 export const shouldUseRedirectFallback = (error: unknown) => popupFallbackCodes.has((error as { code?: string } | null)?.code ?? '');
 
-const memberCacheKey = (projectId: string, householdId: string, uid: string) =>
-  `swd:member:${projectId}:${householdId}:${uid}`;
-
-function readMemberCache(projectId: string, householdId: string, uid: string) {
-  try {
-    const raw = globalThis.localStorage.getItem(memberCacheKey(projectId, householdId, uid));
-    return raw ? JSON.parse(raw) as { email?: string; displayName?: string; enrollmentOpen?: boolean } : null;
-  } catch { return null; }
-}
-
-function writeMemberCache(projectId: string, householdId: string, uid: string, value: { email: string; displayName?: string; enrollmentOpen: boolean }) {
-  try { globalThis.localStorage.setItem(memberCacheKey(projectId, householdId, uid), JSON.stringify(value)); } catch { /* best effort */ }
-}
-
-function clearMemberCache(projectId: string, householdId: string, uid: string) {
-  try { globalThis.localStorage.removeItem(memberCacheKey(projectId, householdId, uid)); } catch { /* best effort */ }
-}
-
 export class FirebaseHouseholdSession {
   readonly householdId: string;
   readonly app: FirebaseApp;
@@ -150,7 +132,6 @@ export class FirebaseHouseholdSession {
   async signOut() {
     this.stopMemberSubscription();
     await firebaseSignOut(this.auth);
-    if (this.uid) clearMemberCache(this.app.options.projectId!, this.householdId, this.uid);
     this.clearIdentity();
     this.showSignedOut();
   }
@@ -208,39 +189,28 @@ export class FirebaseHouseholdSession {
 
     const memberRef = ref(this.database, `households/${this.householdId}/members/${this.uid}`);
     const enrollmentRef = ref(this.database, `households/${this.householdId}/settings/enrollmentOpen`);
-    try {
-      const [member, enrollment] = await Promise.all([get(memberRef), get(enrollmentRef)]);
-      const enrollmentOpen = enrollment.val() === true;
+    const [member, enrollment] = await Promise.all([get(memberRef), get(enrollmentRef)]);
+    const enrollmentOpen = enrollment.val() === true;
 
-      if (member.child('email').val() === this.email) {
-        writeMemberCache(this.app.options.projectId!, this.householdId, this.uid, { email: this.email, displayName: member.child('displayName').val() ?? undefined, enrollmentOpen });
-        this.connectMember(memberRef, member.child('displayName').val(), enrollmentOpen);
-        return;
-      }
-      if (enrollmentOpen) {
-        await set(memberRef, { email: this.email });
-        writeMemberCache(this.app.options.projectId!, this.householdId, this.uid, { email: this.email, enrollmentOpen: true });
-        this.connectMember(memberRef, null, true);
-        return;
-      }
-
-      await set(ref(this.database, `households/${this.householdId}/accessRequests/${this.uid}`), { email: this.email });
-      this.setStatus({ connection: 'pending', label: '等待家庭管理员批准', uid: this.uid, email: this.email, enrollmentOpen: false });
-      this.unsubscribeMember = onValue(memberRef, (next) => {
-        if (this.disposed || next.child('email').val() !== this.email) return;
-        this.connectMember(memberRef, next.child('displayName').val(), false);
-      }, (error) => this.fail('成员权限检查失败', error));
-    } catch (error) {
-      const cached = readMemberCache(this.app.options.projectId!, this.householdId, this.uid);
-      if (cached?.email === this.email) {
-        this.connectMember(memberRef, cached.displayName, cached.enrollmentOpen === true, false);
-        return;
-      }
-      throw error;
+    if (member.child('email').val() === this.email) {
+      this.connectMember(memberRef, member.child('displayName').val(), enrollmentOpen);
+      return;
     }
+    if (enrollmentOpen) {
+      await set(memberRef, { email: this.email });
+      this.connectMember(memberRef, null, true);
+      return;
+    }
+
+    await set(ref(this.database, `households/${this.householdId}/accessRequests/${this.uid}`), { email: this.email });
+    this.setStatus({ connection: 'pending', label: '等待家庭管理员批准', uid: this.uid, email: this.email, enrollmentOpen: false });
+    this.unsubscribeMember = onValue(memberRef, (next) => {
+      if (this.disposed || next.child('email').val() !== this.email) return;
+      this.connectMember(memberRef, next.child('displayName').val(), false);
+    }, (error) => this.fail('成员权限检查失败', error));
   }
 
-  private connectMember(memberRef: DatabaseReference, rawDisplayName: unknown, enrollmentOpen: boolean, watchMember = true) {
+  private connectMember(memberRef: DatabaseReference, rawDisplayName: unknown, enrollmentOpen: boolean) {
     this.displayName = normalizeHouseholdDisplayName(rawDisplayName) ?? '';
     this.setStatus({
       connection: 'connected',
@@ -250,7 +220,6 @@ export class FirebaseHouseholdSession {
       displayName: this.displayName || undefined,
       enrollmentOpen,
     });
-    if (!watchMember) return;
     this.stopMemberSubscription();
     this.unsubscribeMember = onValue(memberRef, (next) => {
       if (this.disposed) return;

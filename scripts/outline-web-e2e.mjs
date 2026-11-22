@@ -15,8 +15,14 @@ const dataRepo = resolve(siteRepo, '..', 'sami-writing-desk-data-outline');
 const familyHub = resolve(siteRepo, '..', 'FamilyHub-outline-rules');
 const firebaseCli = join(familyHub, 'node_modules', 'firebase-tools', 'lib', 'bin', 'firebase.js');
 const astroCli = join(siteRepo, 'node_modules', 'astro', 'astro.js');
-const port = 9123;
-const previewPort = 4322;
+async function freePort() {
+  const server = net.createServer();
+  await new Promise((resolvePromise, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolvePromise); });
+  const number = server.address().port;
+  await new Promise(resolvePromise => server.close(resolvePromise));
+  return number;
+}
+const port = await freePort(), previewPort = await freePort(), hubPort = await freePort(), loggingPort = await freePort();
 
 async function command(cwd, args, options = {}) {
   const result = await exec('git', ['-C', cwd, '-c', 'core.autocrlf=false', ...args], { encoding: 'utf8', maxBuffer: 50e6, ...options });
@@ -69,6 +75,7 @@ async function stop(child) {
 async function prepare(root) {
   const remote = join(root, 'remote.git'), dataClone = join(root, 'data.git'), writer = join(root, 'writer');
   await command(root, ['init', '--bare', remote]);
+  await command(remote, ['symbolic-ref', 'HEAD', 'refs/heads/main']);
   const base = (await command(dataRepo, ['rev-parse', 'origin/main'])).trim();
   await command(dataRepo, ['push', '--quiet', remote, `${base}:refs/heads/main`]);
   await command(root, ['clone', '--bare', remote, dataClone]);
@@ -78,9 +85,9 @@ async function prepare(root) {
 
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs8', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } });
   await writeFile(join(root, 'key.json'), JSON.stringify({ type: 'service_account', project_id: 'demo-outline', private_key: privateKey, client_email: 'test@demo-outline.iam.gserviceaccount.com' }));
-  await writeFile(join(root, 'rules.json'), await command(familyHub, ['show', 'origin/main:database.rules.json']));
-  await writeFile(join(root, 'firebase.json'), JSON.stringify({ database: { rules: 'rules.json' }, emulators: { database: { host: '127.0.0.1', port }, ui: { enabled: false } } }));
-  await writeFile(join(root, 'config.json'), JSON.stringify({ credentials: join(root, 'key.json'), databaseURL: `http://127.0.0.1:${port}?ns=demo-outline`, household: 'h', dataRepo: dataClone, pollSeconds: 5, log: join(root, 'sync.log') }));
+  await writeFile(join(root, 'rules.json'), await command(resolve(siteRepo, '..', 'FamilyHub'), ['show', 'origin/main:database.rules.json']));
+  await writeFile(join(root, 'firebase.json'), JSON.stringify({ database: { rules: 'rules.json' }, emulators: { database: { host: '127.0.0.1', port }, hub: { host: '127.0.0.1', port: hubPort }, logging: { host: '127.0.0.1', port: loggingPort }, ui: { enabled: false } } }));
+  await writeFile(join(root, 'config.json'), JSON.stringify({ credentials: join(root, 'key.json'), databaseURL: `http://127.0.0.1:${port}?ns=demo-outline-default-rtdb`, household: 'h', dataRepo: dataClone, pollSeconds: 5, log: join(root, 'sync.log') }));
   return { remote, dataClone, writer };
 }
 
@@ -88,7 +95,7 @@ async function runWidth(root, width) {
   const layout = join(root, String(width));
   await mkdir(layout, { recursive: true });
   await prepare(layout);
-  const env = { ...process.env, GITHUB_ACTIONS: 'false', GITHUB_REPOSITORY: '', PUBLIC_FIREBASE_API_KEY: 'demo-outline-key', PUBLIC_FIREBASE_AUTH_DOMAIN: 'demo-outline.firebaseapp.com', PUBLIC_FIREBASE_PROJECT_ID: 'demo-outline', PUBLIC_FIREBASE_DATABASE_URL: `http://127.0.0.1:${port}?ns=demo-outline`, PUBLIC_FIREBASE_APP_ID: '1:1:web:demooutline', PUBLIC_FAMILY_HOUSEHOLD_ID: 'h' };
+  const env = { ...process.env, GITHUB_ACTIONS: 'false', GITHUB_REPOSITORY: '', PUBLIC_FIREBASE_API_KEY: 'demo-outline-key', PUBLIC_FIREBASE_AUTH_DOMAIN: 'demo-outline.firebaseapp.com', PUBLIC_FIREBASE_PROJECT_ID: 'demo-outline', PUBLIC_FIREBASE_DATABASE_URL: `http://127.0.0.1:${port}?ns=demo-outline-default-rtdb`, PUBLIC_FIREBASE_APP_ID: '1:1:web:demooutline', PUBLIC_FAMILY_HOUSEHOLD_ID: 'h' };
   await exec(process.execPath, [astroCli, 'build', '--outDir', join(layout, 'dist')], { cwd: siteRepo, env, encoding: 'utf8', maxBuffer: 50e6 });
   let emulator, preview, watcher;
   try {
@@ -99,6 +106,9 @@ async function runWidth(root, width) {
     watcher = service(process.execPath, [join(siteRepo, 'sync', 'outline', 'sync.mjs'), 'watch', '--config', join(layout, 'config.json')], { cwd: siteRepo, env: { ...env, FIREBASE_DATABASE_EMULATOR_HOST: `127.0.0.1:${port}` } });
     const reports = await runScenario({ root: layout, siteRepo, dataRepo, baseURL: `http://127.0.0.1:${previewPort}`, width, port });
     return reports;
+  } catch (error) {
+    console.error('Watcher output:', watcher?.output?.join('').slice(-3000));
+    throw error;
   } finally {
     await stop(watcher); await stop(preview); await stop(emulator);
     if (emulator?.output?.length) await writeFile(join(layout, 'emulator.log'), emulator.output.join(''));
