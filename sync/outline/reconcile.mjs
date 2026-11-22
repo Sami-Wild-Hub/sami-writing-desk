@@ -28,7 +28,11 @@ const validRepo = snapshot => {
 async function write(rtdb, slug, expected, values) {
   if (rtdb.cas) {
     const ok = await rtdb.cas(slug, expected, values);
-    if (!ok) return false;
+    if (!ok) {
+      const error = new Error(`RTDB compare-and-set failed for ${slug}`);
+      error.rtdbConflict = true;
+      throw error;
+    }
   } else await rtdb.update(slug, values);
   return true;
 }
@@ -46,15 +50,20 @@ async function packedSnapshot(snapshot) {
 export async function reconcileBook(options = {}) {
   const maxPush = Math.max(1, Number(options.maxPush ?? 4));
   for (let attempt = 0; attempt < maxPush; attempt += 1) {
-    const result = await reconcileOnce({ ...options, maxPush });
-    if (result.status !== 'retry') return result;
-    if (attempt === maxPush - 1) throw result.error;
+    try {
+      const result = await reconcileOnce({ ...options, state: attempt ? undefined : options.state, maxPush });
+      if (result.status !== 'retry') return result;
+      if (attempt === maxPush - 1) throw result.error;
+    } catch (error) {
+      if (!error.rtdbConflict || attempt === maxPush - 1) throw error;
+      await options.git.fetch?.();
+    }
   }
 }
 
-async function reconcileOnce({ git, rtdb, slug, now = Date.now(), stableMs = 10_000, newRevision = newRev, dryRun = false } = {}) {
+async function reconcileOnce({ git, rtdb, slug, state: suppliedState, now = Date.now(), stableMs = 10_000, newRevision = newRev, dryRun = false } = {}) {
   const store = dryRun ? Object.assign(Object.create(rtdb), { update: async () => {}, cas: async () => true }) : rtdb;
-  const state = await store.read(slug) ?? {};
+  const state = suppliedState ?? await store.read(slug) ?? {};
   const head = state.head ?? {};
   const live = state.live ?? null;
   const tip = await git.tip();
@@ -92,10 +101,11 @@ async function reconcileOnce({ git, rtdb, slug, now = Date.now(), stableMs = 10_
   const baseLive = baseline ? { plot: baseline.plot, plan: baseline.plan } : null;
 
   if (!changed) {
-    if (liveChanged && liveDecoded && liveValid && live.over !== current.tree) {
+    const nextSynced = synced ? { ...synced, tree: current.tree, commit: tip } : null;
+    if (liveChanged && liveDecoded && liveValid && (current.tree === nextSynced?.tree || live.over === current.tree)) {
       return enter({ git, rtdb: store, slug, head, live, current, now, stableMs, expected: { headRepoCommit: oldCommit, liveRev: live.rev }, dryRun });
     }
-    const nextHead = { ...head, synced: synced ?? (live ? { rev: live.rev, tree: current.tree, commit: tip } : null), repo: repoInfo(current), config: current.config ?? '' };
+    const nextHead = { ...head, synced: nextSynced ?? (live ? { rev: live.rev, tree: current.tree, commit: tip } : null), repo: repoInfo(current), config: current.config ?? '' };
     if (nextHead.synced && !live) {
       nextHead.synced = { rev: newRevision(), tree: current.tree, commit: tip };
       const first = { rev: nextHead.synced.rev, base: '', at: now, by: 'repo', plot: await pack(current.plot), plan: await pack(current.plan) };
@@ -168,7 +178,9 @@ async function enter({ git, rtdb, slug, head, live, current, now, stableMs, expe
   const liveAge = ageSince(live.at);
   const publishAge = ageSince(head.repo?.at);
   const age = Math.max(liveAge, publishAge);
-  if (liveAge < stableMs && publishAge < forcePublishMs) return { status: 'waiting', actionable: true, age };
+  if (liveAge < stableMs && publishAge < forcePublishMs) {
+    return { status: 'waiting', actionable: true, age, retryAfter: Math.min(stableMs - liveAge, forcePublishMs - publishAge) };
+  }
   const texts = await liveTexts(live);
   try { validateTexts(current, texts); } catch (error) { return { status: 'invalid-live', error: error.message }; }
   if (dryRun) return { status: 'would-publish', actionable: true, age };

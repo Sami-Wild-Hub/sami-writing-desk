@@ -78,6 +78,27 @@ test('first reconciliation creates live, head, and immutable starter', async () 
   assert.equal(rtdb.value.head.synced.rev, rev());
 });
 
+test('a failed RTDB compare-and-set cannot report a successful reconciliation', async () => {
+  const f = outlineFixture();
+  const git = new FakeGit({ C1: snapshot('C1', 'T1', f.plot_data, f.plan) }, 'C1');
+  const rtdb = new FakeRtdb();
+  rtdb.cas = async () => false;
+  await assert.rejects(reconcileBook({ git, rtdb, slug: 'book', now: 20_000 }), /compare-and-set failed/);
+});
+
+test('an explicit repository-tree override enters publication even when files are unchanged', async () => {
+  const f = outlineFixture();
+  const base = snapshot('B', 'TB', f.plot_data, f.plan);
+  const current = snapshot('C', 'TC', f.plot_data, f.plan);
+  const git = new FakeGit({ B: base, C: current }, 'C', { 'B>C': true });
+  const rtdb = new FakeRtdb({
+    head: { repo: { commit: 'B' }, synced: { rev: 'base', tree: 'TB', commit: 'B' } },
+    live: { rev: 'web', at: 0, over: 'TC', plot: await pack(base.plot), plan: await pack(text({ ...f.plan, notes: 'web' })) },
+  });
+  const result = await reconcileBook({ git, rtdb, slug: 'book', now: 20_000, dryRun: true });
+  assert.equal(result.status, 'would-publish');
+});
+
 test('stale snapshots are skipped, invalid repo content is reported, and same-file edits conflict', async () => {
   const f = outlineFixture();
   const badPlot = { ...f.plot_data, plot_units: [{ ...f.plot_data.plot_units[0], content: 42 }] };

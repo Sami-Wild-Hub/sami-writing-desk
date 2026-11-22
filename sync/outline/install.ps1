@@ -11,6 +11,12 @@ $taskName = 'Samidore Outline Sync'
 $sync = Join-Path $PSScriptRoot 'sync.mjs'
 $configPath = Join-Path $PSScriptRoot 'config.json'
 
+function Invoke-Native {
+  param([string]$Command, [string[]]$Arguments)
+  & $Command @Arguments
+  if ($LASTEXITCODE -ne 0) { throw "$Command failed with exit code $LASTEXITCODE" }
+}
+
 if ($Remove) {
   Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
   Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
@@ -23,15 +29,18 @@ if ($version -notmatch '^v24\.') { throw "Node 24 is required; found $version" }
 if (-not $Credentials -or -not $DatabaseUrl -or -not $Household) { throw 'Credentials, DatabaseUrl, and Household are required.' }
 Push-Location $PSScriptRoot
 try {
-  & npm.cmd ci
-  if (-not (Test-Path -LiteralPath $DataRepo)) { & git clone --bare 'https://github.com/Sami-Wild-Hub/sami-writing-desk-data' $DataRepo }
+  Invoke-Native 'npm.cmd' @('ci')
+  if (-not (Test-Path -LiteralPath $DataRepo)) { Invoke-Native 'git' @('clone', '--bare', 'https://github.com/Sami-Wild-Hub/sami-writing-desk-data', $DataRepo) }
   $config = [ordered]@{ credentials = (Resolve-Path -LiteralPath $Credentials).Path; databaseURL = $DatabaseUrl; household = $Household; dataRepo = (Resolve-Path -LiteralPath $DataRepo).Path; pollSeconds = 10; log = (Join-Path $PSScriptRoot 'sync.log') }
   $utf8NoBom = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
   [System.IO.File]::WriteAllText($configPath, ($config | ConvertTo-Json), $utf8NoBom)
-  $action = New-ScheduledTaskAction -Execute $node -Argument "`"$sync`" watch" -WorkingDirectory $PSScriptRoot
+  $powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
+  $command = "& '$($node.Replace("'", "''"))' '$($sync.Replace("'", "''"))' watch"
+  $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
+  $action = New-ScheduledTaskAction -Execute $powershell -Argument "-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand $encodedCommand" -WorkingDirectory $PSScriptRoot
   $logon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
   $repeat = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)
-  $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+  $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -AllowHardTerminate
   $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
   Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($logon, $repeat) -Settings $settings -Principal $principal -Description 'Sami Writing Desk outline sync' -Force | Out-Null
   Start-ScheduledTask -TaskName $taskName

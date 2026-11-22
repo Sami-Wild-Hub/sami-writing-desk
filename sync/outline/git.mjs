@@ -42,6 +42,10 @@ export class GitRepo {
     const ref = `+refs/heads/${this.branch}:refs/remotes/${this.remote}/${this.branch}`;
     await runGit(this.root, ['fetch', '--quiet', this.remote, ref]);
   }
+  async remoteTip() {
+    const output = (await runGit(this.root, ['ls-remote', this.remote, `refs/heads/${this.branch}`])).trim();
+    return output ? output.split(/\s+/)[0] : null;
+  }
   async tip() { return (await runGit(this.root, ['rev-parse', `${this.remote}/${this.branch}`])).trim(); }
   async isAncestor(older, newer) {
     if (!older || !newer) return false;
