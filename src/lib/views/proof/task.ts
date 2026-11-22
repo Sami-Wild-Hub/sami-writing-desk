@@ -33,6 +33,7 @@ export function openTask(input: TaskInput) {
   return `${trigger}
 
 小说目录：leahthemule/novel-knowledge-base（main 分支）的 novels/${input.slug}/。
+Seed：novels/${input.slug}/seeds/。
 历史 KB：novels/${input.slug}/kb/。
 受检范围仅为本份新稿，版本以文末标题和分段编号（P1、P2……）的正文为准。
 
@@ -46,6 +47,7 @@ export function manuscriptTask(input: TaskInput) {
   return `${trigger}
 
 小说目录：leahthemule/novel-knowledge-base（main 分支）的 novels/${input.slug}/。
+Seed：novels/${input.slug}/seeds/。
 历史 KB：不使用，以已写正文为历史；不读 novels/${input.slug}/kb/。
 已写正文：novels/${input.slug}/manuscript/，每章一个文件，首行是章名，之后每个非空正文行从 P1 数起，标题行不编号。
 先按新稿的章名找这一章的旧版本；有的话逐段对照，看改动有没有和别处正文冲突。

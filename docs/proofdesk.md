@@ -50,7 +50,7 @@ Step = { status, attempt?, chat?, job?, error?, at? }
 - 网页只写两种东西：新请求（两项都是 `queued`），和重新发送（把整条或某一项的 `status` 改回 `queued`）。其余字段都由后台用服务账号写；数据库规则（FamilyHub 的 `database.rules.json`）不许成员写 `sending` 以后的状态、`fetch`、`error`、`reports`，也不许改已存的新稿。
 - `report` 是收到的回复原文，`parsed` 是读出的结果（JSON 字符串；读不出来时没有）。页面显示时以原文为准重新读一遍。
 
-**后台留档的** 私有仓库 `samidore/sami-writing-desk-data` 分支 `proofdesk-store` 的 `proofdesk/<slug>/<id>/`：
+**后台留档的** 私有仓库 `samidore/sami-writing-desk-data` 分支 `main` 的 `proofdesk/<slug>/<id>/`：
 
 | 文件 | 内容 |
 | --- | --- |
@@ -81,6 +81,7 @@ Step = { status, attempt?, chat?, job?, error?, at? }
 请按 leahthemule/novel-knowledge-base（main 分支）的 contracts/shared/kb-use/manuscript-check.md 入口及 contracts/manuscript-check/semantic.md 核心合同执行 Manuscript Check（MC）。
 
 小说目录：leahthemule/novel-knowledge-base（main 分支）的 novels/maritime-story/。
+Seed：novels/maritime-story/seeds/。
 历史 KB：novels/maritime-story/kb/。
 受检范围仅为本份新稿，版本以文末标题和分段编号（P1、P2……）的正文为准。
 
@@ -109,6 +110,7 @@ items 按受检原文顺序排列；没有报告项就回 "items": []。
 请按 leahthemule/novel-knowledge-base（main 分支）的 contracts/shared/kb-use/manuscript-check.md 入口及 contracts/manuscript-check/semantic.md 核心合同执行 Manuscript Check（MC）。
 
 小说目录：leahthemule/novel-knowledge-base（main 分支）的 novels/maritime-story/。
+Seed：novels/maritime-story/seeds/。
 历史 KB：不使用，以已写正文为历史；不读 novels/maritime-story/kb/。
 已写正文：novels/maritime-story/manuscript/，每章一个文件，首行是章名，之后每个非空正文行从 P1 数起，标题行不编号。
 先按新稿的章名找这一章的旧版本；有的话逐段对照，看改动有没有和别处正文冲突。
