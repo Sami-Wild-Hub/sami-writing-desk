@@ -117,7 +117,7 @@
 .outline-view .selected-storyline-summary:empty { display: none; }
 
 /* ---------- cards ---------- */
-.outline-view .card, .outline-view .pending-card { min-width: 0; margin: .45rem 0 0; padding: .55rem .75rem .45rem; border: 1px solid var(--line); border-radius: 10px;
+.outline-view .card { min-width: 0; margin: .45rem 0 0; padding: .55rem .75rem .45rem; border: 1px solid var(--line); border-radius: 10px;
   background: #fff; box-shadow: 0 1px 2px rgb(30 28 25 / .04); }
 .outline-view .card.unplaced { border: 1px dashed #d8b47c; background: #fffcf6; }
 .outline-view .card-head { display: flex; align-items: baseline; gap: .5rem; }
@@ -150,8 +150,11 @@
 .outline-view .control-grid { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .5rem .75rem; margin-top: .3rem; padding: .55rem .6rem; border-radius: 8px; background: var(--bg); }
 .outline-view .control-grid label { display: grid; gap: .15rem; color: var(--ink-3); font-size: .6875rem; font-weight: 600; }
 .outline-view .control-grid .delete-item { margin-left: auto; }
-.outline-view .pending-destination select { flex: 1 1 16rem; min-width: 0; }
-.outline-view .pending-title { color: var(--ink-3); font-size: .75rem; }
+.outline-view .place-ask > summary { display: inline-flex; align-items: center; min-height: 1.875rem; padding: 0 .65rem; border: 1px solid var(--accent); border-radius: 8px; font-size: .75rem; font-weight: 600; }
+.outline-view .place-ask > summary::before { content: none; }
+.outline-view .place-ask[open] { flex-basis: 100%; text-align: right; }
+.outline-view .place-eras { display: flex; align-items: center; justify-content: flex-end; gap: .3rem; margin-top: .35rem; color: var(--ink-2); font-size: .75rem; }
+.outline-view .sectionlabel.undecided { background: var(--plan-soft); color: var(--plan); }
 
 /* ---------- inline editors and composers ---------- */
 .outline-view .inline-editor { display: block; width: 100%; }
@@ -197,7 +200,7 @@
 .outline-view .sectionlabel .inline-plus { min-width: 2rem; }
 .outline-view .group-footer { margin-top: .6rem; }
 
-/* ---------- pending and statistics ---------- */
+/* ---------- statistics ---------- */
 .outline-view .secondary { display: grid; gap: .6rem; margin-top: 2rem; }
 .outline-view .detailbox { padding: 0 .9rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .outline-view .detailbox[open] { padding-bottom: .9rem; }
@@ -238,7 +241,7 @@
   .outline-view .inline-plus { min-height: 2.25rem; }
   .outline-view .beat { min-height: 2.75rem; }
   .outline-view .time-lane { padding: .4rem .45rem .55rem; }
-  .outline-view .card, .outline-view .pending-card { padding: .55rem .6rem .4rem; }
+  .outline-view .card { padding: .55rem .6rem .4rem; }
   .outline-view .status { left: 1rem; max-width: calc(100vw - 2rem); border-radius: 12px; }
   [data-view="outline"] .draft-notice { margin: .5rem; }
 }

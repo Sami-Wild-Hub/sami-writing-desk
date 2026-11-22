@@ -45,6 +45,8 @@ test('F18, F24–25: explicit era, category override round-trip and time collisi
   const { m, messages } = setup();
   m.assign('U002','A1-B1');
   assert.equal(m.used('U002'), false);
+  m.assign('U002','A1-B1','PAST');
+  assert.equal(m.state.placements.U002.era, 'PAST');
   m.switchEra('E001','UNASSIGNED');
   assert.equal(m.unitMap.E001.era, 'CURRENT');
   assert.match(messages.at(-1).text, /不能改为/);
@@ -188,25 +190,22 @@ test('F45: plan import rejects duplicates, unknowns, conflicting eras and invers
   assert.equal(m.state.beat_notes['A1-B1'],'42');
 });
 
-test('pending nodes go to a chosen library storyline and take their rank from the Beat they are placed in', () => {
-  const { m, f } = setup();
-  m.moveUnit('E002', 'A3-B2');
-  m.toLibrary('U002', 'G01', 'RELATIONSHIP', 'CURRENT');
-  const added = m.data.plot_units.at(-1);
-  assert.deepEqual([added.storyline_group_id, added.era, added.status, added.source_unit_ids], ['G01', 'CURRENT', 'PLANNED', ['U002']]);
-  assert.equal(m.used(added.unit_id), false);
-  assert.deepEqual(m.unitMap.U002, f.plot_data.plot_units.find(u => u.unit_id === 'U002'));
-  m.assign(added.unit_id, 'A2-B1');
-  assert.equal(m.state.placements[added.unit_id].beat_id, 'A2-B1');
-  assert.ok(added.sequence > 1 && added.sequence < 2);
+test('a node without a time waits in its storyline and takes its rank from the Beat it is placed in', () => {
+  const { m } = setup();
+  assert.equal(m.isMaterial(m.unitMap.U002), true);
+  assert.equal(m.isMaterial(m.unitMap.U001), false);
+  m.assign('U002', 'A3-B2', 'CURRENT');
+  assert.equal(m.state.placements.U002.beat_id, 'A3-B2');
+  assert.ok(m.unitMap.U002.sequence > m.unitMap.E006.sequence);
   const workspace = m.exportWorkspace();
   m.importWorkspace(workspace);
   assert.deepEqual(m.exportWorkspace(), workspace);
+  m.removeUnit('U002');
+  assert.equal(m.unitMap.U002.era, 'UNASSIGNED');
 
-  m.removeUnit('E006');
-  m.switchEra('E006', 'UNASSIGNED');
-  m.toLibrary('E006', 'G02', 'RELATIONSHIP', 'PAST');
-  const moved = m.unitMap.E006;
-  assert.deepEqual([moved.storyline_group_id, moved.kind, moved.era], ['G02', 'RELATIONSHIP', 'PAST']);
-  assert.equal(m.used('E006'), false);
+  m.switchGroup('U002', 'G02', 'RELATIONSHIP');
+  assert.deepEqual([m.unitMap.U002.storyline_group_id, m.kindOf(m.unitMap.U002), m.unitMap.U002.original_storyline_group_id], ['G02', 'RELATIONSHIP', 'G03']);
+  assert.equal(m.unitMap.U002.storyline_id, 'S03');
+  m.switchEra('U002', 'PAST');
+  assert.equal(m.isMaterial(m.unitMap.U002), true);
 });

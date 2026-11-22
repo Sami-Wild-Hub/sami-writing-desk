@@ -23,6 +23,9 @@ this.kindOrder = ['RELATIONSHIP', 'EVENT'];
 this.closedGroups = { RELATIONSHIP: new Set(), EVENT: new Set() };
 this.used = id => Boolean(this.state.placements[id]);
 this.kindOf = u => this.state.kind_overrides[u.unit_id] || u.kind;
+// A node that arrived without a time has no rank in its storyline yet; it is library material like any Element.
+this.openRank = u => u.era === 'UNASSIGNED' || u.original_era === 'UNASSIGNED';
+this.isMaterial = u => Boolean(u.is_editorial_element) || this.openRank(u);
 this.placedList = () => Object.values(this.state.placements);
 this.labelKind = k => k === 'RELATIONSHIP' ? 'Relationship' : 'Events';
 this.savedCount = () => this.placedList().length;
@@ -108,16 +111,16 @@ allocateSequence = (groupId,era,afterId=null,beat=null) => {
  }
  return xs.length?xs[xs.length-1].sequence+1:1;
 };
-assign = (id,beat) => {
+assign = (id,beat,era) => {
  const u=this.unitMap[id];if(!u||this.used(id))return this.report('此节点已经安排在其他位置。请使用移动功能。',true);
- if(!this.timeOrder.includes(u.era))return this.report('请先把情节点放入素材库。',true);
- const why=this.conflict(id,beat,u.era);let sequence=u.sequence;
+ const chosenEra=u.era==='UNASSIGNED'?era:u.era;if(!this.timeOrder.includes(chosenEra))return this.report('请先决定 Current 或 Past。',true);
+ const why=this.conflict(id,beat,chosenEra);let sequence=u.sequence;
  if(why){
-  if(!u.position_open)return this.report('不能逆序插入：'+why,true);
-  // A node from the pending list has no rank in its storyline until a Beat gives it one.
-  try{sequence=this.allocateSequence(u.storyline_group_id,u.era,null,beat)}catch(e){return this.report('不能选入：'+e.message,true)}
+  if(!this.openRank(u))return this.report('不能逆序插入：'+why,true);
+  // Such a node takes its rank from the Beat it is placed in.
+  try{sequence=this.allocateSequence(u.storyline_group_id,chosenEra,null,beat)}catch(e){return this.report('不能选入：'+e.message,true)}
  }
- this.snapshot();u.sequence=sequence;this.state.placements[id]={unit_id:id,beat_id:beat,era:u.era,order:this.nextOrder(beat)};this.saveLocal();this.render();this.report(`已将 ${id} 选入 ${beat} · ${u.era}`);
+ this.snapshot();u.sequence=sequence;this.state.placements[id]={unit_id:id,beat_id:beat,era:chosenEra,order:this.nextOrder(beat)};this.saveLocal();this.render();this.report(`已将 ${id} 选入 ${beat} · ${chosenEra}`);
 };
 removeUnit = (id) => {if(!this.used(id))return;this.snapshot();delete this.state.placements[id];this.saveLocal();this.render();this.report(`${id} 已回到素材库。`)};
 moveUnit = (id,dest) => {const old=this.state.placements[id];if(!old||old.beat_id===dest)return;const why=this.conflict(id,dest,old.era);if(why)return this.report('移动会颠倒故事线顺序：'+why,true);this.snapshot();old.beat_id=dest;old.order=this.nextOrder(dest);this.saveLocal();this.render();this.report(`已将 ${id} 移至 ${dest}。`)};
@@ -170,14 +173,14 @@ createStoryline = (kind,title,summary) => {title=title.trim();summary=summary.tr
  this.data.storylines.push({id:sid,title,summary,storyline_group_id:gid,source_scope:'BOTH',is_custom:true});
  this.refreshData(this.data);this.refreshDerived();this.closedGroups[kind].delete(gid);this.saveLocal();this.render();this.report(`已新建 ${this.labelKind(kind)} 故事线：${title}。`);return gid;
 };
-createUnit = ({groupId,kind,era,content,beat=null,afterId=null,title=null,details=[],source_refs='',source_unit_ids=[],position_open=false}) => {
+createUnit = ({groupId,kind,era,content,beat=null,afterId=null,title=null,details=[],source_refs=''}) => {
  content=content.trim();if(!content)throw Error('情节点内容不能为空');if(!this.storyMap[groupId])throw Error('请先选择故事线');if(!this.kindOrder.includes(kind)||!this.timeOrder.includes(era))throw Error('请指定分类与时间层');
  let seq=this.allocateSequence(groupId,era,afterId,beat);
  // If there is no representable floating gap, use the smallest conventional increment.
  if(!Number.isFinite(seq))throw Error('情节点顺序无效');
  const gid=this.storyMap[groupId],id=this.freshId('UNEW',this.data.plot_units,'unit_id');
  const u={unit_id:id,storyline_id:gid.source_storyline_ids?.[0]||null,storyline_group_id:groupId,branch_id:null,source_id:null,source_parent_id:null,source_group:'User Added',source_path:'',source_status:'new',depth:1,parent_unit_id:null,is_branch_seed:false,unplaced:!beat,
-  original_act:null,original_beat:null,original_beat_id:null,era,kind,sequence:seq,content,element_title:String(title||content.split('\n')[0]).slice(0,150),details,source_refs,source_unit_ids,status:'PLANNED',is_editorial_element:true,is_custom:true,...(position_open?{position_open}:{})};
+  original_act:null,original_beat:null,original_beat_id:null,era,kind,sequence:seq,content,element_title:String(title||content.split('\n')[0]).slice(0,150),details,source_refs,source_unit_ids:[],status:'PLANNED',is_editorial_element:true,is_custom:true};
  // Validate cross-Beat chronology before mutation. No original unit is moved or renumbered.
  if(beat){const p=this.state.placements;for(const v of this.data.plot_units){if(v.storyline_group_id!==groupId||(p[v.unit_id]?.era||v.era)!==era||!p[v.unit_id])continue;
   const other=this.beatIndex[p[v.unit_id].beat_id],now=this.beatIndex[beat];if((seq<v.sequence&&now>other)||(seq>v.sequence&&now<other))throw Error(`新增节点与 ${v.unit_id} 在 ${p[v.unit_id].beat_id} 的顺序冲突`);
@@ -185,17 +188,15 @@ createUnit = ({groupId,kind,era,content,beat=null,afterId=null,title=null,detail
  this.snapshot();this.data.plot_units.push(u);if(beat)this.state.placements[id]={unit_id:id,beat_id:beat,era,order:this.nextOrder(beat)};
  this.refreshData(this.data);this.refreshDerived();this.closedGroups[kind].delete(groupId);this.saveLocal();this.render();this.report(`已新增 ${id}${beat?' 并选入 '+beat:' 到素材库'}。`);return id;
 };
-toLibrary = (id,groupId,kind,era) => {
- const u=this.unitMap[id],group=this.storyMap[groupId];if(!u||!group||!this.kindOrder.includes(kind)||!this.timeOrder.includes(era))return this.report('请选择故事线和时间。',true);
- if(!u.is_editorial_element){
-  // Original nodes stay as they are; the library receives an Element that cites the node.
-  this.createUnit({groupId,kind,era,content:u.content,title:u.content.trim().split(/[，。；,;\n]/)[0],source_refs:id,source_unit_ids:[id],position_open:true});
- }else{
-  const sequence=this.allocateSequence(groupId,era);
-  this.snapshot();Object.assign(u,{storyline_group_id:groupId,storyline_id:group.source_storyline_ids?.[0]||null,kind,era,sequence,position_open:true});
-  delete this.state.kind_overrides[id];this.closedGroups[kind].delete(groupId);this.refreshDerived();this.saveLocal();this.render();
- }
- this.report(`已将 ${id} 放入素材库：${group.title} · ${era}。`);
+switchGroup = (id,groupId,kind) => {
+ const u=this.unitMap[id],group=this.storyMap[groupId];if(!u||!group||this.used(id)||!this.kindOrder.includes(kind))return;
+ const moved=groupId!==u.storyline_group_id,sequence=moved?this.allocateSequence(groupId,u.era):u.sequence;
+ this.snapshot();
+ if(moved&&!u.original_storyline_group_id)u.original_storyline_group_id=u.storyline_group_id;
+ if(moved&&u.is_custom)u.storyline_id=group.source_storyline_ids?.[0]||null;
+ u.storyline_group_id=groupId;u.sequence=sequence;
+ if(kind===u.kind)delete this.state.kind_overrides[id];else this.state.kind_overrides[id]=kind;
+ this.closedGroups[kind].delete(groupId);this.refreshDerived();this.saveLocal();this.render();this.report(`${id} 已换到故事线：${group.title}。`);
 };
 deleteNewUnit = (id) => {const u=this.unitMap[id];if(!u?.is_custom)return this.report('原 XMind 节点仅可编辑，不从源数据删除。',true);if(!this.hooks.confirm('删除这条新增情节点？此操作可撤销。'))return;
  this.snapshot();this.data.plot_units=this.data.plot_units.filter(x=>x.unit_id!==id);delete this.state.placements[id];delete this.state.kind_overrides[id];this.refreshData(this.data);this.refreshDerived();this.saveLocal();this.render();this.report(`新增节点 ${id} 已删除。`)};

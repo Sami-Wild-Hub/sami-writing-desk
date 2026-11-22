@@ -87,9 +87,7 @@ test('F14–19: independent searches, disclosure persistence, pending and source
   const source = root.locator('#rel-groups .card:has([data-add="U001"])');
   await source.locator('.origin summary').click();
   await expect(source.locator('.origin')).toContainText('source-one');
-  await root.locator('#pending-box > summary').click();
-  await expect(root.locator('#pending-list')).toContainText('U002');
-  await root.locator('#pending-box + details > summary').click();
+  await root.locator('.secondary details > summary').click();
   await expect(root.locator('#original-counts tr')).toHaveCount(3);
   await expect(root.locator('#original-counts')).toContainText('The Lantern');
 });
@@ -143,7 +141,7 @@ test('F29,33–38: optional placement, deletion guards, confirmation cancellatio
   await expect(root.locator('#status')).toContainText('没有已选节点');
 });
 
-test('the library filters by three states and receives pending nodes before any Beat does', async ({ page }) => {
+test('the library filters by three states', async ({ page }) => {
   const root = await open(page);
   await chooseBeat(page, root, 'A3-B1');
   await expect(root.locator('#rel-left')).toHaveText('0 个可选');
@@ -156,34 +154,30 @@ test('the library filters by three states and receives pending nodes before any 
   await expect(root.locator('#rel-left')).toHaveText('5 个可选');
   await chip('placed').click();
   await expect(root.locator('#rel-left')).toHaveText('1 个可选');
-  await chip('written').click();
-  await chip('placed').click();
-  await chip('unplaced').click();
-
-  await root.locator('#pending-box > summary').click();
-  const pending = root.locator('[data-pending-id="U002"]');
-  await expect(pending.locator('[data-add]')).toHaveCount(0);
-  await expect(pending.locator('[name="destination"]')).toHaveValue('EVENT:G03');
-  await pending.locator('[name="destination"]').selectOption('RELATIONSHIP:G02');
-  await pending.getByRole('button', { name: '放入 Past' }).click();
-  await expect(root.locator('#pending-count')).toHaveText('0');
-  await expect(root.locator('.board .card')).toHaveCount(0);
-  const card = root.locator('#rel-groups [data-group="G02"] .card', { hasText: 'U002 fictional turn' });
-  await expect(card).toBeVisible();
-  await expect(chip('unplaced')).toHaveAttribute('aria-pressed', 'true');
-  await expect(card.locator('.editorial-badge')).toHaveText('待排');
-  await card.locator('[data-add]').click();
-  await expect(root.locator('#rel-selected [data-selected-era="PAST"] .card')).toContainText('U002 fictional turn');
-  await expect(root.locator('#rel-selected [data-selected-era="PAST"] .editorial-badge')).toHaveText('已排');
 });
 
-test('a pending node takes one click to the library, and a card taken out of a Beat is visible there', async ({ page }) => {
+test('a node without a time waits last in its storyline and asks for the time only when placed', async ({ page }) => {
   const root = await open(page);
-  await root.locator('#pending-box > summary').click();
-  await root.locator('[data-pending-id="U002"]').getByRole('button', { name: '放入 Current' }).click();
-  await expect(root.locator('#event-groups [data-group="G03"] .card', { hasText: 'U002 fictional turn' })).toBeVisible();
+  const line = root.locator('#event-groups [data-group="G03"]');
+  await expect(line.locator('.sectionlabel').last()).toContainText('时间未定');
+  const card = line.locator('.card', { hasText: 'U002 fictional turn' });
+  await expect(card.locator('.editorial-badge')).toHaveText('待排');
+  await expect(card.getByRole('button', { name: 'Past', exact: true })).toBeHidden();
+  await card.locator('.place-ask > summary').click();
+  await expect(card.locator('.place-ask > summary')).toContainText('A1-B1');
   await expect(root.locator('#event-selected .card')).toHaveCount(1);
+  await card.getByRole('button', { name: 'Past', exact: true }).click();
+  const placed = root.locator('#event-selected [data-selected-era="PAST"] .card');
+  await expect(placed).toContainText('U002 fictional turn');
+  await expect(placed.locator('.editorial-badge')).toHaveText('已排');
+  await placed.locator('[data-remove]').click();
+  await expect(line.locator('.sectionlabel').last()).toContainText('时间未定');
+  await root.locator('[data-switch-group="U002"]').selectOption('RELATIONSHIP:G02');
+  await expect(root.locator('#rel-groups [data-group="G02"] .card')).toContainText('U002 fictional turn');
+});
 
+test('a card taken out of a Beat is visible in the library', async ({ page }) => {
+  const root = await open(page);
   await root.locator('[data-remove="E001"]').click();
   await expect(root.locator('#rel-groups [data-group="G01"] [data-add="E001"]')).toBeVisible();
   await root.locator('[data-add="E001"]').click();

@@ -9,7 +9,7 @@ export const outlineFrame = `<div class="outline-view frame">
     <button type="button" id="trigger-data">导入剧情 JSON</button><input type="file" id="import-data" accept=".json,application/json" hidden>
     <button type="button" id="trigger-plan">导入编排 JSON</button><input type="file" id="import-plan" accept=".json,application/json" hidden>
   </section>
-  <details class="sidebox rules"><summary>编排规则</summary><p>先排男女主主轴，再插入配角的 Relationship / Events 故事块。</p><p>一张卡对应一个阶段，展开看细节。</p><p>Current 与 Past 不混用，整块可移到其他 Beat。</p><p>待排：还没排进 Beat；已排：排进了 Beat、还没写；已写：正文已经写了。</p></details>
+  <details class="sidebox rules"><summary>编排规则</summary><p>先排男女主主轴，再插入配角的 Relationship / Events 故事块。</p><p>一张卡对应一个阶段，展开看细节。</p><p>Current 与 Past 不混用，整块可移到其他 Beat。</p><p>时间未定的排在各自故事线最下面，选入 Beat 时再定 Current 或 Past。</p><p>待排：还没排进 Beat；已排：排进了 Beat、还没写；已写：正文已经写了。</p></details>
 </aside>
 <main class="outline-main" id="workspace-main">
   <div class="actions">
@@ -47,7 +47,6 @@ export const outlineFrame = `<div class="outline-view frame">
   </div>
 
   <section class="secondary">
-    <details class="detailbox" id="pending-box"><summary>未确定的情节点 <span class="count" id="pending-count">0</span></summary><div class="subtitle">先选故事线和时间，放入素材库待选；再从素材库选入 Beat。</div><div id="pending-list"></div></details>
     <details class="detailbox"><summary>原稿统计与出处 <span class="count"><span data-storyline-count></span> 条原始故事线</span></summary><div class="subtitle">原 XMind 的点数独立于新编排；主轴过去和当下分开显示。</div><div class="table-wrap"><table class="counttable"><thead><tr><th>原始故事线</th><th>Current</th><th>Past</th><th>待定</th><th>合计</th></tr></thead><tbody id="original-counts"></tbody></table></div></details>
   </section>
   <p class="footer-note">Element 标题、概括、内部细节均可编辑，整块移动不拆开。原始 XMind 节点独立保留。修改自动保存到云端；断网时保留本机草稿，请定期导出完整工作台作为备份。</p>
