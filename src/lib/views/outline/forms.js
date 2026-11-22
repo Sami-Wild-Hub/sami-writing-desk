@@ -23,6 +23,6 @@ export function unitComposerHtml({ era, groupId, groups, beat }) {
     <label class="field-label">阶段名称<input name="element_title" required placeholder="简短"></label>
     <label class="field-label">阶段推进<textarea name="content" rows="3" required placeholder="一句话概括"></textarea></label>
     <label class="field-label">内部细节<textarea name="details" rows="3" placeholder="每行一条（选填）"></textarea></label>
-    <label class="field-label">出处<input name="source_refs" placeholder="如 C14–C15 或 U039（可留空）"></label>
+    <label class="field-label">出处<input name="source_refs" placeholder="章节或原纲节点编号（可留空）"></label>
     ${beat ? '<div class="composer-note">保存后自动选入当前 Beat，并检查故事线内部先后顺序。</div>' : '<label class="checkbox-label"><input name="also_place" type="checkbox"> 同时选入当前 Beat</label>'}${buttons()}`;
 }
