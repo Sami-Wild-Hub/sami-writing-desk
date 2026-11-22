@@ -13,6 +13,7 @@ interface NovelViewEntry {
 export const novelViews = [
   { id: 'reader', label: '阅读', load: () => import('./reader/readerView.ts') },
   { id: 'timeline', label: '时间线', load: () => import('./timeline/timelineView.ts') },
+  { id: 'people', label: '人物', load: () => import('./people/peopleView.ts') },
   { id: 'proof', label: '校稿台', load: () => import('./proof/proofView.ts') },
 ] as const satisfies readonly NovelViewEntry[];
 

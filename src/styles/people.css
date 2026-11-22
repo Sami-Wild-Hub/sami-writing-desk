@@ -1,0 +1,109 @@
+/* People view: sticky tools (find, count, 所属 chips), the 名字索引 table drawn by
+   src/lib/views/people, and the expanded detail with its evidence tables. On phones
+   every row becomes a card and the 所属 list moves into the drawer. */
+.ppl { min-height: calc(100vh - var(--bar-h)); background: var(--surface); }
+.ppl > .side { display: none; }
+
+/* ---------- sticky tools ---------- */
+.ppl .tools { position: sticky; top: var(--bar-h); z-index: 30; border-bottom: 1px solid var(--line); background: rgb(255 253 248 / .96); backdrop-filter: blur(6px); }
+.ppl .t1 { display: flex; align-items: center; gap: .6rem; padding: .5rem .9rem .3rem; }
+.ppl .t1 h2 { margin: 0 .25rem 0 0; font-size: 1rem; white-space: nowrap; }
+.ppl .t1 .sp { flex: 1; }
+.ppl .find { display: flex; flex: 1; align-items: center; gap: 6px; min-width: 0; max-width: 22rem; height: 2.3rem; padding: 0 .6rem;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--bg); color: var(--ink-3); }
+.ppl .find input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--ink); font-size: .9375rem; }
+.ppl .cnt { color: var(--ink-2); font-size: .875rem; white-space: nowrap; }
+.ppl .note { overflow: hidden; color: var(--ink-3); font-size: .8125rem; text-overflow: ellipsis; white-space: nowrap; }
+.ppl .chips { display: flex; gap: 6px; padding: .15rem .9rem .55rem; overflow-x: auto; scrollbar-width: thin; }
+.ppl .chip { height: 1.85rem; padding: 0 .7rem; font-size: .8125rem; white-space: nowrap; }
+
+/* ---------- table ---------- */
+.ppl .tbl { padding: 0 .9rem 6rem; }
+.ppl table.people { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: .875rem; line-height: 1.6; }
+/* `>` keeps these off the evidence tables nested in the detail rows. */
+.ppl .people > thead > tr > th { position: sticky; text-align: left; top: calc(var(--bar-h) + var(--tools-h, 0px)); z-index: 5; padding: .45rem .5rem; border-bottom: 1px solid var(--line-2);
+  background: var(--surface); color: var(--ink-3); font-size: .8125rem; font-weight: 600; white-space: nowrap; }
+.ppl .people > thead > tr > th:nth-child(1) { width: 8%; }
+.ppl .people > thead > tr > th:nth-child(2) { width: 17%; }
+.ppl .people > thead > tr > th:nth-child(3) { width: 8%; }
+.ppl .people > thead > tr > th:nth-child(4) { width: 17%; }
+.ppl .people > thead > tr > th:nth-child(5) { width: 6%; }
+.ppl .people > thead > tr > th:nth-child(6) { width: 14%; }
+.ppl .people > thead > tr > th:nth-child(7) { width: 21%; }
+.ppl .people > thead > tr > th:nth-child(8) { width: 9%; }
+.ppl tr.person > * { padding: .5rem; overflow-wrap: anywhere; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.ppl tr.person:hover > * { background: var(--hover); }
+.ppl tr.person.open > * { border-bottom-color: transparent; background: var(--accent-soft); }
+.ppl tr.person th { font-weight: 400; }
+.ppl .who-btn { display: inline-flex; align-items: baseline; gap: 4px; padding: 0; border: 0; background: none; color: var(--ink); font-size: .9375rem; font-weight: 700; text-align: left; }
+.ppl .who-btn:hover { color: var(--accent-ink); }
+.ppl .caret { display: inline-block; width: .8em; color: var(--ink-3); font-size: .75rem; transition: transform .15s; }
+.ppl .who-btn[aria-expanded="true"] .caret { transform: rotate(90deg); }
+.ppl .kind { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 4px; background: var(--line); color: var(--ink-2); font-size: .6875rem; vertical-align: 1px; }
+.ppl .nm { display: inline; }
+.ppl .nm + .nm::before { content: "；"; color: var(--ink-3); }
+.ppl .nm .who { color: var(--ink-3); }
+.ppl .hk { margin-bottom: 2px; }
+.ppl .hk b { margin-right: 5px; color: var(--ink-3); font-size: .75rem; font-weight: 600; }
+.ppl .mk { margin-left: 2px; color: var(--star); font-size: .75rem; font-style: normal; }
+.ppl .cur { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.ppl .cur small { margin-right: 4px; padding: 0 4px; border-radius: 4px; background: var(--sunk); color: var(--ink-3); font-size: .6875rem; }
+.ppl mark { border-radius: 2px; background: var(--mark); color: inherit; }
+.ppl a { color: var(--accent-ink); text-decoration: none; }
+.ppl a:hover { text-decoration: underline; }
+.ppl a.pill, .ppl a.loc { color: var(--ink-2); text-decoration: none; }
+.ppl .loc { display: inline-block; margin: 0 0 0 3px; padding: 0 5px; border-radius: 5px; background: var(--sunk); color: var(--ink-2); font-size: .75rem; line-height: 1.5; white-space: nowrap; }
+.ppl a.loc:hover, .ppl a.ev:hover { background: var(--accent-soft); color: var(--accent-ink); }
+.ppl .ev { padding: 0 5px; border-radius: 5px; background: var(--sunk); color: var(--ink-2); font-size: .8125rem; white-space: nowrap; }
+.ppl .none, .ppl .ppl-empty { padding: 2rem 1.2rem; color: var(--ink-3); }
+
+/* ---------- expanded detail ---------- */
+.ppl tr.detail > td { padding: 0 0 .9rem; border-bottom: 1px solid var(--line-2); background: var(--accent-soft); }
+.ppl .pd { margin: 0 .5rem; padding: .8rem 1rem; overflow-wrap: anywhere; border: 1px solid var(--line); border-radius: 10px; background: #fff;
+  box-shadow: 0 2px 8px rgb(30 28 25 / .06); font-size: .9375rem; line-height: 1.7; }
+.ppl .pd-head { display: flex; align-items: baseline; gap: .6rem; }
+.ppl .pd-head h3 { margin: 0; font-size: 1.125rem; }
+.ppl .pd-head .sp, .ppl .acts .sp { flex: 1; }
+.ppl .pd dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: .6rem 0 .4rem; }
+.ppl .pd dt { color: var(--ink-3); font-size: .875rem; white-space: nowrap; }
+.ppl .pd dd { margin: 0; }
+.ppl .pd dd ul { margin: 2px 0 0; padding-left: 1.2em; }
+.ppl .pd h4 { margin: 1rem 0 .35rem; font-size: .9375rem; }
+.ppl .pd h4 + p { margin: 0; }
+.ppl .pd h4 .n { color: var(--ink-3); font-size: .8125rem; font-weight: 400; }
+.ppl .ev-wrap { overflow-x: auto; }
+.ppl table.evt { width: 100%; border-collapse: collapse; font-size: .8125rem; line-height: 1.55; }
+.ppl table.evt th { padding: .3rem .45rem; border-bottom: 1px solid var(--line-2); color: var(--ink-3); font-weight: 600; text-align: left; white-space: nowrap; }
+.ppl table.evt td { padding: .35rem .45rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ppl table.evt td .loc { margin: 0 3px 2px 0; }
+.ppl .acts { display: flex; gap: 8px; margin-top: .7rem; }
+
+@media (max-width: 860px) {
+  .ppl > .side { display: block; }
+  .ppl .t1 { flex-wrap: wrap; gap: 6px; padding: .4rem .5rem .25rem; }
+  .ppl .t1 h2, .ppl .t1 .sp { display: none; }
+  .ppl .find { max-width: none; }
+  .ppl .note { flex-basis: 100%; order: 3; }
+  .ppl .chips { padding: .1rem .5rem .45rem; scrollbar-width: none; }
+  .ppl .chip { height: 2.25rem; }
+  .ppl .tbl { padding: .5rem .5rem 6rem; }
+  .ppl table.people, .ppl .people > tbody, .ppl .people > tbody > tr, .ppl .people > tbody > tr > * { display: block; width: auto; }
+  .ppl .people > thead { display: none; }
+  .ppl tr.person { margin-top: .5rem; padding: .55rem .7rem .4rem; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+  .ppl tr.person.open { border-color: var(--accent); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  .ppl tr.person > *, .ppl tr.person:hover > *, .ppl tr.person.open > * { position: relative; padding: 2px 0 2px 5.6em; border: 0; background: none; }
+  .ppl tr.person > th { display: flex; align-items: center; padding: 0 0 4px; }
+  .ppl tr.person > td::before { content: attr(data-label); position: absolute; left: 0; top: 2px; width: 5.2em; color: var(--ink-3); font-size: .75rem; line-height: 1.9; }
+  .ppl .who-btn { min-height: 2.5rem; font-size: 1.0625rem; }
+  .ppl .cur { -webkit-line-clamp: 4; }
+  .ppl tr.detail > td { padding: 0; border: 1px solid var(--accent); border-top: 0; border-radius: 0 0 10px 10px; }
+  .ppl .pd { margin: 0; padding: .7rem .7rem .8rem; border: 0; border-radius: 0 0 10px 10px; box-shadow: none; }
+  .ppl .pd dl { grid-template-columns: 5.2em minmax(0, 1fr); gap: 4px 8px; }
+  .ppl table.evt, .ppl table.evt tbody, .ppl table.evt tr, .ppl table.evt td { display: block; }
+  .ppl table.evt thead { display: none; }
+  .ppl table.evt tr { padding: .4rem 0; border-bottom: 1px solid var(--line); }
+  .ppl table.evt td { position: relative; padding: 1px 0 1px 5.6em; border: 0; }
+  .ppl table.evt td::before { content: attr(data-label); position: absolute; left: 0; width: 5.2em; color: var(--ink-3); }
+  .ppl .acts .btn { height: 2.6rem; }
+}
+@media (prefers-reduced-motion: reduce) { .ppl .caret { transition: none; } }

@@ -3,6 +3,7 @@
 import { get, ref } from 'firebase/database';
 import type { FirebaseHouseholdSession } from '../householdSession.ts';
 import { parseTimelineData } from '../novelTimelineModel.ts';
+import { parsePeopleData } from '../novelPeopleModel.ts';
 import { newBook, parseCatalog, parseSearch, validateManifest, type BookInfo, type LoadedBook } from './data.ts';
 
 export function createStore(session: FirebaseHouseholdSession, householdId: string) {
@@ -55,6 +56,12 @@ export function createStore(session: FirebaseHouseholdSession, householdId: stri
       return book.timelineRead.then(
         (data) => { if (data === undefined) book.timelineRead = undefined; return data; },
         (error: unknown) => { book.timelineRead = undefined; throw error; });
+    },
+    people(slug: string, book: LoadedBook) {
+      book.peopleRead ??= read(`books/${slug}/people`).then((raw) => (raw === undefined ? undefined : parsePeopleData(raw)));
+      return book.peopleRead.then(
+        (data) => { if (data === undefined) book.peopleRead = undefined; return data; },
+        (error: unknown) => { book.peopleRead = undefined; throw error; });
     },
     search(slug: string, book: LoadedBook) {
       book.searchRead ??= read(`books/${slug}/search`).then((raw) => (raw === undefined ? undefined : parseSearch(raw)));

@@ -1,5 +1,6 @@
 // Contract between the book-page shell and its views (tabs). A view module's default
 // export is a CreateNovelView; the shell gives it a host and a container of its own.
+import type { NovelPeopleData } from '../novelPeopleModel.ts';
 import type { DatabaseReference } from 'firebase/database';
 import type { NovelTimelineData } from '../novelTimelineModel.ts';
 import type { NovelRoute } from '../novelArchiveRoute.ts';
@@ -18,6 +19,8 @@ export interface NovelViewHost {
   read(path: string): Promise<string | undefined>;
   /** The book's timeline, read once and shared by all views; null when not synced. */
   timeline(): Promise<NovelTimelineData | null | undefined>;
+  /** The book's people table, read once; null when not synced. */
+  people(): Promise<NovelPeopleData | null | undefined>;
   /** Kept per book and view while signed in, across view switches and book switches. */
   memo: Record<string, unknown>;
   /** A place below households/<id>/ in the household's private database (e.g. proofdesk/<slug>). */

@@ -30,6 +30,28 @@ const fixture = (axisLabel: string) => ({
   },
 });
 
+// A small made-up people table: an owner with 称呼 and 外在与言行 entries, an owner
+// without, and a record whose profile page was not synced (its link stays plain text).
+const owner = (id: string) => `owners/CHARACTER/${id}/START_HERE.md`;
+const people = JSON.stringify({
+  scope: 'C1–C3', extracted: 'C1–C1',
+  people: [
+    { id: 'CH-Ann', name: 'Ann', kind: 'owner', basic: '主角，`CH-Cy` 的旧友', group: ['GR-Crew'], first: 'C1#P2',
+      current: { as: '截至 C3', items: ['在码头等 `CH-Cy`', '还没定约'] },
+      names: [{ name: '阿安', users: ['`CH-Cy`'], refs: ['C1#P2'] }],
+      hooks: [{ cat: '体貌', text: '左眉有疤', mark: '一见', refs: ['C1#P2'] }, { cat: '声音说话', text: '说话慢', mark: '阶段：春', refs: ['C2#P5'] }],
+      evidence: {
+        names: [['阿安', '`CH-Cy`', '昵称', '`CH-Ann`', '私下', '春', '`C1#P2`', '阿安，来。']],
+        looks: [['体貌', '左眉有疤', '叙述', '当场可辨', '春', '`C1#P2`', '眉上一道疤'], ['声音说话', '说话慢', '叙述', '明确阶段', '春', '`C2#P5`', '慢慢说']],
+      } },
+    { id: 'CH-Cy', name: 'Cy', kind: 'owner', basic: '旁观者', group: [], first: 'C2#P5',
+      current: { as: '截至 C2', items: ['独自出发'] }, names: [], hooks: [], evidence: { names: [], looks: [] } },
+    { id: 'CH-Dee', name: 'Dee', kind: 'record', basic: '码头的船夫', group: ['GR-Crew'], first: 'C3#P1',
+      current: null, names: [], hooks: [], evidence: { names: [], looks: [] } },
+  ],
+  paths: { 'CH-Ann': owner('CH-Ann'), 'CH-Cy': owner('CH-Cy'), 'CH-Dee': 'records/CHARACTER/CH-Dee.md', 'C1#P2': 'source/C1.md#p2', 'C2#P5': 'source/C2.md#p5', 'C3#P1': 'source/C3.md#p1' },
+});
+
 const pageKey = (path: string) => Buffer.from(path).toString('base64url');
 // Reading pages for every link the timeline can make, shaped like the compiled KB.
 function stubBook(title: string, timeline: Timeline): Tree {
@@ -64,10 +86,11 @@ function stubBook(title: string, timeline: Timeline): Tree {
     pages: Object.fromEntries(Object.entries(pages).map(([path, [, html]]) => [pageKey(path), html])),
     search: Object.fromEntries(Object.entries(pages).map(([path, [pageTitle]]) => [pageKey(path), pageTitle])),
     timeline: JSON.stringify(timeline),
+    ...(title === 'Maritime Story' ? { people } : {}),
   };
 }
 
-// NOVEL_STUB_DB may name a full private payload ({manifest,pages,search,timeline}) for
+// NOVEL_STUB_DB may name a full private payload ({manifest,pages,search,timeline,people}) for
 // the first book, e.g. for screenshots with the real data; it is never committed.
 async function database() {
   const first = env.NOVEL_STUB_DB ? JSON.parse(await readFile(env.NOVEL_STUB_DB, 'utf8')) as Tree : stubBook('Maritime Story', fixture('Ann·Bo'));

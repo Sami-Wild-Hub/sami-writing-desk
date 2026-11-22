@@ -10,7 +10,7 @@ test('home lists one card per book that opens its book page', async ({ page }) =
     const card = page.locator('article[data-book]').nth(index);
     await expect(card.locator('a.cover')).toHaveAttribute('href', new RegExp(`/book/\\?book=${book.slug}$`));
     await expect(card.locator('h3')).toHaveText(book.title);
-    await expect(card.locator('.acts a')).toHaveText(['阅读', '时间线', '校稿台']);
+    await expect(card.locator('.acts a')).toHaveText(['阅读', '时间线', '人物', '校稿台']);
     await expect(card.locator('.acts a').last()).toHaveAttribute('href', new RegExp(`/book/\\?book=${book.slug}&view=proof$`));
   }
   await expect(page.getByText('本周')).toHaveCount(0);
