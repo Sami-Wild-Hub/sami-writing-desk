@@ -84,7 +84,13 @@ export async function once(config, options = {}) {
     const tip = await git.tip();
     const results = [];
     for (const slug of await git.books(tip)) {
-      const result = await reconcileBook({ git, rtdb, slug, state: states?.[slug] });
+      let result = await reconcileBook({ git, rtdb, slug, state: states?.[slug] });
+      // The Action has no later round: stay until a merge or fresh edit is still long enough to publish.
+      while (action && (result.status === 'merged' || Number.isFinite(result.retryAfter))) {
+        await new Promise(resolve => setTimeout(resolve, result.retryAfter ?? 0));
+        await git.fetch();
+        result = await reconcileBook({ git, rtdb, slug });
+      }
       results.push({ slug, result });
     }
     await logResults(config, results);
