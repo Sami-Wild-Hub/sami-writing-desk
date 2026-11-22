@@ -1,43 +1,25 @@
-# Outline workbench
+# Storyline outline workbench
 
-The authenticated `outline` view reads and writes `households/<id>/outlineSync/<slug>`. The tab and book-shelf entry exist only when `outlineSync/<slug>/head` exists; `novelArchive` is never used for outline data and the client does not read its legacy `hasOutline` flag.
+The authenticated outline view reads `households/<id>/outlineSync/<slug>`; its entry exists when `head` exists. Both tabs share one v6 model and the existing CAS cloud save, local draft, conflict, export/import, and replacement-recovery path.
 
-The sync worker stores the original `plot-data.json` and `placements.json` text gzip-packed in RTDB. The web payload derives `config: {spineGroupId, spineTitle}` from `head.config` and the plot data. Source archives and unknown provenance fields survive workspace edits and exports.
+`plot-data.json` contains:
 
-Local drafts are isolated by project, household, signed-in user and book. They retain the live revision used for the next CAS write. Drafts written by 5b65c3e (`revision` plus `workspace`) are accepted: the first page load compares both the draft and cloud files with the immutable starter by content, imports the draft when cloud is unchanged, or presents the cloud-version choices without discarding the local copy. Exported workspace, plot data and plan files use the original v5 format, including the legacy workspace format identifier and filename.
+- `schema_version: "6.0"`, `beats`, `plot_units`, `storyline_groups`, `participants`, `participant_order`.
+- Every unit has one `category`: `past`, `current`, or `undecided`. Merged source units stay in the document and are excluded from the visible card lists.
+- Each storyline has a title, at least one participant, and `time_order: {past:[], current:[], undecided:[]}` of visible card IDs. Every visible card appears exactly once.
+- Original source nodes, branches, source references, merged units, extension fields and archived provenance are retained. Archived fields do not drive presentation or ordering.
 
-Presentation files for visual redesign:
+`placements.json` contains `schema_version: "6.0"`, `placements: [{unit_id, beat_id, order}]`, `beat_notes` and any extension fields. Category belongs only to the card. Reveal order is Beat order followed by placement order. Reordering time does not move placements; reordering placements does not change time. A drop into another category moves the card to that time column's end unless the time drop specifies its position.
 
-- `src/styles/outline.css`: all outline styles.
-- `src/lib/views/outline/frame.ts`: frame markup.
-- `src/lib/views/outline/templates.js`: cards, lanes, navigation, pools and statistics.
-- `src/lib/views/outline/forms.js`: inline editors and composers.
+The participant order controls each storyline's section and generated name. Past, Current and undecided have equal controls. Mismatch marks compare placed cards of one storyline/category with its time order; the longest shared order is kept, preferring earlier cards on ties. Marks never constrain edits. The library retains the pending/placed/written filters.
 
-Keep the existing IDs and `data-*` hooks, semantic controls, and phone `.side` drawer. `sync.ts` owns the RTDB subscription, packed-file writes, CAS conflict actions and decode boundary; `controller.js` owns interactions, remote-state decisions and local persistence; `model.js` owns state and operations; `draft.js` owns local persistence; and `schema.ts` types the shared payload.
+Optional `config.json` accepts `defaultStorylineId`; its default is the first storyline. All storylines have equal status.
 
-The existing offline replay uses `tests/outline-fixture.mjs`; sync acceptance uses the `maritime-story` files from the sibling data repository at runtime and never copies them into this site. `outline-scenario.mjs` replays the same visible controls against the original and new workbenches. Model, sync, interactions, persistence and archive lifecycle have separate test files. Private parity tests are opt-in and compare every Beat and time layer, the complete initial workspace, and both directions of all three interchange formats.
+Source entry points:
 
-To reproduce private screenshots, first run in the private novel checkout:
+- `model.js`, `validation.js`, `ordering.js`: shared browser/worker contracts and edits.
+- `controller.js`, `cloud-controller.js`, `sync.ts`, `draft.js`: interactions, local drafts, packed cloud files and CAS conflicts.
+- `presentation.js`, `templates.js`, `render-outline.js`, `render-story.js`, `drag.js`: approved sample presentation bound to the live model.
+- `sync/outline/migrate-v6.mjs`, `migrate-v6-cli.mjs`: one-time conversion and guarded cutover. No runtime v5 reader is installed.
 
-```powershell
-python site/outline_preview.py --novel <slug> --out <private-folder>/outline-preview.json
-```
-
-Then run in this checkout, with inputs and outputs in a system temporary directory or CodexTasks:
-
-```powershell
-$env:GITHUB_ACTIONS='true'
-$env:GITHUB_REPOSITORY='Sami-Wild-Hub/sami-writing-desk'
-$env:NOVEL_STUB_DB='<private-folder>/outline-preview.json'
-$env:NOVEL_OUTLINE_ORIGINAL='<private-novel-folder>/outline/view.html'
-$env:NOVEL_OUTLINE_SHOTS_DIR='<private-folder>/outline-shots'
-npm.cmd run test:browser -- tests/outline-private.spec.ts
-```
-
-This produces paired full-page and viewport screenshots under `original/` and `build/` at 390, 1280 and 2560 pixels. The original is opened in an offline browser context. Private content stays in runtime test inputs and those screenshot directories.
-
-For an independent offline original-control replay:
-
-```powershell
-node scripts/outline-original.mjs <original-view.html> <private-shots-directory>
-```
+Run `npm run test:unit`, `npm run test:browser` and `npm run test:e2e:real`. Private outline tests load the sibling data checkout at runtime, or `OUTLINE_DATA_REPO`; public CI skips those tests when the private source is absent. They do not embed a substitute book. The real acceptance harness uses temporary git remotes and an RTDB emulator and cleans them on exit. Default viewport is 1440×900 for the storyline UI.

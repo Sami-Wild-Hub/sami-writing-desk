@@ -1,107 +1,98 @@
-// Outline rendering templates; data and interaction hooks are provided by the controller.
-import { esc as html } from '../../archive/ui.ts';
-export function outlineTemplates(root, model, ui, config) {
- const { data, state, storyMap, unitMap, activeBeat, undoHistory, kindOf, placedList, orderedSelected, used, isMaterial, openRank } = model;
- const { closedGroups, searchText, showOriginal, shownStates } = ui;
- const $ = id => root.querySelector(`[id="${html(id)}"]`);
- const timeOrder = ['CURRENT','PAST'];
- const eraOf = u => state.placements[u.unit_id]?.era||u.era;
- const acts = [...new Set(data.beats.map(b=>b.act))];
- const stateLabel = {written:'已写',placed:'已排',unplaced:'待排'};
- const stateOf = u => u.status==='WRITTEN'?'written':used(u.unit_id)?'placed':'unplaced';
-function editable(field,id,value,className=''){
- return `<span role="button" tabindex="0" class="editable-field ${className}" data-edit-field="${html(field)}" data-id="${html(id)}" title="点击直接编辑">${html(value||'')||'<em class="placeholder">点击填写…</em>'}</span>`;
+// Shared markup: top bar, cards, folds, participant ranking popover and the storyline dialog.
+export function renderBar(v) {
+  const { UI, S, D, undoStack } = v;
+  const tab = (id, label) => `<button data-act="tab" data-tab="${id}" aria-current="${UI.tab === id ? 'page' : 'false'}">${label}</button>`;
+  return `
+    <nav class="tabs" aria-label="视图">${tab('outline', '大纲')}${tab('story', '故事线')}</nav>
+    <span class="sp"></span>
+    <span id="overall">${Object.keys(S.cards).length} 张 · ${Object.keys(D.placedIn).length} 已排</span>
+    <button class="btn" data-act="toggle-rank" aria-expanded="${UI.rank}">参与者排序</button>
+    <button class="btn" id="undo" data-act="undo" ${undoStack.length ? '' : 'disabled'} title="撤销上一步（Ctrl+Z）">↶ 撤销</button>`;
 }
-function renderNav(){
- const placed=placedList(),isElement=p=>unitMap[p.unit_id]?.is_editorial_element;
- $('beat-nav').innerHTML=acts.map(act=>`<div class="act"><div class="actname">ACT ${html(act)}</div>${data.beats.filter(b=>b.act===act).map(b=>{
-  const count=placed.filter(p=>p.beat_id===b.beat_id&&isElement(p)).length,on=activeBeat===b.beat_id;
-  return `<button class="beat ${on?'active':''} ${count?'':'empty-beat'}" data-choose-beat="${html(b.beat_id)}" aria-current="${on?'step':'false'}"><span class="beat-no">Beat ${html(b.beat)}</span><span class="beat-name">${html(b.title||'')}</span><small title="${count} 个 Element">${count}</small></button>`}).join('')}</div>`).join('');
- const n=placed.filter(isElement).length,total=data.plot_units.filter(u=>u.is_editorial_element).length,pct=total?Math.round(100*n/total):0;
- $('overall').textContent=`${n} / ${total}`;$('overall-pct').textContent=pct+'%';$('meter').style.width=pct+'%';
- $('remaining').textContent=`Relationship ${placed.filter(p=>kindOf(unitMap[p.unit_id])==='RELATIONSHIP').length} · Events ${placed.filter(p=>kindOf(unitMap[p.unit_id])==='EVENT').length}`;
- const b=data.beats.find(b=>b.beat_id===activeBeat);$('active-beat').textContent=`ACT ${html(b.act)} / BEAT ${html(b.beat)}`;
- $('beat-title').innerHTML=editable('beat-title',b.beat_id,b.title||'','beat-title-value');
- $('beat-note').value=state.beat_notes[activeBeat]||'';
- const here=placed.filter(p=>p.beat_id===activeBeat),elements=here.map(p=>unitMap[p.unit_id]).filter(u=>u&&isMaterial(u)),written=elements.filter(u=>u.status==='WRITTEN').length;
- $('beat-summary').innerHTML=`<span>本拍已选 <b>${here.length}</b> 块</span><span class="tally written">已写 ${written}</span><span class="tally placed">已排 ${elements.length-written}</span>`;
- const support=kind=>here.filter(p=>unitMap[p.unit_id]?.storyline_group_id!==config.spineGroupId&&kindOf(unitMap[p.unit_id])===kind).length+' 块';
- $('rel-summary').textContent=support('RELATIONSHIP');$('event-summary').textContent=support('EVENT');$('undo').disabled=!undoHistory.length;
+
+export function fold(v, key, label, body) {
+  const { UI, esc } = v;
+  return `<details class="fold" data-key="${esc(key)}" ${UI.open.has(key) ? 'open' : ''}><summary>${label}</summary>${body}</details>`;
 }
-function sourceDetails(u){if(u.is_editorial_element)return `<details class="origin"><summary>出处</summary><div>${html(u.source_refs||'无')} · 原 XMind：${html((u.source_unit_ids||[]).join('、')||'新增')}</div></details>`;
- if(u.is_custom)return '<span class="origin">本次新建</span>';
- const origin=u.original_act?`ACT ${u.original_act} / Beat ${u.original_beat}`:'原稿未分配';
- return `<details class="origin"><summary>原稿来源</summary><div>${html(origin)} · ${html(u.source_group)} · XMind ID ${html(u.source_id)}</div></details>`;
+
+// Full card: badge, where it is placed, text, details and origins, actions.
+export function cardFull(v, c, { actions = '', where = true, drag = false, mark = true } = {}) {
+  const { D, beatShort, esc, list, markBlock, statusClass, fold } = v;
+  const p = D.placedIn[c.id], m = mark && D.marks[c.id];
+  const place = where ? `<span class="where ${p ? 'placed' : ''}">${p ? '排在 ' + beatShort(p.beat) : '未排'}</span>` : '';
+  const foot = [
+    c.details?.length ? fold(`d:${c.id}`, `细节 ${c.details.length}`, list(c.details)) : '',
+    c.origins?.length ? fold(`o:${c.id}`, `并入的原纲 ${c.origins.length}`, list(c.origins)) : '',
+    c.refs ? `<span class="refs">出处 ${esc(c.refs)}</span>` : '',
+  ].join('');
+  return `<article class="card ${c.cat} ${m ? 'marked' : ''}" ${drag ? `data-drag="card" data-id="${c.id}"` : ''} data-card="${c.id}">
+    <div class="c-head"><span class="badge ${statusClass[c.status]}">${c.status}</span>${place}</div>
+    ${c.title ? `<div class="c-title">${esc(c.title)}</div>` : ''}<div class="c-text">${esc(c.text)}</div>${m ? markBlock(c) : ''}
+    <div class="c-foot">${foot}<span class="c-actions">${actions}</span></div></article>`;
 }
-function kindSelect(u){const val=kindOf(u);return `<select data-switch-kind="${html(u.unit_id)}" aria-label="${html(u.unit_id)} 分类"><option value="RELATIONSHIP" ${val==='RELATIONSHIP'?'selected':''}>Relationship</option><option value="EVENT" ${val==='EVENT'?'selected':''}>Event</option></select>`}
-function eraSelect(u){const chosen=state.placements[u.unit_id]?.era||u.era;return `<select data-switch-era="${html(u.unit_id)}" aria-label="${html(u.unit_id)} 时间线" title="修改此情节点的时间线"><option value="CURRENT" ${chosen==='CURRENT'?'selected':''}>Current</option><option value="PAST" ${chosen==='PAST'?'selected':''}>Past</option><option value="UNASSIGNED" ${chosen==='UNASSIGNED'?'selected':''}>未定</option></select>`}
-function moveSelect(u,current){return `<select class="move" data-move="${html(u.unit_id)}" aria-label="${html(u.unit_id)} 整块移动到其他 Beat"><option value="">整块移动到…</option>${acts.map(act=>`<optgroup label="ACT ${html(act)}">${data.beats.filter(b=>b.act===act&&b.beat_id!==current).map(b=>`<option value="${html(b.beat_id)}">Beat ${html(b.beat)}${b.title?' · '+html(b.title):''}</option>`).join('')}</optgroup>`).join('')}</select>`}
-function statusSelect(u){const written=u.status==='WRITTEN';return `<select data-editorial-status="${html(u.unit_id)}"><option value="WRITTEN" ${written?'selected':''}>已写</option><option value="PLANNED" ${!written?'selected':''}>未写</option></select>`}
-function groupSelect(u){return `<select class="move" data-switch-group="${html(u.unit_id)}" aria-label="${html(u.unit_id)} 换故事线"><option value="">换故事线…</option>${['RELATIONSHIP','EVENT'].map(kind=>`<optgroup label="${kind==='RELATIONSHIP'?'Relationship':'Events'} 素材">${data.storyline_groups.filter(g=>groupEligible(g,kind)&&(g.id!==u.storyline_group_id||kind!==kindOf(u))).map(g=>`<option value="${html(`${kind}:${g.id}`)}">${html(g.title)}</option>`).join('')}</optgroup>`).join('')}</select>`}
-// The button names the Beat. Only a card without a time then asks for Current or Past.
-function pickActions(u){
- const p=state.placements[u.unit_id],id=html(u.unit_id),label=`＋ 选入 ${html(activeBeat)}`;
- if(p)return `<button class="pick" data-move-here="${id}">从 ${html(p.beat_id)} 移入本 Beat</button>`;
- const pick=u.era!=='UNASSIGNED'?`<button class="pick" data-add="${id}">${label}</button>`:`<details class="place-ask"><summary class="pick">${label}</summary><div class="place-eras">时间${timeOrder.map(era=>`<button class="pick" data-add="${id}" data-era="${era}">${era==='PAST'?'Past':'Current'}</button>`).join('')}</div></details>`;
- return pick+(openRank(u)?groupSelect(u):'');
+
+// Compact card in a Beat cell of the current storyline.
+export function cardMini(v, c) {
+  const { D, cardLabel, esc, markBlock, statusClass } = v;
+  return `<div class="mini ${c.cat} ${D.marks[c.id] ? 'marked' : ''}" data-drag="card" data-id="${c.id}" data-card="${c.id}" title="${esc(c.text)}">
+    <div class="mini-head"><span class="badge ${statusClass[c.status]}">${c.status}</span><span class="mini-title">${esc(cardLabel(c))}</span>
+    <button class="x" data-act="unplace" data-id="${c.id}" title="移出这一拍" aria-label="移出这一拍">×</button></div>${markBlock(c)}</div>`;
 }
-function editUnitText(u){return `<div class="cardtext editable-field" role="button" tabindex="0" data-edit-field="unit" data-id="${html(u.unit_id)}" title="点击编辑情节内容">${html(u.content)}</div>`}
-function editorialCard(u,selected){
- const p=state.placements[u.unit_id],details=u.details||[],progress=stateOf(u);
- const actions=selected?`<button class="remove" data-remove="${html(u.unit_id)}">移出</button>${moveSelect(u,p.beat_id)}`:pickActions(u);
- return `<article class="card editorial ${progress}"><div class="card-head"><span class="editorial-badge">${stateLabel[progress]}</span><div class="editorial-title">${editable("element-title",u.unit_id,u.element_title||"阶段名")}</div><span class="card-id">${html(u.unit_id)}${u.source_refs?` · ${html(u.source_refs)}`:""}</span></div>${editUnitText(u)}<div class="card-foot"><details class="editorial-details"><summary>细节 ${details.length}</summary><ul>${details.map(d=>`<li>${html(d)}</li>`).join("")}</ul>${editable("element-details",u.unit_id,"✎ 编辑细节","details-edit")}</details>${sourceDetails(u)}<div class="cardactions">${actions}${eraOf(u)==='UNASSIGNED'?'':`<button class="tiny" data-create-after="${html(u.unit_id)}" title="在这张卡后面新增一个阶段">＋ 后接</button>`}<details class="editorial-controls"><summary>分类·状态</summary><div class="control-grid"><label>分类${kindSelect(u)}</label><label>时间线${eraSelect(u)}</label><label>写作状态${statusSelect(u)}</label><button class="delete-item" data-delete-unit="${html(u.unit_id)}">删除卡片</button></div></details></div></div></article>`;
+
+// Read-only reference to another storyline's card.
+export function refChip(v, c) {
+  const { lineOf, nameOf, cardLabel, esc } = v;
+  const l = lineOf(c.line);
+  return `<div class="ref" title="${esc(nameOf(l))}\n${esc(c.text)}"><span class="ref-line">${esc(nameOf(l))}</span><span class="ref-title">${esc(cardLabel(c))}</span></div>`;
 }
-function rawCard(u,meta,actions){
- const material=isMaterial(u),progress=material?stateOf(u):'';
- const badge=material?`<span class="editorial-badge">${stateLabel[progress]}</span>`:'<span class="raw-badge">原始</span>';
- const controls=material?`<details class="editorial-controls"><summary>分类·状态</summary><div class="control-grid"><label>分类${kindSelect(u)}</label><label>时间线${eraSelect(u)}</label><label>写作状态${statusSelect(u)}</label></div></details>`:kindSelect(u)+eraSelect(u);
- return `<article class="card raw ${progress}"><div class="card-head">${badge}<div class="cardtitle">${meta}</div></div>${editUnitText(u)}<div class="card-foot">${sourceDetails(u)}<div class="cardactions">${actions}${controls}</div></div></article>`;
+
+export function cardEditor(v, c) {
+  const { esc } = v;
+  return `<form class="card editor ${c.cat}" data-form="card" data-drag="card" data-id="${c.id}" data-locked>
+    <label class="field">标题<input name="title" value="${esc(c.title)}" placeholder="可留空"></label>
+    <label class="field">内容<textarea name="text" rows="4">${esc(c.text)}</textarea></label>
+    <label class="field">细节（每行一条）<textarea name="details" rows="3">${esc((c.details || []).join('\n'))}</textarea></label>
+    <div class="form-actions"><button class="primary" type="submit">保存</button><button type="button" data-act="cancel-edit">取消</button></div></form>`;
 }
-function selectedCard(p){
- const u=unitMap[p.unit_id],group=storyMap[u.storyline_group_id];if(u.is_editorial_element)return editorialCard(u,true);
- return rawCard(u,`${html(group?.title)} · ${html(u.unit_id)}`,`<button class="remove" data-remove="${html(u.unit_id)}">移除</button>${moveSelect(u,p.beat_id)}`);
+
+export function composer(v, cat) {
+  const { CAT_LABEL } = v;
+  return `<form class="card editor composer ${cat}" data-form="new" data-cat="${cat}">
+    <div class="composer-caption">新增到 ${CAT_LABEL[cat]} 末尾</div>
+    <label class="field">标题<input name="title" placeholder="这一段的名字"></label>
+    <label class="field">内容<textarea name="text" rows="3" placeholder="发生了什么"></textarea></label>
+    <div class="form-actions"><button class="primary" type="submit">添加</button><button type="button" data-act="cancel-compose">取消</button></div></form>`;
 }
-function renderSelected(kind,scope="support"){
- return timeOrder.map(era=>{
-  const pool=scope==="spine"?[...orderedSelected(activeBeat,"RELATIONSHIP",era),...orderedSelected(activeBeat,"EVENT",era)].sort((a,b)=>unitMap[a.unit_id].sequence-unitMap[b.unit_id].sequence):orderedSelected(activeBeat,kind,era);
-  const xs=pool.filter(p=>(unitMap[p.unit_id].storyline_group_id===config.spineGroupId)===(scope==="spine"));
-  const gs=[...new Set(xs.map(p=>unitMap[p.unit_id].storyline_group_id))];
-  const chunks=gs.map(id=>{
-   const g=storyMap[id],items=xs.filter(p=>unitMap[p.unit_id].storyline_group_id===id);
-   return `<div class="selected-storyline"><div class="selected-storyline-head">${html(g?.title||id)} <small>${items.length} 个阶段</small></div><div class="selected-storyline-summary" title="${html(g?.summary||"")}">${html(g?.summary||"")}</div>${items.map(p=>selectedCard(p)).join("")}</div>`;
-  }).join("");
-  return `<section class="time-lane ${era==="PAST"?"past":"current"}" data-selected-kind="${kind}" data-selected-era="${era}"><div class="label"><span class="era">${era==="PAST"?"PAST":"CURRENT"}</span><span class="label-actions"><span class="n">${xs.length} 块</span><button class="inline-plus" data-create-beat-unit="${kind}" data-group-id="${html(scope==="spine"?config.spineGroupId:"")}" data-era="${era}">＋ Element</button></span></div><div class="cards">${chunks||'<div class="empty">没有这一时间层的 Element</div>'}</div></section>`;
- }).join("");
+
+export function rankPanel(v) {
+  const { S, KB_TYPE, esc, list } = v;
+  const used = n => S.lines.filter(l => l.parts.includes(n)).length;
+  const item = (n, i) => `<li class="rank-item" data-drag="rank" data-id="${esc(n)}"><span class="grip" aria-hidden="true">⋮⋮</span><span class="rk">${i + 1}</span>
+    <span class="rn">${esc(n)}</span><span class="rt">${esc(KB_TYPE[n] || '手填')}</span><small>${used(n)} 条</small></li>`;
+  return `<div class="pop rank-pop" role="dialog" aria-label="参与者排序"><div class="pop-head"><b>参与者排序</b>
+    <button class="quiet" data-act="toggle-rank" aria-label="关闭">×</button></div>
+    <p class="hint">拖动调整排位。每条故事线列在排位最靠前的参与者下，名字也按这个顺序。</p>
+    <ol class="rank-list" data-zone="rank" data-accept="rank">${S.ranking.map(item).join('')}</ol></div>`;
 }
-function candidateCard(u){if(u.is_editorial_element)return editorialCard(u,false);return rawCard(u,`${html(u.unit_id)} · 原始 XMind 节点`,pickActions(u))}
-function groupEligible(group,kind){return (group.kinds||[]).includes(kind)||group.default_kind===kind||data.plot_units.some(u=>u.storyline_group_id===group.id&&kindOf(u)===kind)}
-function renderLibrary(kind){const q=searchText[kind].trim().toLocaleLowerCase();let items=[],count=0;
- const shown=shownStates[kind],hidden=u=>isMaterial(u)&&!shown.has(stateOf(u));
- // A search shows every match open, so folding waits until it is cleared.
- for(const b of root.querySelectorAll(`.state-filter[data-kind="${kind}"] [data-fold]`))b.disabled=Boolean(q);
- // Counts cover the cards this library can offer for the active Beat, before search.
- const offered=data.plot_units.filter(u=>isMaterial(u)&&kindOf(u)===kind&&state.placements[u.unit_id]?.beat_id!==activeBeat);
- for(const chip of root.querySelectorAll(`.state-filter[data-kind="${kind}"] [data-filter-state]`)){
-  chip.setAttribute('aria-pressed',String(shown.has(chip.dataset.filterState)));chip.querySelector('b').textContent=offered.filter(u=>stateOf(u)===chip.dataset.filterState).length;
- }
- for(const group of data.storyline_groups){if(!groupEligible(group,kind))continue;if(!showOriginal&&!group.is_custom&&!data.plot_units.some(u=>isMaterial(u)&&u.storyline_group_id===group.id&&kindOf(u)===kind))continue;
-  const available=data.plot_units.filter(u=>u.storyline_group_id===group.id&&!hidden(u)&&kindOf(u)===kind&&(isMaterial(u)?(!used(u.unit_id)||state.placements[u.unit_id].beat_id!==activeBeat):showOriginal&&!used(u.unit_id)));
-  const matched=available.filter(u=>!q||group.title.toLowerCase().includes(q)||(group.summary||'').toLowerCase().includes(q)||u.content.toLowerCase().includes(q)||String(u.element_title||'').toLowerCase().includes(q)||(u.details||[]).join(' ').toLowerCase().includes(q)||u.unit_id.toLowerCase().includes(q));
-  const elements=data.plot_units.filter(u=>isMaterial(u)&&u.storyline_group_id===group.id&&kindOf(u)===kind);
-  if(!available.length&&elements.length&&elements.every(hidden))continue;
-  if(q&&!matched.length&&!group.title.toLowerCase().includes(q)&&!(group.summary||'').toLowerCase().includes(q))continue;
-  count+=matched.length;
-  const inEra=era=>matched.filter(u=>eraOf(u)===era).sort((a,b)=>a.sequence-b.sequence||a.unit_id.localeCompare(b.unit_id)),undecided=inEra('UNASSIGNED');
-  const sections=timeOrder.map(era=>{const xs=inEra(era);
-   return `<div class="sectionlabel ${era==='PAST'?'past':'current'}"><span class="era">${era} · ${xs.length} 可选</span><button class="inline-plus" data-create-group-unit="${html(group.id)}" data-kind="${kind}" data-era="${era}" title="在这条故事线的 ${era} 新增情节点">＋</button></div>${xs.length?xs.map(candidateCard).join(''):'<div class="empty">此时间段暂无可选情节点，点击＋新增</div>'}`
-  }).join('')+(undecided.length?`<div class="sectionlabel undecided"><span class="era">时间未定 · ${undecided.length} 可选</span></div>${undecided.map(candidateCard).join('')}`:'');
-  const opened=q||!closedGroups[kind].has(group.id);
-  items.push(`<details class="group" data-group="${html(group.id)}" data-kind="${kind}" ${opened?'open':''}><summary class="group-summary"><span class="group-name">${editable('group-title',group.id,group.title,'group-title')}</span><small class="${matched.length?'':'none'}">${matched.length} 可选</small></summary><div class="groupinner"><div class="group-description">${editable('group-summary',group.id,group.summary||'','group-summary-value')}</div>${sections}${group.is_custom?`<div class="group-footer"><button class="delete-item" data-delete-group="${html(group.id)}">删除空白故事线</button></div>`:''}</div></details>`)
- }
- $((kind==='RELATIONSHIP'?'rel':'event')+'-left').textContent=`${count} 个可选`;
- return items.length?items.join(''):`<div class="empty">暂无匹配故事线。${shown.size<3?`可点上方${Object.keys(stateLabel).filter(key=>!shown.has(key)).map(key=>`「${stateLabel[key]}」`).join('')}一起看，或`:''}点击「＋ 新建故事线」。</div>`;
+
+export function linePreview(v, d) {
+  const { rankOf } = v;
+  const parts = [...d.parts].sort((a, b) => rankOf(a) - rankOf(b));
+  return `${parts.join(' × ') || '（参与者）'}：${d.title || '（标题）'}`;
 }
-function renderCounts(){const rows=data.storylines.filter(s=>!s.is_custom).map(s=>{const xs=data.plot_units.filter(u=>u.storyline_id===s.id&&!u.is_custom),c=era=>xs.filter(u=>u.era===era).length;
- return `<tr><td>${html(s.title)}</td><td class="num">${c('CURRENT')}</td><td class="num">${c('PAST')}</td><td class="num">${c('UNASSIGNED')}</td><td class="num"><strong>${xs.length}</strong></td></tr>`}).join('');$('original-counts').innerHTML=rows}
-return { groupEligible, editable, renderNav, renderSelected, renderLibrary, renderCounts };
+export function lineDialog(v) {
+  const { DATA, UI, KB_TYPE, rankOf, esc, list, linePreview } = v;
+  const d = UI.dialog, parts = [...d.parts].sort((a, b) => rankOf(a) - rankOf(b));
+  const chip = p => `<span class="part">${esc(p)}<small>${esc(KB_TYPE[p] || '手填')}</small>
+    <button type="button" class="x" data-act="drop-part" data-name="${esc(p)}" ${d.parts.length < 2 ? 'disabled title="至少保留一个参与者"' : 'title="移除"'}>×</button></span>`;
+  return `<div class="modal-back"><form class="modal" data-form="line" aria-label="故事线">
+    <h3>${d.id ? '编辑故事线' : '新建故事线'}</h3>
+    <div class="preview" id="line-preview">${esc(linePreview(d))}</div>
+    <label class="field">标题<input name="title" value="${esc(d.title)}" data-input="line-title" autocomplete="off"></label>
+    <div class="field">参与者（至少一个，名字前半按参与者排序自动生成）<div class="parts">${parts.map(chip).join('') || '<span class="muted">还没有参与者</span>'}</div>
+      <div class="add-part"><input name="part" list="kb-names" placeholder="从资料库选人物、组织、地点、物件，或直接填写" autocomplete="off">
+      <button type="button" data-act="add-part">添加</button></div>
+      <datalist id="kb-names">${DATA.kb.map(k => `<option value="${esc(k.name)}">${esc(k.type)}</option>`).join('')}</datalist></div>
+    <div class="form-actions"><button class="primary" type="submit" id="line-save" ${d.parts.length && d.title.trim() ? '' : 'disabled'}>保存</button>
+      <button type="button" data-act="close-dialog">取消</button></div></form></div>`;
 }

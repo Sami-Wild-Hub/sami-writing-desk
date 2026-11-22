@@ -1,6 +1,5 @@
-// Complete older workspace plans using the current plan's extension fields and key order.
-export const PLAN_KEYS = new Set(['schema_version', 'source_data', 'placements', 'kind_overrides', 'beat_notes']);
-
+// Preserve plan extensions during explicit file imports; only v6 core fields are supported.
+export const PLAN_KEYS = new Set(['schema_version', 'source_data', 'placements', 'beat_notes']);
 export function completePlan(plan, current) {
   const result = {};
   for (const key of Object.keys(current)) {
@@ -9,7 +8,4 @@ export function completePlan(plan, current) {
   }
   return { ...result, ...plan };
 }
-
-export function completeWorkspace(workspace, currentPlan) {
-  return { ...workspace, plan: completePlan(workspace.plan, currentPlan) };
-}
+export const completeWorkspace = (workspace, current) => ({ ...workspace, plan: completePlan(workspace.plan, current) });

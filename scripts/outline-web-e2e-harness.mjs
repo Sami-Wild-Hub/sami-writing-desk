@@ -79,8 +79,8 @@ export async function harness(options) {
   const put = (path, value) => db(path, { method: 'PUT', body: JSON.stringify(value) });
   const bookPath = `outlineSync/${slug}`, remote = `${root}/remote.git`, writer = `${root}/writer`;
   const draftKey = `outline:demo-outline:h:web-user:${slug}`;
-  const canonical = JSON.parse(git(dataRepo, 'show', '79700e3:outline/maritime-story/plot-data.json'));
-  const canonicalPlan = JSON.parse(git(dataRepo, 'show', '79700e3:outline/maritime-story/placements.json'));
+  const canonical = JSON.parse(await readFile(`${dataRepo}/outline/maritime-story/plot-data.json`, 'utf8'));
+  const canonicalPlan = JSON.parse(await readFile(`${dataRepo}/outline/maritime-story/placements.json`, 'utf8'));
   await put('novelArchive', { catalog: { [slug]: { title: 'Maritime Story', scope: 'canonical' } }, books: { [slug]: { manifest: { title: 'Maritime Story', scope: 'canonical', entries: { index: { path: 'INDEX.md', title: 'Maritime Story', section: 'canonical' } } } } } });
   await put('settings', { enrollmentOpen: false }); await put('members/web-user', { email: 'reader@example.com' });
   const unauthorized = await fetch(`http://127.0.0.1:${port}/households/h/outlineSync.json?ns=demo-outline-default-rtdb`);
@@ -104,7 +104,7 @@ export async function harness(options) {
     panels.push(panel);
     await ready(panel); return panel;
   };
-  const ready = async panel => eventually('outline page loaded', async () => /\d+ \/ \d+/.test(await panel.root.locator('#overall').textContent({ timeout: 1000 })));
+  const ready = async panel => eventually('outline page loaded', async () => /\d+ 张 · \d+ 已排/.test(await panel.root.locator('#overall').textContent({ timeout: 1000 })));
   const live = async () => { const state = await db(bookPath); return { state, plot: JSON.parse(await unpack(state.live.plot)), plan: JSON.parse(await unpack(state.live.plan)) }; };
   const mainFile = name => JSON.parse(git(remote, 'show', `main:outline/${slug}/${name}`));
   const main = () => git(remote, 'rev-parse', 'main').trim();
@@ -125,8 +125,10 @@ export async function harness(options) {
 export const notice = (panel, text) => panel.root.locator('.draft-notice').filter({ hasText: text }).waitFor({ timeout: 90_000 });
 export const button = (panel, name) => panel.page.getByRole('button', { name, exact: true }).click();
 export async function editUnit(panel, id, text) {
-  await panel.root.locator(`[data-edit-field="unit"][data-id="${id}"]`).first().click();
-  await panel.root.locator('.inline-editor textarea').fill(text); await panel.page.keyboard.press('Control+Enter');
+  await panel.root.locator('[data-act="tab"][data-tab="story"]').click();
+  await panel.root.locator(`.self-pane [data-act="edit-card"][data-id="${id}"]`).click();
+  const form = panel.root.locator('[data-form="card"]');
+  await form.locator('[name="text"]').fill(text); await form.getByRole('button', { name: '保存', exact: true }).click();
 }
 export async function download(panel, action) {
   const event = panel.page.waitForEvent('download'); await action();
@@ -142,5 +144,5 @@ export async function importWorkspace(panel, value) {
   assert.deepEqual((await workspace(panel)).plot_data, value.plot_data);
 }
 export async function restore(panel) {
-  panel.page.once('dialog', dialog => dialog.accept()); await panel.page.locator('#restore-starter').click();
+  panel.page.once('dialog', dialog => dialog.accept()); await panel.root.locator('details:has(#restore-starter) > summary').click(); await panel.page.locator('#restore-starter').click();
 }

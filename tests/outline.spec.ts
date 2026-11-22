@@ -1,27 +1,6 @@
-// Visible-control parity against the signed-in private archive, using fictional material.
+// Authentication and book routing for the outline entry.
 import { expect, test } from '@playwright/test';
-import { stubFirebase, watchErrors } from './stub.ts';
-import { exerciseOutline } from './outline-scenario.mjs';
-
-for (const width of [390, 1280]) {
-  test(`outline original control replay at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 844 });
-    const errors = watchErrors(page);
-    const reads = await stubFirebase(page);
-    page.on('dialog', d => d.accept());
-    await page.goto('book/?book=maritime-story&view=outline');
-    const root = page.locator('[data-view="outline"]');
-    await exerciseOutline(page, root);
-    expect(errors).toEqual([]);
-    expect(reads.filter(p => p.includes('/outlineSync/maritime-story'))).not.toHaveLength(0);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
-    await page.getByRole('link', { name: '时间线', exact: true }).click();
-    await page.getByRole('link', { name: '大纲', exact: true }).click();
-    await expect(root.locator('#overall')).toHaveText('6 / 6');
-    expect(reads.filter(p => p.includes('/outlineSync/maritime-story'))).not.toHaveLength(0);
-  });
-}
-
+import { stubFirebase } from './stub.ts';
 test('outline entry is hidden without data and signed-out routes read nothing private', async ({ page }) => {
   const reads = await stubFirebase(page, { signedIn: false });
   await page.goto('book/?book=maritime-story&view=outline');

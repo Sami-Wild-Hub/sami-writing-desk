@@ -1,18 +1,17 @@
 // Verify extension completion and replacement using the canonical private outline.
 // Reads: sibling data repo origin/main (JSON); no private fixture is stored here.
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { createOutlineModel } from '../src/lib/views/outline/model.js';
 import { completePlan, completeWorkspace, PLAN_KEYS } from '../src/lib/views/outline/workspace.js';
 
 const repo = resolve('..', 'sami-writing-desk-data-outline');
-const canonical = name => JSON.parse(execFileSync('git', ['-C', repo, 'show', `origin/main:outline/maritime-story/${name}`], { encoding: 'utf8', maxBuffer: 20e6 }));
+const canonical = name => JSON.parse(readFileSync(resolve(repo, 'outline/maritime-story', name), 'utf8'));
 const options = { skip: !existsSync(repo) && 'public CI has no sibling data repository' };
 
-test('old plans inherit missing extensions in cloud key order without changing explicit values', options, () => {
+test('imported v6 plans inherit missing extensions in cloud key order without changing explicit values', options, () => {
   const current = canonical('placements.json');
   const old = Object.fromEntries(Object.entries(current).filter(([key]) => PLAN_KEYS.has(key)));
   const completed = completePlan(old, current);

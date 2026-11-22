@@ -1,6 +1,4 @@
 import { readFile } from 'node:fs/promises';
-import { execFile as run } from 'node:child_process';
-import { promisify } from 'node:util';
 import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { outlineFixture } from './outline-fixture.mjs';
@@ -12,7 +10,6 @@ import { pack } from '../src/lib/views/outline/codec.js';
 export const env = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 const stub = { apiKey: 'novel-stub-key', projectId: 'novel-stub', householdId: 'novel-stub-house' };
 const reader = { uid: 'novel-stub-reader', email: 'reader@example.com' };
-const execFile = promisify(run);
 
 type Tree = { [key: string]: unknown };
 interface Point { title: string; locs: string[] }
@@ -100,16 +97,14 @@ function stubBook(title: string, timeline: Timeline): Tree {
 // the first book, e.g. for screenshots with the real data; it is never committed.
 async function canonicalOutline() {
   const repo = resolve(process.cwd(), '..', 'sami-writing-desk-data-outline');
-  const show = async (file: string) => (await execFile('git', ['-C', repo, 'show', `origin/main:outline/maritime-story/${file}`])).stdout;
-  const [plot, plan, commit] = await Promise.all([
-    show('plot-data.json'), show('placements.json'), execFile('git', ['-C', repo, 'rev-parse', 'origin/main']).then(result => result.stdout.trim()),
-  ]);
-  return { plot, plan, commit };
+  const [plot, plan] = await Promise.all(['plot-data.json', 'placements.json'].map(name => readFile(resolve(repo, 'outline/maritime-story', name), 'utf8')));
+  return { plot, plan, commit: 'workspace-v6' };
 }
 
 async function database({ canonical = false } = {}) {
   const first = env.NOVEL_STUB_DB ? JSON.parse(await readFile(env.NOVEL_STUB_DB, 'utf8')) as Tree : stubBook('Maritime Story', fixture('Ann·Bo'));
-  let outlineSync: Tree = {};
+  // Public CI can check archive entry metadata without supplying private outline documents.
+  let outlineSync: Tree = { 'maritime-story': { head: { repo: { commit: 'metadata-only' } } } };
   if (env.NOVEL_STUB_DB) {
     const raw = (typeof first.outline === 'string' ? JSON.parse(first.outline) : first.outline && typeof first.outline === 'object' ? first.outline : first) as Tree;
     if (raw.plot_data && raw.plan) {
@@ -122,6 +117,7 @@ async function database({ canonical = false } = {}) {
     }
   } else {
     const f = outlineFixture();
+    if (f) {
     const source = canonical ? await canonicalOutline() : { plot: JSON.stringify(f.plot_data, null, 2) + '\n', plan: JSON.stringify(f.plan, null, 2) + '\n', commit: 'fiction-v1' };
     const { plot, plan } = source;
     const packed = { plot: await pack(plot), plan: await pack(plan) };
@@ -130,6 +126,7 @@ async function database({ canonical = false } = {}) {
       live: { rev: canonical ? 'canonical001' : 'fiction-v1', base: '', at: Date.now(), by: 'repo', ...packed },
       starter: { commit: source.commit, ...packed },
     } };
+  }
   }
   const books: Record<string, Tree> = { 'maritime-story': first, 'second-book': stubBook('Second Book', fixture('第二本')) };
   const catalog = Object.fromEntries(Object.entries(books).map(([slug, book]) => [slug, { title: (book.manifest as Tree).title, scope: (book.manifest as Tree).scope }]));
@@ -172,16 +169,20 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
     listens.set(socket, paths);
     ws.onClose(() => listens.delete(socket));
     ws.send(JSON.stringify({ t: 'c', d: { t: 'h', d: { ts: Date.now(), v: '5', h: new URL(ws.url()).host, s: 'stub-session' } } }));
+    let remaining = 0; let chunks: string[] = [];
     ws.onMessage((message) => {
+      let text = String(message);
+      if (remaining) { chunks.push(text); if (--remaining) return; text = chunks.join(''); chunks = []; }
+      else if (/^[1-9]\d*$/.test(text)) { remaining = Number(text); return; }
       let frame: { t?: string; d?: { r: number; a: string; b: { p?: string; d?: unknown } } };
-      try { frame = JSON.parse(String(message)); } catch { return; }
+      try { frame = JSON.parse(text); } catch { return; }
       if (frame?.t !== 'd' || !frame.d) return;
       const { r, a, b } = frame.d;
       if (b.p) reads.push(b.p);
       // Writes (set, update, remove) change the tree, so they survive a reload in the same test;
       // like the real server, listeners hear the new data before the write is acknowledged.
       if (a === 'p') server(b.p!, b.d);
-      if (a === 'm') Object.entries(b.d as Tree).forEach(([key, value]) => server(`${b.p}/${key}`, value));
+      if (a === 'm') { Object.entries(b.d as Tree).forEach(([key, value]) => put(`${b.p}/${key}`, value)); server(b.p!, at(b.p!)); }
       if (a === 'q') { paths.add(b.p!); send({ a: 'd', b: { p: b.p, d: at(b.p!) } }); }
       if (a === 'n') paths.delete(b.p!);
       send({ r, b: { s: 'ok', d: a === 'g' ? at(b.p!) : {} } });

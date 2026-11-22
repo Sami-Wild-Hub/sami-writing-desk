@@ -3,7 +3,7 @@
 import { onValue, update, type DatabaseReference } from 'firebase/database';
 import { outlineConfig } from './config.js';
 import { jsonText, pack, unpack } from './codec.js';
-import type { OutlinePayload } from './schema.ts';
+import type { OutlinePayload, OutlineData, OutlinePlan } from './schema.ts';
 
 export interface OutlineSyncState {
   head?: { synced?: { rev: string; tree?: string; commit?: string }; repo?: { tree?: string; commit?: string; error?: string; configError?: string; at?: number }; config?: string } | null;
@@ -15,7 +15,7 @@ export interface OutlineSyncState {
 }
 
 export interface PackedFiles { plot: string; plan: string; }
-export interface DecodedFiles { plot: string; plan: string; plot_data: Record<string, unknown>; plan_data: Record<string, unknown>; }
+export interface DecodedFiles { plot: string; plan: string; plot_data: OutlineData; plan_data: OutlinePlan; }
 
 const bookRef = (householdRef: (path: string) => DatabaseReference, slug: string) => householdRef(`outlineSync/${slug}`);
 export const newRevision = () => globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 12);
@@ -39,7 +39,7 @@ export function subscribe(
 async function decodePacked(source: PackedFiles | null | undefined): Promise<DecodedFiles | null> {
   if (!source?.plot || !source.plan) return null;
   const [plot, plan] = await Promise.all([unpack(source.plot), unpack(source.plan)]);
-  return { plot, plan, plot_data: JSON.parse(plot) as Record<string, unknown>, plan_data: JSON.parse(plan) as Record<string, unknown> };
+  return { plot, plan, plot_data: JSON.parse(plot) as OutlineData, plan_data: JSON.parse(plan) as OutlinePlan };
 }
 
 function configObject(raw: string | undefined) {

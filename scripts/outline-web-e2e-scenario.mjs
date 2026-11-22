@@ -1,12 +1,11 @@
 // Real browser acceptance orchestration; core SDK/RTDB behavior is never stubbed.
 import assert from 'node:assert/strict';
 import { button, downloadButton, editUnit, eventually, files, git, harness, importWorkspace, notice, restore, sleep, workspace } from './outline-web-e2e-harness.mjs';
-import { legacyScenarios } from './outline-web-e2e-legacy.mjs';
 import { inputScenarios } from './outline-web-e2e-input.mjs';
 
 async function webToRepo(h, a, b) {
   await editUnit(a, 'E001', `web-${h.width}-1`);
-  await eventually('web edit reaches second page', async () => (await b.root.locator('[data-edit-field="unit"][data-id="E001"]').first().textContent()).includes(`web-${h.width}-1`));
+  await eventually('web edit reaches second page', async () => (await b.root.locator('.self-pane [data-card="E001"] .c-text').first().textContent()).includes(`web-${h.width}-1`));
   await h.synced();
   assert.ok(h.mainFile(files.plot).plot_units.some(row => row.content === `web-${h.width}-1`));
   assert.match(git(h.remote, 'show', '-s', '--format=%B', 'main'), /Outline-Sync:/);
@@ -36,6 +35,7 @@ async function repoConflicts(h, a) {
   }
 }
 async function browserConflicts(h, a, b) {
+  for (const p of [a, b]) await p.root.locator('[data-act="tab"][data-tab="outline"]').click();
   for (const overwrite of [true, false]) {
     await h.synced(); await sleep(1000);
     const one = `writer-one-${overwrite}-${h.width}`, two = `writer-two-${overwrite}-${h.width}`;
@@ -103,7 +103,6 @@ export async function runScenario(options) {
     await run(6, 'offline edit/refresh/reconnect', () => offline(h, a));
     await run(8, 'invalid repo reason and web repair', () => invalidRepo(h, a));
     await a.context.close(); await b.context.close();
-    await run(7, 'legacy 5b65c3e unchanged/edited/conflict/download/import', () => legacyScenarios(h));
     return reports;
   } finally { await h.close(); }
 }

@@ -3,7 +3,7 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import net from 'node:net';
@@ -76,12 +76,14 @@ async function prepare(root) {
   const remote = join(root, 'remote.git'), dataClone = join(root, 'data.git'), writer = join(root, 'writer');
   await command(root, ['init', '--bare', remote]);
   await command(remote, ['symbolic-ref', 'HEAD', 'refs/heads/main']);
-  const base = (await command(dataRepo, ['rev-parse', 'origin/main'])).trim();
-  await command(dataRepo, ['push', '--quiet', remote, `${base}:refs/heads/main`]);
-  await command(root, ['clone', '--bare', remote, dataClone]);
   await command(root, ['clone', '--quiet', remote, writer]);
   await command(writer, ['config', 'user.name', 'outline-e2e']);
   await command(writer, ['config', 'user.email', 'outline-e2e@example.test']);
+  const target = join(writer, 'outline', 'maritime-story'); await mkdir(target, { recursive: true });
+  for (const name of ['plot-data.json', 'placements.json']) await writeFile(join(target, name), await readFile(join(dataRepo, 'outline', 'maritime-story', name)));
+  await command(writer, ['add', 'outline/maritime-story']); await command(writer, ['commit', '-qm', 'Canonical outline snapshot']);
+  await command(writer, ['push', '--quiet', 'origin', 'HEAD:main']);
+  await command(root, ['clone', '--bare', remote, dataClone]);
 
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs8', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } });
   await writeFile(join(root, 'key.json'), JSON.stringify({ type: 'service_account', project_id: 'demo-outline', private_key: privateKey, client_email: 'test@demo-outline.iam.gserviceaccount.com' }));
@@ -118,7 +120,7 @@ async function runWidth(root, width) {
 
 const root = await mkdtemp(join(tmpdir(), 'swd-outline-web-e2e-'));
 try {
-  const widths = (process.env.OUTLINE_E2E_WIDTHS ?? '390,1280').split(',').map(value => Number(value.trim())).filter(Number.isFinite);
+  const widths = (process.env.OUTLINE_E2E_WIDTHS ?? '1440').split(',').map(value => Number(value.trim())).filter(Number.isFinite);
   for (const width of widths) {
     const reports = await runWidth(root, width);
     console.log(`WIDTH ${width}: ${reports.length} acceptance checks passed`);

@@ -2,7 +2,7 @@
 // Reads: sibling data repo origin/main (JSON); Writes: temporary git repos only
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -13,7 +13,7 @@ import { reconcileBook } from '../sync/outline/reconcile.mjs';
 const source = resolve('..', 'sami-writing-desk-data-outline'), slug = 'maritime-story';
 const options = { skip: !existsSync(source) && 'public CI has no sibling data repository' };
 const run = (cwd, ...args) => execFileSync('git', ['-C', cwd, '-c', 'core.autocrlf=false', '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8', maxBuffer: 20e6, stdio: ['ignore', 'pipe', 'pipe'] });
-const canonical = name => run(source, 'show', `origin/main:outline/${slug}/${name}`);
+const canonical = name => readFileSync(join(source, 'outline', slug, name), 'utf8');
 
 test('starter records the introducing commit and a bad config neither spreads nor blocks either direction', options, async () => {
   const root = mkdtempSync(join(tmpdir(), 'swd-config-'));
@@ -44,10 +44,10 @@ test('starter records the introducing commit and a bad config neither spreads no
     assert.equal(await unpack(book.starter.plot), canonical('plot-data.json'));
 
     const push = text => { run(work, 'pull', '-q', '--ff-only', 'origin', 'main'); commit(`outline/${slug}/config.json`, text); run(work, 'push', '-q', 'origin', 'main'); };
-    const good = `${JSON.stringify({ spineGroupId: JSON.parse(canonical('plot-data.json')).storyline_groups[1].id })}\n`;
+    const good = `${JSON.stringify({ defaultStorylineId: JSON.parse(canonical('plot-data.json')).storyline_groups[1].id })}\n`;
     push(good); await round();
     assert.equal(book.head.config, good);
-    for (const bad of ['{', '{"spineGroupId":"missing"}\n']) {
+    for (const bad of ['{', '{"defaultStorylineId":"missing"}\n']) {
       push(bad); await round();
       assert.equal(book.head.config, good);
       assert.ok(book.head.repo.configError); assert.equal(book.head.repo.error, undefined);

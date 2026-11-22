@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import rawTest from 'node:test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,12 +7,13 @@ import { pack, unpack } from '../src/lib/views/outline/codec.js';
 import { outlineConfig } from '../src/lib/views/outline/config.js';
 import { classify } from '../src/lib/views/outline/sync-state.js';
 import { createOutlineModel } from '../src/lib/views/outline/model.js';
-import { outlineFixture } from './outline-fixture.mjs';
+import { outlineFixture, hasOutline } from './outline-fixture.mjs';
 import { reconcileBook } from '../sync/outline/reconcile.mjs';
 import { preview } from '../sync/outline/preview.mjs';
 
+const test = (name, fn) => rawTest(name, { skip: !hasOutline }, fn);
 const text = value => `${JSON.stringify(value, null, 2)}\n`;
-const snapshot = (commit, tree, plot, plan, config = '{"spineGroupId":"G01"}\n') => ({ commit, tree, plot: text(plot), plan: text(plan), config });
+const snapshot = (commit, tree, plot, plan, config = '{}' + '\n') => ({ commit, tree, plot: text(plot), plan: text(plan), config });
 
 class FakeGit {
   constructor(snapshots, tip, ancestors = {}, trailers = [], { rejectPushes = 0, remoteTip = null } = {}) {
@@ -169,7 +170,7 @@ test('preview emits a private outline payload from a repository snapshot', async
     const payload = JSON.parse(await readFile(out, 'utf8'));
     assert.equal(result.status, 'preview');
     assert.equal(payload.revision, 'C1');
-    assert.deepEqual(payload.config, { spineGroupId: 'G01', spineTitle: 'Ann × Bo' });
+    assert.deepEqual(payload.config, { defaultStorylineId: 'G01' });
     assert.deepEqual(payload.plan, f.plan);
   } finally {
     await rm(folder, { recursive: true, force: true });
