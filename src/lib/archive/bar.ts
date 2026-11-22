@@ -57,8 +57,9 @@ export function mountBar(bar: HTMLElement, handlers: BarHandlers) {
         `<a href="${esc(hrefFor(slug))}" data-book-slug="${esc(slug)}"${slug === current ? ' aria-current="page"' : ''}>${esc(catalog[slug].title)}</a>`).join('') +
         `<a href="${esc(import.meta.env.BASE_URL)}">← 回到书架</a>`;
     },
-    setTabs(current: string, hrefFor: (view: string) => string) {
+    setTabs(current: string, hrefFor: (view: string) => string, hasOutline = false) {
       for (const tab of bar.querySelectorAll<HTMLAnchorElement>('a[data-novel-view]')) {
+        tab.hidden = tab.dataset.novelView === 'outline' && !hasOutline;
         tab.href = hrefFor(tab.dataset.novelView!);
         if (tab.dataset.novelView === current) tab.setAttribute('aria-current', 'page');
         else tab.removeAttribute('aria-current');

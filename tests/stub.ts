@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
+import { outlineFixture } from './outline-fixture.mjs';
 
 // A stubbed Firebase for the browser tests: Google sign-in is a persisted Auth user and
 // the Realtime Database is answered over its WebSocket protocol from the tree below.
@@ -71,8 +72,12 @@ function stubBook(title: string, timeline: Timeline): Tree {
 // the first book, e.g. for screenshots with the real data; it is never committed.
 async function database() {
   const first = env.NOVEL_STUB_DB ? JSON.parse(await readFile(env.NOVEL_STUB_DB, 'utf8')) as Tree : stubBook('Maritime Story', fixture('Ann·Bo'));
+  if (!env.NOVEL_STUB_DB) {
+    first.outline = JSON.stringify({ ...outlineFixture(), revision: 'fiction-v1' });
+    (first.manifest as Tree).hasOutline = true;
+  }
   const books: Record<string, Tree> = { 'maritime-story': first, 'second-book': stubBook('Second Book', fixture('第二本')) };
-  const catalog = Object.fromEntries(Object.entries(books).map(([slug, book]) => [slug, { title: (book.manifest as Tree).title, scope: (book.manifest as Tree).scope }]));
+  const catalog = Object.fromEntries(Object.entries(books).map(([slug, book]) => [slug, { title: (book.manifest as Tree).title, scope: (book.manifest as Tree).scope, hasOutline: (book.manifest as Tree).hasOutline === true }]));
   return { households: { [stub.householdId]: { members: { [reader.uid]: { email: reader.email } }, settings: { enrollmentOpen: false }, novelArchive: { catalog, books } } } } as Tree;
 }
 

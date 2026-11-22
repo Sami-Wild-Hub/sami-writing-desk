@@ -3,6 +3,7 @@
 import type { DatabaseReference } from 'firebase/database';
 import type { NovelTimelineData } from '../novelTimelineModel.ts';
 import type { NovelRoute } from '../novelArchiveRoute.ts';
+import type { OutlinePayload } from './outline/schema.ts';
 
 export interface PageEntry { path: string; title: string; section: string; }
 
@@ -18,6 +19,9 @@ export interface NovelViewHost {
   read(path: string): Promise<string | undefined>;
   /** The book's timeline, read once and shared by all views; null when not synced. */
   timeline(): Promise<NovelTimelineData | null | undefined>;
+  outline(): Promise<OutlinePayload | null | undefined>;
+  /** Local drafts are isolated by Firebase project, household, signed-in account and book. */
+  outlineDraftKey: string;
   /** Kept per book and view while signed in, across view switches and book switches. */
   memo: Record<string, unknown>;
   /** A place below households/<id>/ in the household's private database (e.g. proofdesk/<slug>). */

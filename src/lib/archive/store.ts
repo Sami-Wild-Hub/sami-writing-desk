@@ -3,6 +3,7 @@
 import { get, ref } from 'firebase/database';
 import type { FirebaseHouseholdSession } from '../householdSession.ts';
 import { parseTimelineData } from '../novelTimelineModel.ts';
+import { parseOutline } from '../views/outline/schema.ts';
 import { newBook, parseCatalog, parseSearch, validateManifest, type BookInfo, type LoadedBook } from './data.ts';
 
 export function createStore(session: FirebaseHouseholdSession, householdId: string) {
@@ -50,6 +51,12 @@ export function createStore(session: FirebaseHouseholdSession, householdId: stri
       return html;
     },
     // Read once per book; a superseded or failed read is retried next time.
+    outline(slug: string, book: LoadedBook) {
+      book.outlineRead ??= read(`books/${slug}/outline`).then(raw => raw === undefined ? undefined : parseOutline(raw));
+      return book.outlineRead.then(
+        data => { if (data === undefined) book.outlineRead = undefined; return data; },
+        (error: unknown) => { book.outlineRead = undefined; throw error; });
+    },
     timeline(slug: string, book: LoadedBook) {
       book.timelineRead ??= read(`books/${slug}/timeline`).then((raw) => (raw === undefined ? undefined : parseTimelineData(raw)));
       return book.timelineRead.then(

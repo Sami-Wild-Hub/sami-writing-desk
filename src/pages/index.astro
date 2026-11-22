@@ -43,7 +43,7 @@ const spine = (title: string) => (title.match(/\b[A-Z]/g)?.join('') ?? title).sl
             </div>
           </a>
           <div class="acts">
-            {novelViews.map((view) => 'soon' in view
+            {novelViews.filter(view => view.id !== 'outline').map((view) => 'soon' in view
               ? <button type="button" class="soon" data-soon={view.soon}>{view.label}</button>
               : <a class={view.id === 'reader' ? 'primary' : ''} href={withBase(`/book/?book=${book.slug}${view.id === 'reader' ? '' : `&view=${view.id}`}`)}>{view.label}</a>)}
           </div>

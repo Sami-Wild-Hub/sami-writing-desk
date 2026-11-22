@@ -50,6 +50,7 @@ export function mountHome(config: Partial<FirebaseConfig>) {
     for (const card of cards) {
       card.querySelector('[data-scope]')!.textContent = '私人资料 · 登录后可读';
       card.querySelector('[data-stats]')!.innerHTML = '';
+      card.querySelector('[data-outline-link]')?.remove();
     }
   };
   let uid = '';
@@ -62,6 +63,16 @@ export function mountHome(config: Partial<FirebaseConfig>) {
       card.querySelector('[data-scope]')!.textContent = info ? `已处理正文：${info.scope ?? '—'}` : '尚未同步';
       const book = info ? await store.book(slug).catch(() => undefined) : undefined;
       if (book) card.querySelector('[data-stats]')!.innerHTML = stats(book);
+      if (book?.manifest.hasOutline && !card.querySelector('[data-outline-link]')) {
+        const link = document.createElement('a');
+        const url = new URL(card.querySelector<HTMLAnchorElement>('a.cover')!.href);
+        url.searchParams.set('view', 'outline');
+        link.href = url.href;
+        link.textContent = '大纲';
+        link.dataset.outlineLink = '';
+        const actions = card.querySelector('.acts')!;
+        actions.insertBefore(link, actions.lastElementChild);
+      }
     }
   };
   session.subscribe((status: HouseholdSessionStatus) => {

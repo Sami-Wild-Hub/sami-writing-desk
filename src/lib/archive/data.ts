@@ -2,9 +2,10 @@
 // search texts. Validation is strict so malformed data never reaches the DOM as paths.
 import type { PageEntry } from '../views/types.ts';
 import type { NovelTimelineData } from '../novelTimelineModel.ts';
+import type { OutlinePayload } from '../views/outline/schema.ts';
 
-export interface BookInfo { title: string; scope?: string; pageCount?: number; }
-export interface BookManifest { title: string; scope?: string; entries: Record<string, PageEntry>; }
+export interface BookInfo { title: string; scope?: string; pageCount?: number; hasOutline?: boolean; }
+export interface BookManifest { title: string; scope?: string; entries: Record<string, PageEntry>; hasOutline?: boolean; }
 export interface LoadedBook {
   manifest: BookManifest;
   pathToKey: Map<string, string>;
@@ -12,6 +13,7 @@ export interface LoadedBook {
   /** Pending or finished reads, shared by every view and the search overlay. */
   searchRead?: Promise<Record<string, string> | null | undefined>;
   timelineRead?: Promise<NovelTimelineData | null | undefined>;
+  outlineRead?: Promise<OutlinePayload | null | undefined>;
   memo: Record<string, Record<string, unknown>>;
 }
 
@@ -27,7 +29,7 @@ export function parseCatalog(data: unknown) {
   for (const [slug, book] of Object.entries(data)) {
     if (/^[a-z0-9-]+$/.test(slug) && isRecord(book) && typeof book.title === 'string') {
       catalog[slug] = { title: book.title, scope: typeof book.scope === 'string' ? book.scope : undefined,
-        pageCount: typeof book.pageCount === 'number' ? book.pageCount : undefined };
+        pageCount: typeof book.pageCount === 'number' ? book.pageCount : undefined, hasOutline: book.hasOutline === true };
     }
   }
   return catalog;
@@ -41,7 +43,7 @@ export function validateManifest(value: unknown): BookManifest | null {
         typeof entry.title !== 'string' || typeof entry.section !== 'string') return null;
     entries[key] = { path: entry.path, title: entry.title, section: entry.section };
   }
-  return { title: value.title, scope: typeof value.scope === 'string' ? value.scope : undefined, entries };
+  return { title: value.title, scope: typeof value.scope === 'string' ? value.scope : undefined, entries, hasOutline: value.hasOutline === true };
 }
 
 export function newBook(manifest: BookManifest): LoadedBook {

@@ -5,6 +5,7 @@ import '../styles/reader.css';
 import '../styles/search.css';
 import '../styles/timeline.css';
 import '../styles/proof.css';
+import '../styles/outline.css';
 const base = import.meta.env.BASE_URL;
 const icon = (d: string) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 ---
@@ -21,7 +22,7 @@ const icon = (d: string) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="tru
     <nav class="tabs" id="novel-views" aria-label="视图" data-needs-book>
       {novelViews.map((view) => 'soon' in view
         ? <button type="button" class="soon" data-soon={view.soon}>{view.label}<span class="soon-tag">即将</span></button>
-        : <a href="#" data-novel-view={view.id}>{view.label}</a>)}
+        : <a href="#" data-novel-view={view.id} hidden={view.id === 'outline'}>{view.label}</a>)}
     </nav>
     <span class="sp"></span>
     <button type="button" class="searchbtn" data-search data-needs-book aria-label="搜索（/）"><Fragment set:html={icon('<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>')} /><span>搜索</span><kbd>/</kbd></button>

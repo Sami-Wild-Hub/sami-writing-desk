@@ -28,5 +28,10 @@ test('signed in, book cards show the synced scope and counts', async ({ page }) 
   const card = page.locator(`article[data-book="${novelBooks[0].slug}"]`);
   await expect(card.locator('[data-scope]')).toHaveText('已处理正文：C1–C3');
   await expect(card.locator('[data-stats]')).toContainText('4 人物与设定');
+  await expect(card.locator('[data-outline-link]')).toBeVisible();
+  await expect(card.locator('[data-outline-link]')).toHaveAttribute('href', /view=outline$/);
   await expect(page.locator('#home-account')).toBeVisible();
+  await page.locator('#home-account').click();
+  await page.locator('#home-sign-out').click();
+  await expect(card.locator('[data-outline-link]')).toHaveCount(0);
 });

@@ -128,6 +128,8 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       entries: book.manifest.entries, pathToKey: book.pathToKey,
       read: (path) => store.page(slug, book, path),
       timeline: () => store.timeline(slug, book),
+      outline: () => store.outline(slug, book),
+      outlineDraftKey: `outline:${config.projectId}:${config.householdId}:${activeUid}:${slug}`,
       memo: (book.memo[view] ??= {}),
       href,
       readerHref: (path, hash = '') => (book.pathToKey.has(path) ? href({ view: 'reader', doc: path, hash }) : null),
@@ -186,6 +188,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       if (!current || current.slug !== route.book) message('正在读取知识库索引…');
       const opened = await openBook(route.book);
       if (!opened || !latest()) return;
+      if (route.view === 'outline' && !opened.book.manifest.hasOutline) { route.view = 'reader'; route.doc = ''; route.hash = ''; }
       const view = await viewFor(opened, route.view);
       if (!view || !latest()) return;
       const backLabel = shown?.view.label() ?? '';
@@ -202,7 +205,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       bar.setBooks(catalog, route.book, (slug) => novelRouteHref(url(), { book: slug, view: route.view, doc: '', hash: '' }));
       // Other tabs keep the page that is open, but not a view's own doc (a 校稿 record).
       const keep = (id: string) => id === route.view || opened.book.pathToKey.has(route.doc);
-      bar.setTabs(route.view, (id) => novelRouteHref(url(), { ...route, view: id as NovelView, doc: keep(id) ? route.doc : '', hash: '' }));
+      bar.setTabs(route.view, (id) => novelRouteHref(url(), { ...route, view: id as NovelView, doc: keep(id) ? route.doc : '', hash: '' }), opened.book.manifest.hasOutline === true);
       const normal = novelRouteHref(url(), route);
       if (normal !== here()) history.replaceState(history.state, '', normal);
       // 「← 返回」 offers the way back after following a link; any other move retires it.
