@@ -83,7 +83,7 @@ function renderLibrary(kind){const q=searchText[kind].trim().toLocaleLowerCase()
   items.push(`<details class="group" data-group="${html(group.id)}" data-kind="${kind}" ${opened?'open':''}><summary class="group-summary"><span class="group-name">${editable('group-title',group.id,group.title,'group-title')}</span><small class="${matched.length?'':'none'}">${matched.length} 可选</small></summary><div class="groupinner"><div class="group-description">${editable('group-summary',group.id,group.summary||'','group-summary-value')}</div>${sections}${group.is_custom?`<div class="group-footer"><button class="delete-item" data-delete-group="${html(group.id)}">删除空白故事线</button></div>`:''}</div></details>`)
  }
  $((kind==='RELATIONSHIP'?'rel':'event')+'-left').textContent=`${count} 个可选`;
- return items.length?items.join(''):'<div class="empty">暂无匹配故事线。点击上方「＋ 新建故事线」。</div>';
+ return items.length?items.join(''):`<div class="empty">暂无匹配故事线。${shown.size<3?`可点上方${Object.keys(stateLabel).filter(key=>!shown.has(key)).map(key=>`「${stateLabel[key]}」`).join('')}一起看，或`:''}点击「＋ 新建故事线」。</div>`;
 }
 function destinationSelect(u){return `<select name="destination" required aria-label="${html(u.unit_id)} 放入的故事线"><option value="">选择故事线…</option>${['RELATIONSHIP','EVENT'].map(kind=>`<optgroup label="${kind==='RELATIONSHIP'?'Relationship':'Events'} 素材">${data.storyline_groups.filter(g=>groupEligible(g,kind)).map(g=>`<option value="${html(`${kind}:${g.id}`)}">${html(g.title)}</option>`).join('')}</optgroup>`).join('')}</select>`}
 // An original node leaves this list while an Element cites it; deleting that Element brings it back.

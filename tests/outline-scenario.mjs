@@ -15,6 +15,12 @@ export async function showOriginal(page, root) {
     await page.locator('#novel-scrim').click({ position:{ x:385, y:400 } });
   } else await root.locator('#show-original').check();
 }
+// The library starts with 待排 only; the original workbench has no such filter.
+export async function showPlaced(root) {
+  for (const chip of await root.locator('[data-filter-state="placed"]').all()) {
+    if (await chip.getAttribute('aria-pressed') === 'false') await chip.click();
+  }
+}
 export async function editField(page, root, selector, value, key = 'Control+Enter') {
   await root.locator(selector).first().click();
   await root.locator('.inline-editor input,.inline-editor textarea').fill(value);
@@ -52,6 +58,7 @@ export async function exerciseOutline(page, root) {
   await editField(page, root, '[data-edit-field="element-details"][data-id="E001"]', ' One\n\n Two ');
   await root.locator('#spine-selected .editorial-controls summary').first().click();
   await root.locator('[data-editorial-status="E001"]').first().selectOption('PLANNED');
+  await showPlaced(root);
   await root.locator('[data-remove="E006"]').click();
   await root.locator('#event-search').fill('E006');
   await root.locator('[data-add="E006"]').click();

@@ -1,7 +1,7 @@
 // Keyboard, validation, classification, disclosure and deletion behavior through visible controls.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { stubFirebase, watchErrors } from './stub.ts';
-import { chooseBeat, showOriginal, exportJSON } from './outline-scenario.mjs';
+import { chooseBeat, showOriginal, showPlaced, exportJSON } from './outline-scenario.mjs';
 
 async function open(page: Page) {
   await stubFirebase(page);
@@ -61,6 +61,8 @@ test('F06,09,11–13,32: keyboard editors, blank validation, cancellation and cu
 test('F14–19: independent searches, disclosure persistence, pending and source statistics', async ({ page }) => {
   const root = await open(page);
   const group = root.locator('#rel-groups [data-group="G02"]');
+  await expect(group).toHaveCount(0);
+  await showPlaced(root);
   await expect(group).toHaveAttribute('open','');
   await group.locator(':scope > summary > small').click();
   await chooseBeat(page, root, 'A3-B1');
@@ -120,6 +122,9 @@ test('F29,33–38: optional placement, deletion guards, confirmation cancellatio
   await root.locator('.composer [name="content"]').fill('A fictional new turn');
   await root.locator('.composer [name="also_place"]').check();
   await root.locator('.composer button[type=submit]').click();
+  // Its only card went straight into a Beat, so the line waits behind 已排.
+  await expect(root.locator('[data-group="GNEW001"]')).toHaveCount(0);
+  await showPlaced(root);
   await root.locator('[data-delete-group="GNEW001"]').click();
   await expect(root.locator('#status')).toContainText('请先移除');
   await controls(root, 'UNEW001');
@@ -141,6 +146,9 @@ test('F29,33–38: optional placement, deletion guards, confirmation cancellatio
 test('the library filters by three states and receives pending nodes before any Beat does', async ({ page }) => {
   const root = await open(page);
   await chooseBeat(page, root, 'A3-B1');
+  await expect(root.locator('#rel-left')).toHaveText('0 个可选');
+  await expect(root.locator('#rel-groups')).toContainText('「已排」');
+  await showPlaced(root);
   await expect(root.locator('#rel-left')).toHaveText('4 个可选');
   const chip = (state: string) => root.locator(`.state-filter[data-kind="RELATIONSHIP"] [data-filter-state="${state}"]`);
   await expect(chip('written')).toHaveAttribute('aria-pressed', 'false');

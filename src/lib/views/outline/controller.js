@@ -32,7 +32,7 @@ this.noticeKind = '';
 this.editing = null;
 this.composer = null;
 this.showOriginal = false;
-this.shownStates = { RELATIONSHIP: new Set(['unplaced','placed']), EVENT: new Set(['unplaced','placed']) };
+this.shownStates = { RELATIONSHIP: new Set(['unplaced']), EVENT: new Set(['unplaced']) };
 this.disposed = false;
 this.online = () => { if (this.pendingWorkspace && (this.retrySave || this.localDirty)) { this.retrySave = false; this.queueCloudSave(); } };
 window.addEventListener('online', this.online);
