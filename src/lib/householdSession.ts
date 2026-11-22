@@ -74,8 +74,8 @@ export class FirebaseHouseholdSession {
 
   constructor(config: FirebaseConfig) {
     this.householdId = config.householdId;
-    // Same app name as FamilyHub: both sites share the samidore.github.io origin, so this
-    // keeps one stored Google sign-in for both.
+    // Same app name as FamilyHub. The sites are on different origins (sami-wild-hub / samidore
+    // github.io), so each stores its own Google sign-in.
     const appName = `family-hub-${config.projectId}`;
     this.app = getApps().find((candidate) => candidate.name === appName) ?? initializeApp(config, appName);
     this.auth = getAuth(this.app);

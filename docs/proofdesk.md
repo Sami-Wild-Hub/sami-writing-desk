@@ -50,7 +50,7 @@ Step = { status, attempt?, chat?, job?, error?, at? }
 - 网页只写两种东西：新请求（两项都是 `queued`），和重新发送（把整条或某一项的 `status` 改回 `queued`）。其余字段都由后台用服务账号写；数据库规则（FamilyHub 的 `database.rules.json`）不许成员写 `sending` 以后的状态、`fetch`、`error`、`reports`，也不许改已存的新稿。
 - `report` 是收到的回复原文，`parsed` 是读出的结果（JSON 字符串；读不出来时没有）。页面显示时以原文为准重新读一遍。
 
-**后台留档的** 私有仓库 `samidore/sami-writing-desk-data` 分支 `main` 的 `proofdesk/<slug>/<id>/`：
+**后台留档的** 私有仓库 `Sami-Wild-Hub/sami-writing-desk-data` 分支 `main` 的 `proofdesk/<slug>/<id>/`：
 
 | 文件 | 内容 |
 | --- | --- |
