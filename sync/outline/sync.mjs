@@ -128,6 +128,7 @@ export async function watch(config) {
   let leaseHeld = false;
   let remoteTimer = null;
   let leaseTimer = null;
+  let parentTimer = null;
   let stopWatch;
   const stopped = new Promise(resolve => { stopWatch = resolve; });
   const onStop = () => stopWatch();
@@ -140,6 +141,9 @@ export async function watch(config) {
   try {
     process.once('SIGTERM', onStop);
     process.once('SIGINT', onStop);
+    // Stop-ScheduledTask ends only the hidden PowerShell parent, without signalling node.
+    const parent = process.ppid;
+    parentTimer = setInterval(() => { try { process.kill(parent, 0); } catch { onStop(); } }, 2_000);
     unsubscribe = rtdb.subscribe(onState);
     const pollMs = Math.max(5, Number(config.pollSeconds ?? 10)) * 1000;
     remoteTimer = setInterval(() => queue.push('remote'), pollMs);
@@ -178,6 +182,7 @@ export async function watch(config) {
     if (retryTimer) clearTimeout(retryTimer);
     if (remoteTimer) clearInterval(remoteTimer);
     if (leaseTimer) clearInterval(leaseTimer);
+    if (parentTimer) clearInterval(parentTimer);
     unsubscribe();
     if (leaseHeld) await release(rtdb, holder);
     await rtdb.close?.();
