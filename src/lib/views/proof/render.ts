@@ -12,7 +12,7 @@ export type Filter = 'all' | Check;
 export type KindFilter = 'all' | (typeof KINDS)[number];
 export const MARK: Record<Check, string> = { manuscript: '①', open: '②' };
 export const NAME: Record<Check, string> = { manuscript: '对照正文', open: '开放式' };
-const ABOUT: Record<Check | 'fetch', string> = { fetch: 'ChatGPT 从 Google Drive 取这一章', manuscript: '本机 Luna 对照资料库里的已写正文', open: 'ChatGPT 读 Novel Archivist 资料库' };
+const ABOUT: Record<Check | 'fetch', string> = { fetch: '本机 Luna 用 Google Drive 只读查找这一章', manuscript: '本机 Luna 对照资料库里的已写正文', open: 'ChatGPT 读 Novel Archivist 资料库' };
 const STATUS: Record<Status, string> = { queued: '排队', sending: '发送中', sent: '已发送', done: '完成', failed: '失败' };
 
 export const when = (ms: number) => new Date(ms).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });

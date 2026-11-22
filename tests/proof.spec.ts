@@ -180,17 +180,18 @@ test('a Drive request names the chapter; the fetched draft shows when it arrives
   await view(page).getByLabel('标题').fill('C22 原稿');
   await view(page).getByRole('button', { name: '发送校稿' }).click();
   await expect(view(page).locator('[data-err]')).toHaveText('写上要取的章节名，如「第22章」。');
-  await view(page).getByLabel('章节名或文件名').fill('第22章');
+  await view(page).getByLabel('章节', { exact: true }).fill('第22章');
   await view(page).getByRole('button', { name: '发送校稿' }).click();
-  await expect(view(page).locator('.phead .meta')).toContainText('Drive：第22章 · 待取稿');
+  await expect(view(page).locator('.phead .meta')).toContainText('Drive：C22 · 待取稿');
   const id = new URL(page.url()).searchParams.get('doc')!;
-  expect(stub.at(`${book}/${id}`)).toMatchObject({ source: 'drive', driveName: '第22章', skipProse: true, status: 'queued' });
+  expect(stub.at(`${book}/${id}`)).toMatchObject({ source: 'drive', driveName: 'C22', skipProse: true, status: 'queued' });
   expect(stub.at(`${book}/${id}/draft`)).toBeNull();
   await expect(view(page).locator('.pnote')).toContainText('新稿还没取到');
 
   stub.server(`${book}/${id}/status`, 'sending');
-  stub.server(`${book}/${id}/fetch`, { status: 'sent', attempt: 1, chat: 'https://chatgpt.com/c/fetch', at: Date.now() });
-  await expect(step(page, '取稿：第22章').getByRole('link', { name: '打开对话 ↗' })).toBeVisible();
+  stub.server(`${book}/${id}/fetch`, { status: 'sent', attempt: 1, job: `proofdesk-${id}-fetch-1`, at: Date.now() });
+  await expect(step(page, '取稿：C22').locator('code')).toHaveText(`proofdesk-${id}-fetch-1`);
+  await expect(step(page, '取稿：C22').getByRole('link')).toHaveCount(0);
   stub.server(`${book}/${id}/draft`, draft);
   stub.server(`${book}/${id}/fetch/status`, 'done');
   await expect(view(page).locator('.phead .meta')).toContainText('4 段');

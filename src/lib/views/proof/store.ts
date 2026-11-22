@@ -15,9 +15,9 @@ export interface Step {
   status: Status;
   /** Which send this is, from 1; each send writes its own report. */
   attempt?: number;
-  /** ChatGPT conversation link (fetch, open). */
+  /** ChatGPT conversation link (open). */
   chat?: string;
-  /** Luna run id (manuscript). */
+  /** Luna run id (fetch, manuscript). */
   job?: string;
   /** Why it failed. */
   error?: string;

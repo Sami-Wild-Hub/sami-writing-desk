@@ -10,10 +10,12 @@ import { splitParagraphs } from './paragraphs.ts';
 import { historyHtml, resultHtml, statusHtml, when, type Filter, type KindFilter } from './render.ts';
 import { ENDED, newId, proofStore, queuedRecord, reportsOf, type ProofRecord } from './store.ts';
 import { CHECKS, type Check } from './task.ts';
+import { chapterName, nextTitle } from './compose.ts';
 
 const ID = /^\d{8}-\d{6}-[0-9a-z]{4}$/;
 interface ProofMemo {
   source: 'paste' | 'drive'; title: string; draft: string; driveName: string; skipProse: boolean;
+  titleEdited?: boolean;
   /** Per record: the report chosen for each check, and the item filter. */
   report: Record<string, Record<string, string>>; filter: Record<string, Filter>; kind: Record<string, KindFilter>; y?: number;
 }
@@ -88,7 +90,7 @@ class ProofPanel {
   private onRecords() {
     if (!this.visible || this.loadError) return;
     this.renderList();
-    if (!this.open) return;
+    if (!this.open) { this.prefillTitle(); return; }
     const next = this.records.find((r) => r.id === this.open!.id);
     if (!next) return;
     this.open = next;
@@ -107,13 +109,14 @@ class ProofPanel {
 
   private renderCompose() {
     const drive = this.st.source === 'drive';
+    this.prefillTitle();
     const seg = (source: ProofMemo['source'], label: string) => `<button type="button" data-source="${source}" aria-pressed="${this.st.source === source}">${label}</button>`;
     this.main.innerHTML = this.head('新校稿') +
       `<div class="seg psource" role="group" aria-label="稿子从哪来">${seg('paste', '贴入或上传')}${seg('drive', '从 Drive 取')}</div>` +
+      (drive ? '<label class="field"><span>章节</span><input type="text" name="driveName" maxlength="200" placeholder="如：第22章" autocomplete="off"></label>' : '') +
       '<label class="field"><span>标题</span><input type="text" name="title" maxlength="100" placeholder="如：C23 初稿" autocomplete="off"></label>' +
       (drive
-        ? '<label class="field"><span>章节名或文件名</span><input type="text" name="driveName" maxlength="200" placeholder="如：第22章" autocomplete="off"></label>' +
-          '<p class="hint">后台让 ChatGPT 用 Google Drive 按这个名字在原稿里找这一章，取到后接着校。</p>'
+        ? '<p class="hint">后台让本机 Luna 用 Google Drive 只读查找这一章，取到后接着校。</p>'
         : '<label class="field"><span>新稿</span><textarea name="draft" rows="16" placeholder="把新稿贴在这里"></textarea></label>' +
           '<p class="hint">每个非空行算一段，# 开头的标题行不算。</p>') +
       '<label class="poption"><input type="checkbox" name="skipProse">不验语病</label>' +
@@ -132,8 +135,8 @@ class ProofPanel {
       const n = splitParagraphs(this.st.draft).length;
       if (count) count.textContent = n ? `${n} 段` : '';
     };
-    bind('title');
-    bind('driveName');
+    bind('title', () => { this.st.titleEdited = !!this.st.title.trim(); this.prefillTitle(); });
+    bind('driveName', () => this.prefillTitle());
     bind('draft', recount);
     const skipProse = this.main.querySelector<HTMLInputElement>('[name=skipProse]')!;
     skipProse.checked = this.st.skipProse;
@@ -144,20 +147,27 @@ class ProofPanel {
       const file = input.files?.[0];
       if (!file) return;
       this.st.draft = await file.text();
-      if (!this.st.title.trim()) this.st.title = file.name.replace(/\.(txt|md)$/i, '');
+      if (!this.st.title.trim()) { this.st.title = file.name.replace(/\.(txt|md)$/i, ''); this.st.titleEdited = true; }
       input.value = '';
       this.renderCompose();
     });
+  }
+
+  private prefillTitle() {
+    if (this.st.source !== 'drive' || this.st.titleEdited) return;
+    this.st.title = nextTitle(this.st.driveName, this.records);
+    const title = this.main.querySelector<HTMLInputElement>('[name=title]');
+    if (title) title.value = this.st.title;
   }
 
   private async send(button: HTMLButtonElement) {
     const err = this.main.querySelector<HTMLElement>('[data-err]')!;
     const { source } = this.st;
     const title = this.st.title.trim();
-    const driveName = this.st.driveName.trim();
+    const driveName = chapterName(this.st.driveName);
     const problem = !title ? '先写个标题，如「C23 初稿」。'
       : source === 'paste' && !splitParagraphs(this.st.draft).length ? '新稿是空的。'
-        : source === 'drive' && !driveName ? '写上要取的章节名，如「第22章」。' : '';
+        : source === 'drive' && !driveName.trim() ? '写上要取的章节名，如「第22章」。' : '';
     err.hidden = !problem;
     err.textContent = problem;
     if (problem) return;
@@ -175,6 +185,7 @@ class ProofPanel {
       return;
     }
     this.st.title = this.st.draft = this.st.driveName = '';
+    this.st.titleEdited = false;
     this.st.skipProse = false;
     this.host.go({ view: 'proof', doc: record.id }, 'nav');
   }

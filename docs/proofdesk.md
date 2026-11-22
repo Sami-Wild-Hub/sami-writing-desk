@@ -9,9 +9,9 @@
 
 ## 用法
 
-1. 「＋ 新校稿」：写标题（如「C23 初稿」），然后二选一：
-   - 「贴入或上传」：贴入新稿，或上传 `.txt` / `.md`；
-   - 「从 Drive 取」：写章节名或文件名（如「第22章」），后台让 ChatGPT 用 Google Drive 找到这一章取回来。
+1. 「＋ 新校稿」：选择稿子来源：
+   - 「贴入或上传」：写标题（如「C23 初稿」），贴入新稿，或上传 `.txt` / `.md`；
+   - 「从 Drive 取」：先填标题上面的「章节」。`22`、`c22`、`第22章`、`22章`、`第二十二章` 统一存为现有字段 `driveName: C22`；其他名字照填照存。标题自动建议如 `C22 第2稿`：本书历史里同章标题的最大稿次加一，`初稿` 算 1，没有历史从 1 开始，取稿失败的记录不算。历史稍后到达也更新建议；手改标题后保留手改，清空标题恢复自动填。后台让本机 Luna 用 Google Drive plugin 只读扫描并取回正文。
 2. 「不验语病」默认不勾，执行完整 MC。勾选后跳过 Tag `文字`（字词、语法、标点校勘），其他按合同执行。点「发送校稿」后，记录马上存进历史，页面跟着显示进度：排队 → 发送中 → 已发送（附对话链接或 Luna 任务号）→ 完成 / 失败（写明原因）。
 3. 结果回来就自动显示：左边是分段编号的原文、完整原句标黄，右边每条反馈对齐它的段落，标 ①/②，可按来源及 MC Tag（文字、连续性、人物、世界设定、推演、资料补充）组合筛选；手机上反馈列在上面，点一条跳到原文。
 
@@ -54,22 +54,21 @@ Step = { status, attempt?, chat?, job?, error?, at? }
 
 | 文件 | 内容 |
 | --- | --- |
-| `draft.md` | 新稿（贴入的，或 ChatGPT 从 Drive 取回推上来的） |
+| `draft.md` | 新稿（贴入的，或 Luna 从 Drive 取回本机、由 watcher 发布的） |
 | `task-open.md`、`task-manuscript.md` | 两项的任务全文（下面的模板） |
 | `report-open-<n>.json`、`report-manuscript-<n>.json` | 第 n 次发送收到的回复原文 |
-| `fetch-error-<n>.md` | Drive 上没找到时 ChatGPT 写的原因 |
 
 ## 后台
 
 `samidore/Protocols` 的 `proofdesk/watch.py`（像 Runner 一样由计划任务启动，用法见那里的 `proofdesk/README.md`）。跟着数据库的实时推送，每 10 秒推进一次 `status` 为 `queued`/`sending`/`sent` 的记录：
 
 1. 先把记录标成 `sending`，这样同一请求不会被取两次。
-2. Drive 来源先开一个 ChatGPT 对话取稿（以 Drive 上 `ChatGPT Manuscript` 里这本书的文件夹为准），取到后把 `draft` 写回数据库；找不到时记录失败，原因写在 `error`。
-3. 两项并行发送，各自记 `checks.<check>`（对话链接或 Luna 任务号）；同时最多一个 ChatGPT 对话、一个 Luna 在跑。
+2. Drive 来源经 `delegate.py --agent <luna_agent>` 起 Luna，`fetch.job` 记录任务号。只读扫描本书相关文件夹和最近改动，按内容认章（独立文件、合订文档章节或 tab）；编辑确认 `ChatGPT Manuscript` 的现行稿优先，那里没有才用别处，不能确定时列出候选并失败。Luna 将正文原样写到本机，重新读取 Drive 核对段数、首尾和逐段文字；watcher 等任务成功结束后发布 `draft.md` 并回写 `draft`。plugin 不可用、找不到、没读全、核对失败或进程结束却没产出时，立即写明 `fetch.error`，不等 60 分钟。
+3. 两项并行发送，各自记 `checks.<check>`（对话链接或 Luna 任务号）；取稿和①共用一个 Luna 并发位，②独占一个 GPT 并发位。
 4. 等报告出现在 data 仓库（默认最多 60 分钟），用和网页相同的规则读，把原文和读出的结果写进 `reports`。
 5. 两项都结束：都完成为 `done`；有一项失败为 `failed`，`error` 写明是哪一项、为什么。
 
-后台重启后从数据库的状态接着做，不会重复发送。
+后台重启后从数据库的状态接着做，同一 Luna job 的本机输出标记阻止重复启动，保存的进程号用于判断无输出退出。取稿及①显示 Luna 任务号，②显示对话链接。仍在运行的任务保留默认 60 分钟超时。
 
 ## 任务全文
 
@@ -139,6 +138,7 @@ items 按受检原文顺序排列；没有报告项就回 "items": []。
 
 ## 代码
 
-- `src/lib/views/proof/`：`proofView.ts`（视图）、`task.ts`（两份任务模板）、`paragraphs.ts`（分段、找引文）、`report.ts`（读回复、对齐段落）、`render.ts`（HTML）、`store.ts`（读写 RTDB）、`cli.ts`（后台调用模板和读回复的入口）。
+- `src/lib/views/proof/`：`proofView.ts`（视图）、`compose.ts`（章节归一化、标题稿次）、`task.ts`（两份任务模板）、`paragraphs.ts`（分段、找引文）、`report.ts`（读回复、对齐段落）、`render.ts`（HTML）、`store.ts`（读写 RTDB）、`cli.ts`（后台调用模板和读回复的入口）。
 - `src/styles/proof.css`。
 - 测试：`tests/proof.test.mjs`（分段、两份任务、cli、回复的各种情况、新请求的形状、本页任务全文），`tests/proof.spec.ts`（贴稿发送 → 排队 → 已发送带链接 → 两项报告逐条显示、筛选 → 一项失败、单独重发、多次报告切换 → Drive 来源取稿 → 手机上点一条跳到原文 → 删除；后台的写入在测试里模拟；设 `NOVEL_SHOTS_DIR` 时出 390 / 2560 截图）。
+- `tests/proof-compose.test.mjs`、`tests/proof-compose.spec.ts`：章节别名、同章最大稿次、失败取稿排除、先章节后标题、晚到历史、手改保护、清空恢复和发送后稿次递增。
