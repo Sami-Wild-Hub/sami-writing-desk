@@ -1,0 +1,8 @@
+{
+  "credentials": "C:/Users/you/.config/sami/firebase-service-account.json",
+  "databaseURL": "https://your-project-default-rtdb.firebaseio.com",
+  "household": "household-id",
+  "dataRepo": "C:/Users/you/swd-outline-sync-data.git",
+  "pollSeconds": 10,
+  "log": "C:/Users/you/swd-outline-sync.log"
+}

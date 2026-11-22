@@ -3,6 +3,7 @@
 // Writes: in-memory working copy (JSON); persistence is supplied by hooks.
 export const clone = value => JSON.parse(JSON.stringify(value));
 export function createOutlineModel(source,plan,hooks = {}) { return new OutlineModel(source,plan,hooks); }
+const PLAN_KEYS = new Set(['schema_version', 'source_data', 'placements', 'kind_overrides', 'beat_notes']);
 
 class OutlineModel {
 constructor(source,plan,hooks = {}) {
@@ -71,14 +72,14 @@ refreshDerived = () => {
   original_plot_units:this.data.plot_units.filter(u=>!u.is_custom).length,user_added_plot_units:this.data.plot_units.filter(u=>u.is_custom).length};
  this.data.schema_version='5.0';
 };
-exportPlan = () => {return {schema_version:'5.0',source_data:'plot-data.json',placements:this.placedList().map(row=>({...row})).sort((a,b)=>this.beatIndex[a.beat_id]-this.beatIndex[b.beat_id]||a.order-b.order),kind_overrides:{...this.state.kind_overrides},beat_notes:{...this.state.beat_notes}}};
+exportPlan = () => {const extra=Object.fromEntries(Object.entries(this.state).filter(([key])=>!PLAN_KEYS.has(key)).map(([key,value])=>[key,clone(value)]));return {...extra,schema_version:'5.0',source_data:'plot-data.json',placements:this.placedList().map(row=>({...row})).sort((a,b)=>this.beatIndex[a.beat_id]-this.beatIndex[b.beat_id]||a.order-b.order),kind_overrides:{...this.state.kind_overrides},beat_notes:{...this.state.beat_notes}}};
 exportData = () => {this.refreshDerived();return clone(this.data)};
 exportWorkspace = () => {return {schema_version:'5.0',format:'maritime-outline-workspace',plot_data:this.exportData(),plan:this.exportPlan(),active_beat:this.activeBeat}};
 saveLocal = () => {try{this.hooks.save(this.exportWorkspace());return true}catch(e){this.hooks.warning(e);return false}};
 snapshot = () => {this.undoHistory.push({data:clone(this.data),state:clone(this.state)});if(this.undoHistory.length>50)this.undoHistory.shift()};
 validPlan = (raw) => {
  if(!raw||!Array.isArray(raw.placements))throw Error('编排 JSON 缺少 placements 数组');
- const fresh={placements:{},kind_overrides:{},beat_notes:{}};
+ const fresh={...Object.fromEntries(Object.entries(raw).filter(([key])=>!PLAN_KEYS.has(key)).map(([key,value])=>[key,clone(value)])),placements:{},kind_overrides:{},beat_notes:{}};
  for(const [id,k] of Object.entries(raw.kind_overrides||{})){if(!this.unitMap[id]||!this.kindOrder.includes(k))throw Error('分类覆盖无效：'+id);fresh.kind_overrides[id]=k}
  for(const [b,n] of Object.entries(raw.beat_notes||{})){if(!(b in this.beatIndex))throw Error('Beat 备注目标无效：'+b);fresh.beat_notes[b]=String(n)}
  for(const row of raw.placements){if(!this.unitMap[row.unit_id]||!(row.beat_id in this.beatIndex))throw Error('编排引用了未知节点或 Beat');if(fresh.placements[row.unit_id])throw Error('节点在两个 Beat 中重复：'+row.unit_id);

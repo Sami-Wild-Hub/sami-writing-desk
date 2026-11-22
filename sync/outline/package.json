@@ -1,0 +1,7 @@
+{
+  "name": "sami-writing-desk-outline-sync",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24 <25" },
+  "dependencies": { "firebase-admin": "^13.5.0" }
+}
