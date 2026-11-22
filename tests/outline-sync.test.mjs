@@ -32,6 +32,7 @@ class FakeGit {
     }
     this.pushed.push(commit); this.current = commit;
   }
+  async introduced(tip) { return tip; }
   async fetch() {}
 }
 class FakeRtdb {

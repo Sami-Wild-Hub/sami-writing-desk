@@ -1,6 +1,6 @@
 // Reads of households/<id>/novelArchive for the signed-in reader, cached per book.
 // clear() drops everything (sign-out, account change); reads started before it resolve undefined.
-import { get, ref } from 'firebase/database';
+import { get, onValue, ref } from 'firebase/database';
 import type { FirebaseHouseholdSession } from '../householdSession.ts';
 import { parseTimelineData } from '../novelTimelineModel.ts';
 import type { OutlineSyncState } from '../views/outline/sync.ts';
@@ -63,6 +63,9 @@ export function createStore(session: FirebaseHouseholdSession, householdId: stri
       return book.outlineHeadRead.then(
         data => { if (data == null) book.outlineHeadRead = undefined; return data; },
         (error: unknown) => { book.outlineHeadRead = undefined; throw error; });
+    },
+    watchOutline(slug: string, next: (exists: boolean) => void) {
+      return onValue(ref(session.database, `${syncRoot}/${slug}/head`), snapshot => next(snapshot.exists()), () => next(false));
     },
     outline(slug: string, book: LoadedBook) {
       book.outlineSyncRead ??= readSync(slug).then(raw => raw === undefined ? undefined : raw as OutlineSyncState);

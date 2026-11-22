@@ -67,6 +67,10 @@ export class GitRepo {
     ]);
     return { commit, tree, plot, plan, config };
   }
+  async introduced(tip, slug) {
+    const paths = ['plot-data.json', 'placements.json'].map(name => pathFor(slug, name));
+    return (await runGit(this.root, ['log', '-1', '--first-parent', '--diff-filter=A', '--format=%H', tip, '--', ...paths])).trim();
+  }
   async trailers(base, tip, slug) {
     const range = base ? `${base}..${tip}` : tip;
     const output = await runGit(this.root, ['log', '--format=%H%x1f%T%x1f%B%x1e', range, '--', `outline/${slug}`]);

@@ -54,6 +54,21 @@ export function mountHome(config: Partial<FirebaseConfig>) {
     }
   };
   let uid = '';
+  let stops: (() => void)[] = [];
+  const unwatch = () => { stops.forEach(stop => stop()); stops = []; };
+  const showOutline = (card: HTMLElement, shown: boolean) => {
+    const old = card.querySelector('[data-outline-link]');
+    if (!shown) { old?.remove(); return; }
+    if (old) return;
+    const link = document.createElement('a');
+    const url = new URL(card.querySelector<HTMLAnchorElement>('a.cover')!.href);
+    url.searchParams.set('view', 'outline');
+    link.href = url.href;
+    link.textContent = '大纲';
+    link.dataset.outlineLink = '';
+    const actions = card.querySelector('.acts')!;
+    actions.insertBefore(link, actions.lastElementChild);
+  };
   const enrich = async () => {
     const catalog = await store.loadCatalog();
     if (!catalog) return;
@@ -63,17 +78,7 @@ export function mountHome(config: Partial<FirebaseConfig>) {
       card.querySelector('[data-scope]')!.textContent = info ? `已处理正文：${info.scope ?? '—'}` : '尚未同步';
       const book = info ? await store.book(slug).catch(() => undefined) : undefined;
       if (book) card.querySelector('[data-stats]')!.innerHTML = stats(book);
-      const hasOutline = book ? await store.outlineHead(slug, book).catch(() => null) : null;
-      if (hasOutline && !card.querySelector('[data-outline-link]')) {
-        const link = document.createElement('a');
-        const url = new URL(card.querySelector<HTMLAnchorElement>('a.cover')!.href);
-        url.searchParams.set('view', 'outline');
-        link.href = url.href;
-        link.textContent = '大纲';
-        link.dataset.outlineLink = '';
-        const actions = card.querySelector('.acts')!;
-        actions.insertBefore(link, actions.lastElementChild);
-      }
+      if (book) stops.push(store.watchOutline(slug, shown => showOutline(card, shown)));
     }
   };
   session.subscribe((status: HouseholdSessionStatus) => {
@@ -88,11 +93,12 @@ export function mountHome(config: Partial<FirebaseConfig>) {
     $('home-greet').textContent = status.connection === 'connected' ? `${greeting()}${status.displayName ? `，${status.displayName}` : ''}` : '小离总周报';
     $('home-lead').hidden = status.connection === 'connected';
     if (status.connection !== 'connected') {
-      if (uid) { uid = ''; store.clear(); reset(); }
+      if (uid) { uid = ''; unwatch(); store.clear(); reset(); }
       return;
     }
     if (uid !== status.uid) {
       uid = status.uid ?? '';
+      unwatch();
       store.clear();
       void enrich().catch(() => {});
     }

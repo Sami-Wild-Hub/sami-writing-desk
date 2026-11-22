@@ -149,7 +149,9 @@ receiveRemote = async (state) => {
   const own = this.inFlight?.revision === state.live?.rev;
   const sameFiles = filesEqual(payload.texts, this.payload.texts);
   if (own || sameFiles || this.inFlight) {
-   this.remote = state; this.payload = payload; this.config = payload.config; this.updateSyncStatus();
+   const configChanged = JSON.stringify(payload.config) !== JSON.stringify(this.config);
+   this.remote = state; this.payload = payload; this.config = payload.config;
+   if (configChanged && !this.composer && this.finishInline(true)) this.render(); else this.updateSyncStatus();
    if (!this.inFlight && !this.pendingWorkspace) this.draft.acceptRevision(this.cloudRevision());
    if (this.retrySave && this.pendingWorkspace && !this.inFlight) { this.retrySave = false; this.queueCloudSave(); }
    return;
@@ -199,6 +201,7 @@ updateSyncStatus = () => {
  const info = classify({ ...this.remote, coordinator: this.remote._coordinator, now: Date.now() }); let label = info.label;
  if (info.kind === 'synced' && info.commit) label += ' · ' + info.commit.slice(0, 7);
  else if (info.kind === 'pending') label += info.online ? ' · 同步程序在线' : ' · 等待同步';
+ if (this.remote.head?.repo?.configError) label += ' · config.json 无效，沿用可用配置';
  this.$('sync-state').textContent = this.pendingWorkspace || this.inFlight ? '未保存到云端' : label;
  if (this.noticeKind === 'cloud' || this.noticeKind === 'draft') return;
  if ((this.noticeKind === 'repo' && !info.conflict) || (this.noticeKind === 'invalid' && !info.invalid)) {

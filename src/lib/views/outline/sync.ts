@@ -6,7 +6,7 @@ import { jsonText, pack, unpack } from './codec.js';
 import type { OutlinePayload } from './schema.ts';
 
 export interface OutlineSyncState {
-  head?: { synced?: { rev: string; tree?: string; commit?: string }; repo?: { tree?: string; commit?: string; error?: string; at?: number }; config?: string } | null;
+  head?: { synced?: { rev: string; tree?: string; commit?: string }; repo?: { tree?: string; commit?: string; error?: string; configError?: string; at?: number }; config?: string } | null;
   live?: { rev: string; base: string; at: number; by: 'web' | 'repo'; uid?: string; over?: string; plot: string; plan: string } | null;
   incoming?: { tree: string; commit: string; plot: string; plan: string } | null;
   starter?: { commit: string; plot: string; plan: string } | null;
@@ -49,7 +49,10 @@ function configObject(raw: string | undefined) {
 export async function decodeState(state: OutlineSyncState | null | undefined): Promise<OutlinePayload | null> {
   const live = await decodePacked(state?.live);
   if (!state || !live) return null;
-  const config = outlineConfig(live.plot_data, configObject(state.head?.config));
+  let config;
+  // head.config belongs to the repository's plot, which can differ from live during a conflict.
+  try { config = outlineConfig(live.plot_data, configObject(state.head?.config)); }
+  catch { config = outlineConfig(live.plot_data); }
   const starter = await decodePacked(state.starter);
   return {
     config,

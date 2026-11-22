@@ -37,9 +37,25 @@ async function write(rtdb, slug, expected, values) {
   return true;
 }
 
+// A bad config.json is reported by itself; both directions keep using the last accepted one.
+function withUsableConfig(snapshot, accepted) {
+  if (!snapshot.config) return snapshot;
+  let plot;
+  try { plot = JSON.parse(snapshot.plot); } catch { return snapshot; }
+  try { outlineConfig(plot, configObject(snapshot.config)); return snapshot; }
+  catch (error) { return { ...snapshot, config: accepted ?? '', configError: error.message }; }
+}
+
+async function initialStarter(git, slug, current) {
+  const commit = await git.introduced(current.commit, slug);
+  const added = commit === current.commit ? current : await git.snapshot(commit, slug);
+  return { commit, plot: await pack(added.plot), plan: await pack(added.plan) };
+}
+
 function repoInfo(snapshot, error) {
   const repo = { tree: snapshot.tree, commit: snapshot.commit, at: Date.now() };
   if (error) repo.error = error;
+  if (snapshot.configError) repo.configError = snapshot.configError;
   return repo;
 }
 
@@ -67,7 +83,7 @@ async function reconcileOnce({ git, rtdb, slug, state: suppliedState, now = Date
   const head = state.head ?? {};
   const live = state.live ?? null;
   const tip = await git.tip();
-  const current = await git.snapshot(tip, slug);
+  const current = withUsableConfig(await git.snapshot(tip, slug), head.config);
   const oldCommit = head.repo?.commit ?? null;
   if (oldCommit && !(await git.isAncestor(oldCommit, tip))) {
     if (await git.isAncestor(tip, oldCommit)) return { status: 'stale', commit: tip };
@@ -109,7 +125,7 @@ async function reconcileOnce({ git, rtdb, slug, state: suppliedState, now = Date
     if (nextHead.synced && !live) {
       nextHead.synced = { rev: newRevision(), tree: current.tree, commit: tip };
       const first = { rev: nextHead.synced.rev, base: '', at: now, by: 'repo', plot: await pack(current.plot), plan: await pack(current.plan) };
-      await write(store, slug, { headRepoCommit: oldCommit, liveRev: null }, { head: nextHead, live: first, starter: { commit: tip, plot: first.plot, plan: first.plan }, incoming: null });
+      await write(store, slug, { headRepoCommit: oldCommit, liveRev: null }, { head: nextHead, live: first, starter: await initialStarter(git, slug, current), incoming: null });
       return { status: 'initialized', rev: first.rev };
     }
     await write(store, slug, { headRepoCommit: oldCommit, liveRev: live?.rev ?? null }, { head: nextHead, incoming: null });
@@ -130,7 +146,7 @@ async function reconcileOnce({ git, rtdb, slug, state: suppliedState, now = Date
     const rev = newRevision();
     const first = { rev, base: '', at: now, by: 'repo', plot: repoVersion.plot, plan: repoVersion.plan };
     const nextHead = { ...head, synced: { rev, tree: current.tree, commit: tip }, repo: repoInfo(current), config: current.config ?? '' };
-    await write(store, slug, { headRepoCommit: oldCommit, liveRev: null }, { head: nextHead, live: first, starter: { commit: tip, plot: first.plot, plan: first.plan }, incoming: null });
+    await write(store, slug, { headRepoCommit: oldCommit, liveRev: null }, { head: nextHead, live: first, starter: await initialStarter(git, slug, current), incoming: null });
     return { status: 'initialized', rev };
   }
 
@@ -192,7 +208,7 @@ async function enter({ git, rtdb, slug, head, live, current, now, stableMs, expe
   try {
     const commit = await git.commitFiles(parent, slug, { 'plot-data.json': texts.plot, 'placements.json': texts.plan }, `Sync outline ${slug}\n\nOutline-Sync: ${live.rev}\n`);
     await git.push(commit);
-    const pushed = await git.snapshot(commit, slug);
+    const pushed = withUsableConfig(await git.snapshot(commit, slug), head.config);
     await write(rtdb, slug, expected, { head: { ...head, synced: { rev: live.rev, tree: pushed.tree, commit }, repo: repoInfo(pushed), config: pushed.config ?? '' }, incoming: null });
     return { status: 'published', commit };
   } catch (error) {
