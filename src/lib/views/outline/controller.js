@@ -119,13 +119,16 @@ submitWorkspace = async (action) => {
   await this.remoteUpdates;
   if (this.disposed) return;
   if (action === 'use-repo' && this.editing) this.finishInline(true);
-  this.draft.acceptRevision(live.rev); this.retrySave = false;
+  // Edits still pending here were made on the replaced web version: keep their old base so they are never saved over the repository version unasked.
+  const superseded = action === 'use-repo' && !!this.pendingWorkspace;
+  if (!superseded) this.draft.acceptRevision(live.rev);
+  this.retrySave = false;
   this.noticeKind = ''; this.root.querySelector('.draft-notice')?.remove();
-  if (this.pendingWorkspace === workspace) {
+  if (!superseded && this.pendingWorkspace === workspace) {
    this.pendingWorkspace = null; this.localDirty = false; this.draft.clear();
    if (action === 'use-repo' && this.remote.live.rev === live.rev) this.applyRemote(await decodeState({ ...this.remote, live }));
   } else this.draft.save(this.pendingWorkspace);
-  if (this.remote.live.rev !== live.rev) {
+  if (superseded || this.remote.live.rev !== live.rev) {
    if (this.pendingWorkspace) this.showRemoteConflict(this.payload); else this.applyRemote(this.payload);
   }
  } catch (error) {

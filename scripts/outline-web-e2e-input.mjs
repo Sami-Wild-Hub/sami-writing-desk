@@ -1,6 +1,6 @@
 // Verify optimistic SDK echoes, in-flight edits, active inputs and bounded autosave.
 import assert from 'node:assert/strict';
-import { button, editUnit, eventually, files, notice, sleep, workspace } from './outline-web-e2e-harness.mjs';
+import { button, downloadButton, editUnit, eventually, files, notice, sleep, workspace } from './outline-web-e2e-harness.mjs';
 
 async function echoes(h, a) {
   await h.synced(); const count = a.wire.writes.length; a.wire.holdReplies = true;
@@ -37,16 +37,18 @@ async function repositoryChoiceDuringEdit(h, a) {
   await eventually('repository choice awaits acknowledgement', () => a.wire.replies.length > 0);
   await a.root.locator('#beat-note').fill(`newer-during-choice-${h.width}`);
   a.wire.releaseReplies();
-  await eventually('new edit during repository choice preserved', async () => !(await h.draft(a)) && (await h.live()).plan.beat_notes['A1-B1'] === `newer-during-choice-${h.width}`);
-  assert.equal((await workspace(a)).plan.beat_notes['A1-B1'], `newer-during-choice-${h.width}`);
-  // A fresh edit to the conflicting file can precede the watcher's acknowledgement.
-  await eventually('new local edit publishes or requests a renewed choice', async () => {
-    const state = await h.db(h.bookPath);
-    if (state.incoming && state.live.over !== state.incoming.tree) {
-      await notice(a, '仓库有新版'); await button(a, '保留网页版'); return true;
-    }
-    return state.live.rev === state.head.synced.rev;
-  }); await h.synced();
+  // The chosen repository version stays until the editor decides about the newer edit, also across a reload.
+  const chosen = value => value.plot_units.some(row => row.content === `repo-during-choice-${h.width}`);
+  for (const reload of [false, true]) {
+    if (reload) { await a.page.reload({ waitUntil: 'domcontentloaded' }); await h.ready(a); }
+    await notice(a, '云端已有新版本'); await sleep(13_000);
+    assert.ok(chosen((await h.live()).plot)); assert.ok(chosen(h.mainFile(files.plot)));
+    assert.notEqual((await h.live()).plan.beat_notes?.['A1-B1'], `newer-during-choice-${h.width}`);
+  }
+  assert.equal((await downloadButton(a, '下载本机版')).plan.beat_notes['A1-B1'], `newer-during-choice-${h.width}`);
+  await button(a, '载入云端版');
+  await eventually('chosen repository version in editor', async () => chosen((await workspace(a)).plot_data));
+  assert.ok(!(await h.draft(a))); await h.synced();
 }
 async function continuousInput(h, a) {
   const start = Date.now(), count = a.wire.writes.length;
