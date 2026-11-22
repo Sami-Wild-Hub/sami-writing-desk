@@ -7,15 +7,15 @@ import { esc } from '../../archive/ui.ts';
 import type { NovelRoute } from '../../novelArchiveRoute.ts';
 import type { CreateNovelView, NovelViewHost, ShowContext } from '../types.ts';
 import { splitParagraphs } from './paragraphs.ts';
-import { historyHtml, resultHtml, statusHtml, when, type Filter } from './render.ts';
+import { historyHtml, resultHtml, statusHtml, when, type Filter, type KindFilter } from './render.ts';
 import { ENDED, newId, proofStore, queuedRecord, reportsOf, type ProofRecord } from './store.ts';
 import { CHECKS, type Check } from './task.ts';
 
 const ID = /^\d{8}-\d{6}-[0-9a-z]{4}$/;
 interface ProofMemo {
-  source: 'paste' | 'drive'; title: string; draft: string; driveName: string;
+  source: 'paste' | 'drive'; title: string; draft: string; driveName: string; skipProse: boolean;
   /** Per record: the report chosen for each check, and the item filter. */
-  report: Record<string, Record<string, string>>; filter: Record<string, Filter>; y?: number;
+  report: Record<string, Record<string, string>>; filter: Record<string, Filter>; kind: Record<string, KindFilter>; y?: number;
 }
 
 const failed = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -38,7 +38,7 @@ class ProofPanel {
   constructor(host: NovelViewHost) {
     this.host = host;
     this.store = proofStore(host.householdRef, host.slug);
-    this.st = (host.memo.state as ProofMemo | undefined) ?? { source: 'paste', title: '', draft: '', driveName: '', report: {}, filter: {} };
+    this.st = (host.memo.state as ProofMemo | undefined) ?? { source: 'paste', title: '', draft: '', driveName: '', skipProse: false, report: {}, filter: {}, kind: {} };
     host.memo.state = this.st;
     const frame = document.createElement('div');
     frame.className = 'proof frame';
@@ -116,6 +116,7 @@ class ProofPanel {
           '<p class="hint">后台让 ChatGPT 用 Google Drive 按这个名字在原稿里找这一章，取到后接着校。</p>'
         : '<label class="field"><span>新稿</span><textarea name="draft" rows="16" placeholder="把新稿贴在这里"></textarea></label>' +
           '<p class="hint">每个非空行算一段，# 开头的标题行不算。</p>') +
+      '<label class="poption"><input type="checkbox" name="skipProse">不验语病</label>' +
       `<div class="prow-tools">${drive ? '' : '<label class="btn file">上传文件<input type="file" accept=".txt,.md,text/plain,text/markdown"></label><span class="count" data-count></span>'}` +
       '<span class="sp"></span><button type="button" class="btn primary" data-send>发送校稿</button></div>' +
       '<p class="hint">发出后自动做两项校验：① 对照正文（本机 Luna 读已写各章）、② 开放式（ChatGPT 读资料库）。结果回来自动显示，不用复制粘贴。</p>' +
@@ -134,6 +135,9 @@ class ProofPanel {
     bind('title');
     bind('driveName');
     bind('draft', recount);
+    const skipProse = this.main.querySelector<HTMLInputElement>('[name=skipProse]')!;
+    skipProse.checked = this.st.skipProse;
+    skipProse.addEventListener('change', () => { this.st.skipProse = skipProse.checked; });
     recount();
     this.main.querySelector<HTMLInputElement>('[type=file]')?.addEventListener('change', async (event) => {
       const input = event.target as HTMLInputElement;
@@ -158,7 +162,7 @@ class ProofPanel {
     err.textContent = problem;
     if (problem) return;
     const now = Date.now();
-    const record = queuedRecord({ id: newId(now), title, createdAt: now, source, draft: this.st.draft, driveName });
+    const record = queuedRecord({ id: newId(now), title, createdAt: now, source, draft: this.st.draft, driveName, skipProse: this.st.skipProse });
     button.disabled = true;
     button.textContent = '发送中…';
     try {
@@ -171,6 +175,7 @@ class ProofPanel {
       return;
     }
     this.st.title = this.st.draft = this.st.driveName = '';
+    this.st.skipProse = false;
     this.host.go({ view: 'proof', doc: record.id }, 'nav');
   }
 
@@ -178,12 +183,12 @@ class ProofPanel {
     const record = this.open!;
     const paras = splitParagraphs(record.draft ?? '');
     const from = record.source === 'drive' ? `Drive：${esc(record.driveName ?? '')}` : '贴入';
-    const meta = `${esc(when(record.createdAt))} · ${from} · ${paras.length ? `${paras.length} 段` : '待取稿'}`;
+    const meta = `${esc(when(record.createdAt))} · ${from} · ${paras.length ? `${paras.length} 段` : '待取稿'} · 不验语病：${record.skipProse ? '是' : '否'}`;
     // While the watcher works on a record it is not deleted (its writes would bring parts back).
     const idle = record.status === 'queued' || ENDED.includes(record.status);
     const tools = idle ? '<button type="button" class="btn" data-delete>删除</button>' : '';
     this.main.innerHTML = this.head(record.title, meta, tools) + statusHtml(record) +
-      `<section class="result" aria-label="校稿结果">${resultHtml(paras, record, this.st.report[record.id] ?? {}, this.st.filter[record.id] ?? 'all')}</section>`;
+      `<section class="result" aria-label="校稿结果">${resultHtml(paras, record, this.st.report[record.id] ?? {}, this.st.filter[record.id] ?? 'all', this.st.kind[record.id] ?? 'all')}</section>`;
     this.shown = JSON.stringify(record);
   }
 
@@ -209,6 +214,7 @@ class ProofPanel {
     }
     delete this.st.report[record.id];
     delete this.st.filter[record.id];
+    delete this.st.kind[record.id];
     this.host.toast(`已删除「${record.title}」`);
     this.host.go({ view: 'proof', doc: '' }, 'nav');
   }
@@ -243,6 +249,10 @@ class ProofPanel {
     if (button?.matches('[data-delete]')) return void this.remove();
     if (button?.dataset.filter && this.open) {
       this.st.filter[id] = button.dataset.filter as Filter;
+      return this.renderRecord();
+    }
+    if (button?.dataset.kind && this.open) {
+      this.st.kind[id] = button.dataset.kind as KindFilter;
       return this.renderRecord();
     }
     const report = button?.dataset.report && this.open && reportsOf(this.open).find((r) => r.id === button.dataset.report);

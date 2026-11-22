@@ -39,6 +39,8 @@ export interface ProofReport {
 export interface ProofRecord {
   id: string; title: string; createdAt: number; updatedAt: number;
   source: 'paste' | 'drive';
+  /** Set at creation; resends use the same MC option. */
+  skipProse?: boolean;
   /** The draft: pasted, or fetched from Drive by the watcher. */
   draft?: string;
   /** Chapter or file name to fetch from Drive. */
@@ -62,7 +64,7 @@ export const reportsOf = (record: ProofRecord, check?: Check) => Object.values(r
   .sort((a, b) => a.createdAt - b.createdAt);
 
 /** A new request: both checks queued. */
-export function queuedRecord(fields: Pick<ProofRecord, 'id' | 'title' | 'createdAt' | 'source' | 'draft' | 'driveName'>): ProofRecord {
+export function queuedRecord(fields: Pick<ProofRecord, 'id' | 'title' | 'createdAt' | 'source' | 'draft' | 'driveName' | 'skipProse'>): ProofRecord {
   const record: ProofRecord = { ...fields, updatedAt: fields.createdAt, status: 'queued', checks: { manuscript: { status: 'queued' }, open: { status: 'queued' } } };
   if (record.source === 'paste') delete record.driveName; else delete record.draft;
   return record;

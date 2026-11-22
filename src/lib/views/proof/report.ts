@@ -6,7 +6,7 @@ import { findQuote, paraNumber, type Para } from './paragraphs.ts';
 import { KINDS, LEVELS } from './task.ts';
 
 export interface ReportItem {
-  para: string; quote: string; kind: string; level: string; issue: string;
+  para: string; quote: string; kind: string; level?: string; issue: string;
   evidence: string[]; suggestion: string;
   /** What does not match the format; empty when the item is well-formed. */
   problems: string[];
@@ -52,21 +52,21 @@ const shown = (value: unknown) => (value === undefined ? '没有' : JSON.stringi
 
 function readItem(raw: unknown): ReportItem {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { para: '', quote: '', kind: '', level: '', issue: text(raw), evidence: [], suggestion: '', problems: ['这一条不是 {…} 对象'] };
+    return { para: '', quote: '', kind: '', issue: text(raw), evidence: [], suggestion: '', problems: ['这一条不是 {…} 对象'] };
   }
   const r = raw as Record<string, unknown>;
   const problems: string[] = [];
   const need = (key: string, ok: boolean, rule: string) => { if (!ok) problems.push(`${key} ${rule}，实际是 ${shown(r[key])}`); };
   need('para', typeof r.para === 'string' && paraNumber(r.para) > 0, '应是段号，如 "P12"');
-  need('quote', typeof r.quote === 'string' && Boolean(r.quote.trim()), '应是一小段原文');
+  need('quote', typeof r.quote === 'string' && Boolean(r.quote.trim()), '应是完整原句');
   need('kind', (KINDS as readonly unknown[]).includes(r.kind), `应是 ${KINDS.join('/')} 之一`);
-  need('level', (LEVELS as readonly unknown[]).includes(r.level), `应是 ${LEVELS.join('/')} 之一`);
+  need('level', r.level === undefined || (LEVELS as readonly unknown[]).includes(r.level), `应省略或是 ${LEVELS.join('/')} 之一`);
   need('issue', typeof r.issue === 'string' && Boolean(r.issue.trim()), '应写明问题');
   const evidence = Array.isArray(r.evidence) ? r.evidence : typeof r.evidence === 'string' ? [r.evidence] : [];
   need('evidence', Array.isArray(r.evidence) && r.evidence.every((e) => typeof e === 'string'), '应是字符串列表');
   need('suggestion', r.suggestion === undefined || typeof r.suggestion === 'string', '应是文字');
   return {
-    para: text(r.para), quote: text(r.quote), kind: text(r.kind), level: text(r.level), issue: text(r.issue),
+    para: text(r.para), quote: text(r.quote), kind: text(r.kind), ...(r.level === undefined ? {} : { level: text(r.level) }), issue: text(r.issue),
     evidence: evidence.map(text).filter(Boolean), suggestion: text(r.suggestion), problems,
   };
 }

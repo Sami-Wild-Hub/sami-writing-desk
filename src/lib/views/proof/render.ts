@@ -6,9 +6,10 @@ import { esc } from '../../archive/ui.ts';
 import type { Para } from './paragraphs.ts';
 import { parseReport, placeItems, type PlacedItem, type ReportItem, type ReportResult } from './report.ts';
 import { ENDED, reportsOf, type ProofRecord, type ProofReport, type Status, type Step } from './store.ts';
-import { CHECKS, LEVELS, type Check } from './task.ts';
+import { CHECKS, KINDS, LEVELS, type Check } from './task.ts';
 
 export type Filter = 'all' | Check;
+export type KindFilter = 'all' | (typeof KINDS)[number];
 export const MARK: Record<Check, string> = { manuscript: '①', open: '②' };
 export const NAME: Record<Check, string> = { manuscript: '对照正文', open: '开放式' };
 const ABOUT: Record<Check | 'fetch', string> = { fetch: 'ChatGPT 从 Google Drive 取这一章', manuscript: '本机 Luna 对照资料库里的已写正文', open: 'ChatGPT 读 Novel Archivist 资料库' };
@@ -20,7 +21,7 @@ const badge = (status: Status) => `<span class="pst st-${status}">${STATUS[statu
 export function historyHtml(records: ProofRecord[], current: string, href: (id: string) => string) {
   if (!records.length) return '<p class="muted hist-empty">还没有校稿记录。</p>';
   return records.map((r) => `<a class="navlink hist" href="${esc(href(r.id))}" data-novel-view="proof" data-id="${esc(r.id)}"${r.id === current ? ' aria-current="page"' : ''}>` +
-    `<span><b>${esc(r.title)}</b><small>${esc(when(r.createdAt))} · ${STATUS[r.status] ?? r.status}</small></span></a>`).join('');
+    `<span><b>${esc(r.title)}</b><small>${esc(when(r.createdAt))} · ${STATUS[r.status] ?? r.status} · 不验语病：${r.skipProse ? '是' : '否'}</small></span></a>`).join('');
 }
 
 /** A stored report read again from its raw text (the raw text is what counts). */
@@ -52,7 +53,7 @@ export function statusHtml(record: ProofRecord) {
 type Tagged = ReportItem & { check: Check };
 
 function itemHtml({ item, at, range }: PlacedItem<Tagged>, i: number) {
-  const level = (LEVELS as readonly string[]).includes(item.level) ? item.level : '';
+  const level = item.level && (LEVELS as readonly string[]).includes(item.level) ? item.level : '';
   const off = at < 0 ? '没有这一段' : range ? '' : '未对上原文';
   return `<article class="pitem${level ? ` lv-${level}` : ''}${off ? ' off' : ''}" data-i="${i}" data-check="${item.check}"${at >= 0 ? ` data-at="${at}"` : ''} tabindex="0">` +
     `<blockquote>${esc(item.quote || '（没有引文）')}</blockquote>` +
@@ -93,7 +94,7 @@ export function proofHtml(paras: Para[], placed: PlacedItem<Tagged>[]) {
 }
 
 export function countsHtml(placed: PlacedItem<Tagged>[]) {
-  if (!placed.length) return '<p class="pcount">没有发现矛盾。</p>';
+  if (!placed.length) return '<p class="pcount">没有报告项。</p>';
   const counts = LEVELS.map((level) => [level, placed.filter((p) => p.item.level === level).length] as const).filter(([, n]) => n);
   const off = placed.filter((p) => !p.range).length;
   return `<p class="pcount">${placed.length} 条反馈${counts.map(([level, n]) => ` · <span class="lv-${level}"><span class="lv">${level}</span> ${n}</span>`).join('')}` +
@@ -107,7 +108,7 @@ function attemptsHtml(record: ProofRecord, shown: Partial<Record<Check, ProofRep
 }
 
 /** Each check's shown report (the chosen one, else the newest) read against the draft, filtered. */
-export function resultHtml(paras: Para[], record: ProofRecord, chosen: Record<string, string>, filter: Filter) {
+export function resultHtml(paras: Para[], record: ProofRecord, chosen: Record<string, string>, filter: Filter, kind: KindFilter = 'all') {
   if (!paras.length) return '<p class="muted pnote">新稿还没取到，取到后会显示在这里。</p>';
   const shown: Partial<Record<Check, ProofReport>> = {};
   const items: Tagged[] = [];
@@ -125,10 +126,13 @@ export function resultHtml(paras: Para[], record: ProofRecord, chosen: Record<st
   const count = (f: Filter) => items.filter((i) => f === 'all' || i.check === f).length;
   const filters = `<div class="seg pfilter" role="group" aria-label="按来源筛选">${(['all', ...CHECKS] as Filter[]).map((f) =>
     `<button type="button" data-filter="${f}" aria-pressed="${f === filter}">${f === 'all' ? '全部' : `${MARK[f]} ${NAME[f]}`} ${count(f)}</button>`).join('')}</div>`;
-  const placed = placeItems(paras, items.filter((i) => filter === 'all' || i.check === filter));
+  const sourceItems = items.filter((i) => filter === 'all' || i.check === filter);
+  const kinds = `<div class="seg pfilter" role="group" aria-label="按 Tag 筛选">${(['all', ...KINDS] as KindFilter[]).map((k) =>
+    `<button type="button" data-kind="${k}" aria-pressed="${k === kind}">${k === 'all' ? '全部类型' : k} ${sourceItems.filter((i) => k === 'all' || i.kind === k).length}</button>`).join('')}</div>`;
+  const placed = placeItems(paras, sourceItems.filter((i) => kind === 'all' || i.kind === kind));
   const bad = placed.filter((p) => p.item.problems.length).length;
   const sums = CHECKS.map((c) => [c, shown[c] && readReport(shown[c]!)] as const)
     .map(([c, read]) => (read && read.ok && read.report.summary && (filter === 'all' || filter === c) ? `<p class="psum"><b>${MARK[c]}</b> ${esc(read.report.summary)}</p>` : '')).join('');
-  return filters + attemptsHtml(record, shown) + errors.join('') + countsHtml(placed) + sums +
+  return filters + kinds + attemptsHtml(record, shown) + errors.join('') + countsHtml(placed) + sums +
     (bad ? `<div class="perr" role="alert">有 ${bad} 条格式不对，已照样列出并注明问题。</div>` : '') + proofHtml(paras, placed);
 }

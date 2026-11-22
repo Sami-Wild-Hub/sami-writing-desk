@@ -12,11 +12,11 @@ Cy 已经在台阶上等她，说昨晚的船没有来。
 她想起父亲临走前说过的话，决定先去港务所问一问。
 港务所的老职员摇头：今年春天以来，没有一条船从南边进港。`;
 const manuscript = `{"title": "C23 初稿", "items": [
-  {"para": "P1", "quote": "那枚铜钥匙", "kind": "物品", "level": "冲突", "issue": "铜钥匙第 20 章已交给 Cy。", "evidence": ["C20#P5"], "suggestion": "改成 Cy 带着钥匙。"},
-  {"para": "P2", "quote": "昨天的船", "kind": "知情", "level": "提示", "issue": "Cy 此时未必知道船期。", "evidence": []}
+  {"para": "P1", "quote": "清晨，Ann 沿着码头走到灯塔下，手里攥着那枚铜钥匙。", "kind": "连续性", "issue": "铜钥匙第 20 章已交给 Cy。", "evidence": ["C20#P5"], "suggestion": "改成 Cy 带着钥匙。"},
+  {"para": "P2", "quote": "昨天的船", "kind": "人物", "level": "提示", "issue": "Cy 此时未必知道船期。", "evidence": []}
 ], "summary": "和已写正文有一处冲突。"}`;
 const open = `{"title": "C23 初稿", "items": [
-  {"para": "P4", "quote": "没有一条船从南边进港", "kind": "时间线", "level": "存疑", "issue": "前文春末还有船从南边来。", "evidence": ["事件 E-9002"]}
+  {"para": "P4", "quote": "港务所的老职员摇头：今年春天以来，没有一条船从南边进港。", "kind": "世界设定", "issue": "前文春末还有船从南边来。", "evidence": ["事件 E-9002"]}
 ], "summary": "时间线上有一处存疑。"}`;
 
 const book = '/households/novel-stub-house/proofdesk/maritime-story';
@@ -25,9 +25,11 @@ const items = (page: Page) => view(page).locator('.pv .pnotes .pitem');
 const step = (page: Page, name: string) => view(page).locator('.pstep', { hasText: name });
 type Stub = Awaited<ReturnType<typeof stubFirebase>>;
 
-async function create(page: Page, title = 'C23 初稿') {
+async function create(page: Page, title = 'C23 初稿', skipProse = false) {
   await page.goto('book/?book=maritime-story&view=proof');
   await expect(view(page).getByRole('heading', { name: '新校稿' })).toBeVisible();
+  await expect(view(page).getByLabel('不验语病')).not.toBeChecked();
+  if (skipProse) await view(page).getByLabel('不验语病').check();
   await view(page).getByLabel('标题').fill(title);
   await view(page).getByLabel('新稿').fill(draft);
   await expect(view(page).locator('[data-count]')).toHaveText('4 段');
@@ -65,7 +67,7 @@ test('send a pasted draft, follow its status, read both checks beside the draft'
   const stub = await stubFirebase(page);
   const id = await create(page);
   expect(stub).toContain(`${book}/${id}`);
-  expect(stub.at(`${book}/${id}`)).toMatchObject({ id, title: 'C23 初稿', source: 'paste', status: 'queued', draft, checks: { manuscript: { status: 'queued' }, open: { status: 'queued' } } });
+  expect(stub.at(`${book}/${id}`)).toMatchObject({ id, title: 'C23 初稿', source: 'paste', skipProse: false, status: 'queued', draft, checks: { manuscript: { status: 'queued' }, open: { status: 'queued' } } });
   expect(stub.at(`${book}/${id}/driveName`)).toBeNull();
   await expect(view(page).locator('.pstatus-head .pst')).toHaveText('排队');
   await expect(view(page).locator('.pnote')).toContainText('结果回来后会自动显示');
@@ -85,18 +87,25 @@ test('send a pasted draft, follow its status, read both checks beside the draft'
   done(stub, id);
   await expect(view(page).locator('.pstatus-head .pst')).toHaveText('完成');
   await expect(view(page).locator('.pcount')).toContainText('3 条反馈');
-  await expect(items(page).locator('blockquote')).toHaveText(['那枚铜钥匙', '昨天的船', '没有一条船从南边进港']);
+  await expect(items(page).locator('blockquote')).toHaveText([JSON.parse(manuscript).items[0].quote, '昨天的船', JSON.parse(open).items[0].quote]);
   await expect(items(page).locator('.src')).toHaveText(['① 对照正文', '① 对照正文', '② 开放式']);
   await expect(view(page).locator('.psum')).toHaveText(['① 和已写正文有一处冲突。', '② 时间线上有一处存疑。']);
-  await expect(view(page).locator('#pp-1 mark')).toHaveText('那枚铜钥匙');
+  await expect(view(page).locator('#pp-1 mark')).toHaveText(JSON.parse(manuscript).items[0].quote);
+  await expect(items(page).first().locator('.lv')).toHaveCount(0);
+  await expect(view(page).locator('.prob')).toHaveCount(0);
   await expect(view(page).locator('#pp-2 .pitem')).toContainText('未对上原文');
   // Each item sits level with its paragraph.
   const top = async (selector: string) => (await view(page).locator(selector).boundingBox())!.y;
   expect(Math.abs(await top('#pp-4 .ptext') - await top('#pp-4 .pitem'))).toBeLessThan(16);
 
   await view(page).getByRole('button', { name: '② 开放式 1' }).click();
-  await expect(items(page).locator('blockquote')).toHaveText(['没有一条船从南边进港']);
+  await expect(items(page).locator('blockquote')).toHaveText([JSON.parse(open).items[0].quote]);
   await expect(view(page).locator('.psum')).toHaveText(['② 时间线上有一处存疑。']);
+  await view(page).getByRole('group', { name: '按 Tag 筛选' }).getByRole('button', { name: '连续性 0', exact: true }).click();
+  await expect(items(page)).toHaveCount(0);
+  await view(page).getByRole('group', { name: '按来源筛选' }).getByRole('button', { name: '全部 3', exact: true }).click();
+  await expect(items(page)).toHaveCount(1);
+  await expect(items(page).first()).toContainText('连续性');
   await page.reload();
   await expect(view(page).getByRole('button', { name: '全部 3' })).toHaveAttribute('aria-pressed', 'true');
   await expect(items(page)).toHaveCount(3);
@@ -104,6 +113,7 @@ test('send a pasted draft, follow its status, read both checks beside the draft'
   const history = view(page).locator('.hist-list a');
   await expect(history).toHaveCount(1);
   await expect(history).toContainText('完成');
+  await expect(history).toContainText('不验语病：否');
   await history.click();
   await expect(items(page)).toHaveCount(3);
   expect(errors).toEqual([]);
@@ -112,7 +122,9 @@ test('send a pasted draft, follow its status, read both checks beside the draft'
 test('a failed check says why; resending it queues it again and keeps the old report', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   const stub = await stubFirebase(page);
-  const id = await create(page);
+  const id = await create(page, 'C23 初稿', true);
+  expect(stub.at(`${book}/${id}/skipProse`)).toBe(true);
+  await expect(view(page).locator('.phead .meta')).toContainText('不验语病：是');
   sent(stub, id);
   report(stub, id, 'manuscript', 1, manuscript);
   stub.server(`${book}/${id}/checks/open`, { status: 'failed', attempt: 1, chat: 'https://chatgpt.com/c/abc', error: '60 分钟内没收到报告', at: Date.now() });
@@ -129,6 +141,7 @@ test('a failed check says why; resending it queues it again and keeps the old re
   expect(stub.at(`${book}/${id}/checks/open/status`)).toBe('queued');
   expect(stub.at(`${book}/${id}/checks/manuscript/status`)).toBe('done');
   expect(stub.at(`${book}/${id}/checks/open/attempt`)).toBe(1);
+  expect(stub.at(`${book}/${id}/skipProse`)).toBe(true);
   await expect(step(page, '② 开放式').locator('.pst')).toHaveText('排队');
 
   // The second send's report arrives next to the first check's; a bad reply is shown as is.
@@ -149,13 +162,20 @@ test('a failed check says why; resending it queues it again and keeps the old re
   await expect.poll(() => stub.at(`${book}/${id}/checks/manuscript/status`)).toBe('queued');
   expect(stub.at(`${book}/${id}/checks/open/status`)).toBe('queued');
   expect(Object.keys(stub.at(`${book}/${id}/reports`) as object)).toHaveLength(3);
+  expect(stub.at(`${book}/${id}/skipProse`)).toBe(true);
+  await page.reload();
+  await expect(view(page).locator('.hist-list a')).toContainText('不验语病：是');
+  await view(page).locator('.side').getByRole('link', { name: '＋ 新校稿' }).click();
+  await expect(view(page).getByLabel('不验语病')).not.toBeChecked();
 });
 
 test('a Drive request names the chapter; the fetched draft shows when it arrives', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   const stub = await stubFirebase(page);
   await page.goto('book/?book=maritime-story&view=proof');
+  await view(page).getByLabel('不验语病').check();
   await view(page).getByRole('button', { name: '从 Drive 取' }).click();
+  await expect(view(page).getByLabel('不验语病')).toBeChecked();
   await expect(view(page).getByLabel('新稿')).toHaveCount(0);
   await view(page).getByLabel('标题').fill('C22 原稿');
   await view(page).getByRole('button', { name: '发送校稿' }).click();
@@ -164,7 +184,7 @@ test('a Drive request names the chapter; the fetched draft shows when it arrives
   await view(page).getByRole('button', { name: '发送校稿' }).click();
   await expect(view(page).locator('.phead .meta')).toContainText('Drive：第22章 · 待取稿');
   const id = new URL(page.url()).searchParams.get('doc')!;
-  expect(stub.at(`${book}/${id}`)).toMatchObject({ source: 'drive', driveName: '第22章', status: 'queued' });
+  expect(stub.at(`${book}/${id}`)).toMatchObject({ source: 'drive', driveName: '第22章', skipProse: true, status: 'queued' });
   expect(stub.at(`${book}/${id}/draft`)).toBeNull();
   await expect(view(page).locator('.pnote')).toContainText('新稿还没取到');
 

@@ -10,7 +10,7 @@ import { CHECKS, TASKS, manuscriptTask, openTask } from '../src/lib/views/proof/
 
 const cli = fileURLToPath(new URL('../src/lib/views/proof/cli.ts', import.meta.url));
 
-const item = { para: 'P2', quote: '铜钥匙', kind: '物品', level: '冲突', issue: '钥匙前文已交出。', evidence: ['事件编号'] };
+const item = { para: 'P2', quote: '铜钥匙在她手里。', kind: '连续性', issue: '钥匙前文已交出。', evidence: ['事件编号'] };
 const reply = (body) => `好的：\n\`\`\`json\n${JSON.stringify(body, null, 2)}\n\`\`\`\n还需要什么告诉我。`;
 
 test('every non-empty line is a paragraph; blank lines and headings are not numbered', () => {
@@ -35,17 +35,24 @@ test('both tasks name the book, the rules and the reply format, then the numbere
   const input = { slug: 'maritime-story', title: 'C23 "初稿"', paras: splitParagraphs('甲。\n\n乙。') };
   const open = openTask(input);
   assert.match(open, /leahthemule\/novel-knowledge-base（main 分支）的 novels\/maritime-story\//);
-  assert.match(open, /contracts\/shared\/kb-use\/overview\.md/);
-  assert.match(open, /不要通读整个仓库/);
+  assert.match(open, /历史 KB：novels\/maritime-story\/kb\//);
   const manuscript = manuscriptTask(input);
   assert.match(manuscript, /novels\/maritime-story\/manuscript\//);
-  assert.match(manuscript, /只读这个目录，不改、不提交任何文件/);
-  assert.match(manuscript, /和旧版本不同本身也不算错/);
+  assert.match(manuscript, /历史 KB：不使用，以已写正文为历史/);
+  assert.match(manuscript, /先按新稿的章名找这一章的旧版本；有的话逐段对照/);
   for (const task of [open, manuscript]) {
-    assert.match(task, /不查语病、文风、修辞/);
-    for (const kind of ['时间线', '人物', '知情', '地点', '物品', '时代', '情节']) assert.ok(task.includes(kind), kind);
+    assert.match(task, /contracts\/shared\/kb-use\/manuscript-check\.md/);
+    assert.match(task, /contracts\/manuscript-check\/semantic\.md/);
+    assert.match(task, /受检范围仅为本份新稿/);
+    assert.match(task, /完整原句，逐字照抄/);
+    for (const kind of ['文字', '连续性', '人物', '世界设定', '推演', '资料补充']) assert.ok(task.includes(kind), kind);
+    assert.doesNotMatch(task, /只查这几类|读法|不查语病|本次跳过/);
     assert.ok(task.includes('{"title": "C23 \\"初稿\\"", "items": ['), 'the title is JSON-quoted in the format line');
     assert.ok(task.endsWith('新稿：\n[P1] 甲。\n[P2] 乙。\n'));
+  }
+  for (const check of CHECKS) {
+    assert.equal(TASKS[check]({ ...input, skipProse: false }), TASKS[check](input));
+    assert.equal(TASKS[check]({ ...input, skipProse: true }), TASKS[check](input) + '\n本次跳过 Tag `文字`（字词、语法、标点校勘），其他按合同执行。\n');
   }
 });
 
@@ -57,6 +64,12 @@ test('docs/proofdesk.md shows both task texts verbatim', async () => {
 
 test('the watcher CLI prints a task, reads a reply, and refuses an empty draft', () => {
   const run = (args, input) => spawnSync(process.execPath, [cli, ...args], { input, encoding: 'utf8' });
+  for (const check of CHECKS) for (const skipProse of [false, true]) {
+    const input = { check, slug: 'maritime-story', title: 'T', draft: '# 第1章\n甲。', skipProse };
+    const output = run(['task'], JSON.stringify(input));
+    assert.equal(output.status, 0);
+    assert.equal(output.stdout, TASKS[check]({ ...input, paras: splitParagraphs(input.draft) }));
+  }
   const task = run(['task'], JSON.stringify({ check: 'manuscript', slug: 'maritime-story', title: 'T', draft: '# 第1章\n甲。' }));
   assert.equal(task.status, 0);
   assert.equal(task.stdout, manuscriptTask({ slug: 'maritime-story', title: 'T', paras: splitParagraphs('甲。') }));
@@ -77,6 +90,9 @@ test('a new request queues both checks and keeps only its own source', () => {
   const drive = queuedRecord({ ...base, source: 'drive' });
   assert.equal(drive.driveName, '第22章');
   assert.equal('draft' in drive, false);
+  for (const source of ['paste', 'drive']) for (const skipProse of [false, true]) {
+    assert.equal(queuedRecord({ ...base, source, skipProse }).skipProse, skipProse);
+  }
   assert.match(newId(Date.UTC(2026, 10, 21, 15, 30, 12)), /^20261121-153012-[0-9a-f]{4}$/);
 });
 
@@ -93,6 +109,19 @@ test('a reply is read from a code fence with chatter around it', () => {
   assert.equal(result.ok, true);
   assert.equal(result.report.summary, '一处。');
   assert.deepEqual(result.report.items[0], { ...item, suggestion: '', problems: [] });
+});
+
+test('MC Tags are accepted without level; old kinds and invalid optional levels are flagged', () => {
+  for (const kind of ['文字', '连续性', '人物', '世界设定', '推演', '资料补充']) {
+    const parsed = parseReport(JSON.stringify({ items: [{ ...item, kind }] }));
+    assert.deepEqual(parsed.report.items[0].problems, []);
+    assert.equal(parsed.report.items[0].level, undefined);
+  }
+  for (const kind of ['时间线', '知情', '地点', '物品', '时代', '情节', '其他']) {
+    assert.match(parseReport(JSON.stringify({ items: [{ ...item, kind }] })).report.items[0].problems[0], /^kind /);
+  }
+  assert.deepEqual(parseReport(JSON.stringify({ items: [{ ...item, level: '提示' }] })).report.items[0].problems, []);
+  assert.match(parseReport(JSON.stringify({ items: [{ ...item, level: 3 }] })).report.items[0].problems[0], /^level /);
 });
 
 test('braces in chatter or in strings do not confuse the reader', () => {
