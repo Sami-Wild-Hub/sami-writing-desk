@@ -5,7 +5,7 @@ import { outlineTemplates } from './templates.js';
 import { outlineFrame } from './frame.ts';
 import { draftStore } from './draft.js';
 import { classify } from './sync-state.js';
-import { decodeState, filesEqual, resolve, save, subscribe, workspaceFiles } from './sync.ts';
+import { decodeState, filesEqual, newRevision, resolve, save, subscribe, workspaceFiles } from './sync.ts';
 export function mountOutline(root,payload,draftKey,host) { return new OutlinePanel(root,payload,draftKey,host); }
 
 class OutlinePanel {
@@ -30,6 +30,8 @@ this.editing = null;
 this.composer = null;
 this.showOriginal = false;
 this.disposed = false;
+this.online = () => { if (this.pendingWorkspace && (this.retrySave || this.localDirty)) { this.retrySave = false; this.queueCloudSave(); } };
+window.addEventListener('online', this.online);
 this.searchText = { RELATIONSHIP: '', EVENT: '' };
 this.draft = draftStore(this.draftKey, this.remote.live?.rev || this.remote.head?.synced?.rev || '');
 this.report = (message, error = false) => { this.$('status').textContent = message; this.$('status').classList.toggle('error', error); };
@@ -80,8 +82,9 @@ loadSavedDraft = (saved) => {
  this.model.importWorkspace(saved.workspace, false); this.localDirty = true; this.pendingWorkspace = saved.workspace;
  if (filesEqual(local, cloud)) { this.draft.clear(); this.localDirty = false; this.pendingWorkspace = null; return; }
  const canMigrate = saved.legacy && starter && !cloudChanged;
- if (canMigrate || (!saved.legacy && saved.base === this.cloudRevision())) {
-   this.report('正在把本机草稿写入云端…'); this.queueCloudSave();
+  if (canMigrate || (!saved.legacy && saved.base === this.cloudRevision())) {
+    if (canMigrate) this.draft.acceptRevision(this.cloudRevision());
+   this.report('正在把本机草稿写入云端…'); this.migrationPending = true; this.queueCloudSave();
  } else {
    this.showRemoteConflict(this.payload);
  }
@@ -99,9 +102,11 @@ queueCloudSave = () => {
 flushCloudSave = async () => {
  const workspace = this.pendingWorkspace; if (!workspace || !this.remote.live) return;
  const keep = this.keepPrevious; this.keepPrevious = false; this.lastCloudSave = Date.now();
+ const revision = this.migrationPending ? newRevision() : null; this.migrationPending = false;
+ if (revision) this.awaitingRevision = revision;
  try {
   const live = await save(this.host.householdRef, this.host.slug, workspace, {
-   base: this.draft.base() || this.remote.live.rev, uid: this.uid, previous: keep ? this.remote.live : undefined,
+   base: this.draft.base() || this.remote.live.rev, uid: this.uid, previous: keep ? this.remote.live : undefined, ...(revision ? { revision: () => revision } : {}),
   });
   this.awaitingRevision = live.rev;
  } catch (error) {
@@ -136,7 +141,7 @@ applyRemote = (payload) => {
 showRemoteConflict = (payload) => {
  if (this.noticeKind === 'cloud') return; this.noticeKind = 'cloud';
  this.notice('云端已有新版本；当前本机改动仍保留。', [
-  { label: '下载本机版', action: () => this.download('outline-local-draft.json', this.draft.raw()) },
+  { label: '下载本机版', action: () => this.download('outline-local-draft.json', this.model.exportWorkspace()) },
   { label: '载入云端版', action: () => this.applyRemote(payload) },
   { label: '用本机版覆盖', action: () => void this.writeResolution('use-local') },
  ]);
@@ -246,7 +251,7 @@ notice = (text, actions = []) => {
   this.root.prepend(p);
  };
 finish = () => !this.editing || this.finishInline(true);
-dispose = () => { this.disposed = true; if (this.cloudSaveTimer) clearTimeout(this.cloudSaveTimer); this.unsubscribe?.(); this.discardComposer(); this.root.replaceChildren(); };
+dispose = () => { this.disposed = true; window.removeEventListener('online', this.online); if (this.cloudSaveTimer) clearTimeout(this.cloudSaveTimer); this.unsubscribe?.(); this.discardComposer(); this.root.replaceChildren(); };
 wireDelegated = () => {
 this.root.addEventListener('click',e=>{
  const editSave=e.target.closest('[data-inline-save]');if(editSave){e.preventDefault();e.stopPropagation();this.finishInline(true);return}

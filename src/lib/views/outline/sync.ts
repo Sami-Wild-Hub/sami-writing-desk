@@ -18,7 +18,7 @@ export interface PackedFiles { plot: string; plan: string; }
 export interface DecodedFiles { plot: string; plan: string; plot_data: Record<string, unknown>; plan_data: Record<string, unknown>; }
 
 const bookRef = (householdRef: (path: string) => DatabaseReference, slug: string) => householdRef(`outlineSync/${slug}`);
-const newRevision = () => globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 12);
+export const newRevision = () => globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 12);
 
 export function subscribe(
   householdRef: (path: string) => DatabaseReference,

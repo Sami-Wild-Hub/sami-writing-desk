@@ -9,6 +9,7 @@
     "build": "astro build",
     "test:unit": "node --test tests/*.test.mjs",
     "test:browser": "playwright test",
+    "test:e2e:real": "node scripts/outline-web-e2e.mjs",
     "verify": "pnpm run check && pnpm run build && pnpm run test:unit && pnpm run test:browser",
     "preview": "astro preview"
   },
