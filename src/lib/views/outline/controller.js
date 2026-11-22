@@ -255,6 +255,8 @@ finishInline = (shouldSave) => {if(!this.editing)return true;const ed=this.editi
  }else this.render();
  return true;
 };
+// A card taken out of a Beat must be visible where it lands, whatever the filter and folding were.
+revealInLibrary = (id) => {const u=this.unitMap[id],kind=this.kindOf(u);this.shownStates[kind].add(u.status==='WRITTEN'?'written':'unplaced');this.closedGroups[kind].delete(u.storyline_group_id)};
 discardComposer = () => {if(this.composer){this.composer.remove();this.composer=null}};
 showGroupComposer = (kind) => {if(this.editing&&!this.finishInline(true))return;this.discardComposer();const host=this.$((kind==='RELATIONSHIP'?'rel':'event')+'-available');const form=document.createElement('form');form.className='composer';form.dataset.composerType='storyline';form.dataset.kind=kind;
  form.innerHTML=groupComposerHtml(kind);
@@ -314,7 +316,7 @@ this.root.addEventListener('click',e=>{
   const add=e.target.closest('[data-add]');if(add){this.discardComposer();this.assign(add.dataset.add,this.activeBeat);return}
  const chip=e.target.closest('[data-filter-state]');if(chip){const shown=this.shownStates[chip.parentElement.dataset.kind],key=chip.dataset.filterState;if(!shown.delete(key))shown.add(key);this.render();return}
  const fold=e.target.closest('[data-fold]');if(fold){const closed=this.closedGroups[fold.closest('.state-filter').dataset.kind];closed.clear();if(fold.dataset.fold==='close')for(const g of this.data.storyline_groups)closed.add(g.id);this.render();return}
- const rem=e.target.closest('[data-remove]');if(rem){this.discardComposer();this.removeUnit(rem.dataset.remove);return}
+ const rem=e.target.closest('[data-remove]');if(rem){this.discardComposer();this.revealInLibrary(rem.dataset.remove);this.removeUnit(rem.dataset.remove);return}
  const step=e.target.closest('[data-step]');if(step){this.discardComposer();this.reorder(step.dataset.id,Number(step.dataset.step));return}
  const summary=e.target.closest('summary.group-summary');if(summary&&!this.searchText[summary.parentElement.dataset.kind]){const d=summary.parentElement,kind=d.dataset.kind,gid=d.dataset.group;if(d.open)this.closedGroups[kind].add(gid);else this.closedGroups[kind].delete(gid)}
 });

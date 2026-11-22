@@ -163,6 +163,7 @@ test('the library filters by three states and receives pending nodes before any 
   await root.locator('#pending-box > summary').click();
   const pending = root.locator('[data-pending-id="U002"]');
   await expect(pending.locator('[data-add]')).toHaveCount(0);
+  await expect(pending.locator('[name="destination"]')).toHaveValue('EVENT:G03');
   await pending.locator('[name="destination"]').selectOption('RELATIONSHIP:G02');
   await pending.getByRole('button', { name: '放入 Past' }).click();
   await expect(root.locator('#pending-count')).toHaveText('0');
@@ -174,4 +175,17 @@ test('the library filters by three states and receives pending nodes before any 
   await card.locator('[data-add]').click();
   await expect(root.locator('#rel-selected [data-selected-era="PAST"] .card')).toContainText('U002 fictional turn');
   await expect(root.locator('#rel-selected [data-selected-era="PAST"] .editorial-badge')).toHaveText('已排');
+});
+
+test('a pending node takes one click to the library, and a card taken out of a Beat is visible there', async ({ page }) => {
+  const root = await open(page);
+  await root.locator('#pending-box > summary').click();
+  await root.locator('[data-pending-id="U002"]').getByRole('button', { name: '放入 Current' }).click();
+  await expect(root.locator('#event-groups [data-group="G03"] .card', { hasText: 'U002 fictional turn' })).toBeVisible();
+  await expect(root.locator('#event-selected .card')).toHaveCount(1);
+
+  await root.locator('[data-remove="E001"]').click();
+  await expect(root.locator('#rel-groups [data-group="G01"] [data-add="E001"]')).toBeVisible();
+  await root.locator('[data-add="E001"]').click();
+  await expect(root.locator('#spine-selected [data-remove="E001"]')).toBeVisible();
 });
