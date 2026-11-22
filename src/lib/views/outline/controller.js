@@ -110,6 +110,7 @@ flushCloudSave = async () => {
 submitWorkspace = async (action) => {
  if (this.inFlight) return;
  const workspace = this.pendingWorkspace, revision = newRevision(), keep = this.keepPrevious;
+ const unsaved = action === 'use-repo' && !filesEqual(workspaceFiles(workspace), this.payload.texts);
  this.inFlight = { revision }; this.pendingSince = 0; this.keepPrevious = false;
  if (this.cloudSaveTimer) clearTimeout(this.cloudSaveTimer);
  try {
@@ -120,7 +121,7 @@ submitWorkspace = async (action) => {
   if (this.disposed) return;
   if (action === 'use-repo' && this.editing) this.finishInline(true);
   // Edits still pending here were made on the replaced web version: keep their old base so they are never saved over the repository version unasked.
-  const superseded = action === 'use-repo' && !!this.pendingWorkspace;
+  const superseded = action === 'use-repo' && (unsaved || this.pendingWorkspace !== workspace);
   if (!superseded) this.draft.acceptRevision(live.rev);
   this.retrySave = false;
   this.noticeKind = ''; this.root.querySelector('.draft-notice')?.remove();

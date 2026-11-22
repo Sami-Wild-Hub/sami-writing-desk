@@ -29,23 +29,26 @@ async function activeInput(h, a) {
   assert.ok(JSON.parse(await h.draft(a)).workspace.plot_data.plot_units.some(row => row.content === `preserved-inline-${h.width}`));
   await button(a, '用本机版覆盖'); await eventually('inline conflict confirmed', async () => !(await h.draft(a))); await h.synced();
 }
-async function repositoryChoiceDuringEdit(h, a) {
-  await editUnit(a, 'E001', `local-before-choice-${h.width}`);
-  await eventually('local side of conflict saved', async () => (await h.live()).plot.plot_units.some(row => row.content === `local-before-choice-${h.width}`));
-  await h.repoEdit('plot', `repo-during-choice-${h.width}`); await notice(a, '仓库有新版');
+async function repositoryChoiceDuringEdit(h, a, beforeClick) {
+  const tag = `${beforeClick ? 'before' : 'after'}-${h.width}`;
+  await editUnit(a, 'E001', `local-before-choice-${tag}`);
+  await eventually('local side of conflict saved', async () => (await h.live()).plot.plot_units.some(row => row.content === `local-before-choice-${tag}`));
+  await h.repoEdit('plot', `repo-during-choice-${tag}`); await notice(a, '仓库有新版');
+  const editNote = () => a.root.locator('#beat-note').fill(`newer-during-choice-${tag}`);
+  if (beforeClick) await editNote();
   a.wire.holdReplies = true; await button(a, '用仓库版');
   await eventually('repository choice awaits acknowledgement', () => a.wire.replies.length > 0);
-  await a.root.locator('#beat-note').fill(`newer-during-choice-${h.width}`);
+  if (!beforeClick) await editNote();
   a.wire.releaseReplies();
   // The chosen repository version stays until the editor decides about the newer edit, also across a reload.
-  const chosen = value => value.plot_units.some(row => row.content === `repo-during-choice-${h.width}`);
+  const chosen = value => value.plot_units.some(row => row.content === `repo-during-choice-${tag}`);
   for (const reload of [false, true]) {
     if (reload) { await a.page.reload({ waitUntil: 'domcontentloaded' }); await h.ready(a); }
     await notice(a, '云端已有新版本'); await sleep(13_000);
     assert.ok(chosen((await h.live()).plot)); assert.ok(chosen(h.mainFile(files.plot)));
-    assert.notEqual((await h.live()).plan.beat_notes?.['A1-B1'], `newer-during-choice-${h.width}`);
+    assert.notEqual((await h.live()).plan.beat_notes?.['A1-B1'], `newer-during-choice-${tag}`);
   }
-  assert.equal((await downloadButton(a, '下载本机版')).plan.beat_notes['A1-B1'], `newer-during-choice-${h.width}`);
+  assert.equal((await downloadButton(a, '下载本机版')).plan.beat_notes['A1-B1'], `newer-during-choice-${tag}`);
   await button(a, '载入云端版');
   await eventually('chosen repository version in editor', async () => chosen((await workspace(a)).plot_data));
   assert.ok(!(await h.draft(a))); await h.synced();
@@ -67,6 +70,6 @@ async function continuousInput(h, a) {
   assert.equal(h.mainFile(files.plan).beat_notes['A1-B1'], `online-${h.width}`);
 }
 export async function inputScenarios(h, a) {
-  await echoes(h, a); await repositoryChoiceDuringEdit(h, a); await activeInput(h, a); await continuousInput(h, a);
+  await echoes(h, a); for (const beforeClick of [false, true]) await repositoryChoiceDuringEdit(h, a, beforeClick); await activeInput(h, a); await continuousInput(h, a);
   console.log(`PASS echo/in-flight/inline/head-only/10s/multipath/status @ ${h.width}`);
 }
