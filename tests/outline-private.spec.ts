@@ -50,16 +50,20 @@ test.describe('private outline parity', () => {
         await source.screenshot({ path:`${shots}/original/${width}-viewport.png` });
         await page.screenshot({ path:`${shots}/build/${width}-viewport.png` });
         const exported = await exportJSON(page, root, 'export-workspace');
-        expect(exported).toEqual(await exportJSON(source, sourceRoot, 'export-workspace'));
+        // The original export drops plan.notes; the site keeps it, also after a trip through the original.
+        const notes = exported.plan.notes;
+        expect(notes).toBeTruthy();
+        const withNotes = (value: { plan: object }) => ({ ...value, plan: { ...value.plan, notes } });
+        expect(exported).toEqual(withNotes(await exportJSON(source, sourceRoot, 'export-workspace')));
         const data = exported.plot_data;
         expect(data.plot_units.filter((u: {is_editorial_element?:boolean}) => u.is_editorial_element)).toHaveLength(60);
         expect(data.plot_units.filter((u: {is_custom?:boolean}) => !u.is_custom)).toHaveLength(92);
         expect(data.storyline_groups).toHaveLength(32); expect(data.source_nodes).toHaveLength(279);
         await importJSON(sourceRoot, 'import-workspace', exported);
         const back = await exportJSON(source, sourceRoot, 'export-workspace');
-        expect(back).toEqual(exported);
+        expect(withNotes(back)).toEqual(exported);
         await importJSON(root, 'import-workspace', back);
-        expect(await exportJSON(page, root, 'export-workspace')).toEqual(back);
+        expect(await exportJSON(page, root, 'export-workspace')).toEqual(exported);
         for (const [id,file] of [['export-data','import-data'],['export','import-plan']]) {
           const raw = await exportJSON(page, root, id);
           await importJSON(sourceRoot, file, raw);
