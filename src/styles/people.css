@@ -75,6 +75,7 @@
 .ppl table.evt { width: 100%; border-collapse: collapse; font-size: .8125rem; line-height: 1.55; }
 .ppl table.evt th { padding: .3rem .45rem; border-bottom: 1px solid var(--line-2); color: var(--ink-3); font-weight: 600; text-align: left; white-space: nowrap; }
 .ppl table.evt td { padding: .35rem .45rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ppl table.evt td[data-label="类别"] { white-space: nowrap; }
 .ppl table.evt td .loc { margin: 0 3px 2px 0; }
 .ppl .acts { display: flex; gap: 8px; margin-top: .7rem; }
 
