@@ -2,7 +2,7 @@
 import { esc as html } from '../../archive/ui.ts';
 export function outlineTemplates(root, model, ui, config) {
  const { data, state, storyMap, unitMap, activeBeat, undoHistory, kindOf, placedList, orderedSelected, used } = model;
- const { openGroups, searchText, showOriginal, shownStates } = ui;
+ const { closedGroups, searchText, showOriginal, shownStates } = ui;
  const $ = id => root.querySelector(`[id="${html(id)}"]`);
  const timeOrder = ['CURRENT','PAST'];
  const acts = [...new Set(data.beats.map(b=>b.act))];
@@ -62,6 +62,8 @@ function candidateCard(u){if(u.is_editorial_element)return editorialCard(u,false
 function groupEligible(group,kind){return (group.kinds||[]).includes(kind)||group.default_kind===kind||data.plot_units.some(u=>u.storyline_group_id===group.id&&kindOf(u)===kind)}
 function renderLibrary(kind){const q=searchText[kind].trim().toLocaleLowerCase();let items=[],count=0;
  const shown=shownStates[kind],hidden=u=>u.is_editorial_element&&!shown.has(stateOf(u));
+ // A search shows every match open, so folding waits until it is cleared.
+ for(const b of root.querySelectorAll(`.state-filter[data-kind="${kind}"] [data-fold]`))b.disabled=Boolean(q);
  // Counts cover the cards this library can offer for the active Beat, before search.
  const offered=data.plot_units.filter(u=>u.is_editorial_element&&u.era!=='UNASSIGNED'&&kindOf(u)===kind&&state.placements[u.unit_id]?.beat_id!==activeBeat);
  for(const chip of root.querySelectorAll(`.state-filter[data-kind="${kind}"] [data-filter-state]`)){
@@ -77,7 +79,7 @@ function renderLibrary(kind){const q=searchText[kind].trim().toLocaleLowerCase()
   const sections=timeOrder.map(era=>{const xs=matched.filter(u=>u.era===era).sort((a,b)=>a.sequence-b.sequence||a.unit_id.localeCompare(b.unit_id));
    return `<div class="sectionlabel ${era==='PAST'?'past':'current'}"><span class="era">${era} · ${xs.length} 可选</span><button class="inline-plus" data-create-group-unit="${html(group.id)}" data-kind="${kind}" data-era="${era}" title="在这条故事线的 ${era} 新增情节点">＋</button></div>${xs.length?xs.map(candidateCard).join(''):'<div class="empty">此时间段暂无可选情节点，点击＋新增</div>'}`
   }).join('');
-  const opened=q||openGroups[kind].has(group.id);
+  const opened=q||!closedGroups[kind].has(group.id);
   items.push(`<details class="group" data-group="${html(group.id)}" data-kind="${kind}" ${opened?'open':''}><summary class="group-summary"><span class="group-name">${editable('group-title',group.id,group.title,'group-title')}</span><small class="${matched.length?'':'none'}">${matched.length} 可选</small></summary><div class="groupinner"><div class="group-description">${editable('group-summary',group.id,group.summary||'','group-summary-value')}</div>${sections}${group.is_custom?`<div class="group-footer"><button class="delete-item" data-delete-group="${html(group.id)}">删除空白故事线</button></div>`:''}</div></details>`)
  }
  $((kind==='RELATIONSHIP'?'rel':'event')+'-left').textContent=`${count} 个可选`;

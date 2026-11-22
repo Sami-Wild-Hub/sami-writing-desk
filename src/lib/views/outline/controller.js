@@ -49,7 +49,7 @@ this.storyMap = undefined;
 this.unitMap = undefined;
 this.activeBeat = undefined;
 this.templates = undefined;
-this.openGroups = this.model.openGroups;
+this.closedGroups = this.model.closedGroups;
 this.kindOf = this.model.kindOf;
 this.used = this.model.used;
 this.placedList = this.model.placedList;
@@ -219,7 +219,7 @@ downloadKept = async () => {
 };
 sync = () => {
   ({ data: this.data, state: this.state, storyMap: this.storyMap, unitMap: this.unitMap, activeBeat: this.activeBeat } = this.model);
-  this.templates = outlineTemplates(this.root, this.model, { openGroups: this.openGroups, searchText: this.searchText, showOriginal: this.showOriginal, shownStates: this.shownStates }, this.config);
+  this.templates = outlineTemplates(this.root, this.model, { closedGroups: this.closedGroups, searchText: this.searchText, showOriginal: this.showOriginal, shownStates: this.shownStates }, this.config);
  };
 render = () => {
   this.discardComposer(); this.sync(); this.model.refreshDerived();
@@ -238,7 +238,7 @@ render = () => {
 editValue = (field,id) => {if(field==='unit')return this.unitMap[id]?.content;if(field==='element-title')return this.unitMap[id]?.element_title;if(field==='element-details')return (this.unitMap[id]?.details||[]).join('\n');if(field==='group-title')return this.storyMap[id]?.title;if(field==='group-summary')return this.storyMap[id]?.summary;if(field==='beat-title')return this.data.beats.find(x=>x.beat_id===id)?.title||'';return null};
 beginInline = (el) => {if(this.editing&&this.editing.element===el)return;if(this.editing&&!this.finishInline(true))return;this.discardComposer();
  const field=el.dataset.editField,id=el.dataset.id,old=this.editValue(field,id);if(old==null)return;
- if(el.closest('details.group'))this.openGroups[el.closest('details.group').dataset.kind].add(el.closest('details.group').dataset.group);
+ if(el.closest('details.group'))this.closedGroups[el.closest('details.group').dataset.kind].delete(el.closest('details.group').dataset.group);
  const host=document.createElement('span');host.className='inline-editor';host.innerHTML=inlineEditorHtml(field);
  const ctl=host.querySelector('input,textarea');ctl.value=old;el.replaceWith(host);this.editing={element:el,host,field,id,old,ctl};ctl.focus();if(ctl.select)ctl.select();
 };
@@ -304,7 +304,7 @@ this.root.addEventListener('click',e=>{
  if(e.target.closest('[data-composer-cancel]')){e.preventDefault();this.discardComposer();this.report('已取消新增。');return}
  if(this.editing&&!e.target.closest('.inline-editor')&&!this.finishInline(true)){e.preventDefault();return}
  const newGroup=e.target.closest('[data-create-storyline]');if(newGroup){this.showGroupComposer(newGroup.dataset.createStoryline);return}
- const newUnit=e.target.closest('[data-create-group-unit]');if(newUnit){const b=newUnit.dataset;this.openGroups[b.kind].add(b.createGroupUnit);this.showUnitComposer({kind:b.kind,era:b.era,groupId:b.createGroupUnit,anchor:newUnit});return}
+ const newUnit=e.target.closest('[data-create-group-unit]');if(newUnit){const b=newUnit.dataset;this.closedGroups[b.kind].delete(b.createGroupUnit);this.showUnitComposer({kind:b.kind,era:b.era,groupId:b.createGroupUnit,anchor:newUnit});return}
  const newBeatUnit=e.target.closest('[data-create-beat-unit]');if(newBeatUnit){this.showUnitComposer({kind:newBeatUnit.dataset.createBeatUnit,era:newBeatUnit.dataset.era,groupId:newBeatUnit.dataset.groupId||null,beat:this.activeBeat,anchor:newBeatUnit});return}
  const after=e.target.closest('[data-create-after]');if(after){const u=this.unitMap[after.dataset.createAfter];this.showUnitComposer({kind:this.kindOf(u),era:this.state.placements[u.unit_id]?.era||u.era,groupId:u.storyline_group_id,afterId:u.unit_id,beat:this.used(u.unit_id)?this.state.placements[u.unit_id].beat_id:null,anchor:after});return}
  const del=e.target.closest('[data-delete-unit]');if(del){this.deleteNewUnit(del.dataset.deleteUnit);return}
@@ -313,9 +313,10 @@ this.root.addEventListener('click',e=>{
  const moveHere=e.target.closest('[data-move-here]');if(moveHere){this.discardComposer();this.moveUnit(moveHere.dataset.moveHere,this.activeBeat);return}
   const add=e.target.closest('[data-add]');if(add){this.discardComposer();this.assign(add.dataset.add,this.activeBeat);return}
  const chip=e.target.closest('[data-filter-state]');if(chip){const shown=this.shownStates[chip.parentElement.dataset.kind],key=chip.dataset.filterState;if(!shown.delete(key))shown.add(key);this.render();return}
+ const fold=e.target.closest('[data-fold]');if(fold){const closed=this.closedGroups[fold.closest('.state-filter').dataset.kind];closed.clear();if(fold.dataset.fold==='close')for(const g of this.data.storyline_groups)closed.add(g.id);this.render();return}
  const rem=e.target.closest('[data-remove]');if(rem){this.discardComposer();this.removeUnit(rem.dataset.remove);return}
  const step=e.target.closest('[data-step]');if(step){this.discardComposer();this.reorder(step.dataset.id,Number(step.dataset.step));return}
- const summary=e.target.closest('summary.group-summary');if(summary&&!this.searchText[summary.parentElement.dataset.kind]){const d=summary.parentElement,kind=d.dataset.kind,gid=d.dataset.group;if(d.open)this.openGroups[kind].delete(gid);else this.openGroups[kind].add(gid)}
+ const summary=e.target.closest('summary.group-summary');if(summary&&!this.searchText[summary.parentElement.dataset.kind]){const d=summary.parentElement,kind=d.dataset.kind,gid=d.dataset.group;if(d.open)this.closedGroups[kind].add(gid);else this.closedGroups[kind].delete(gid)}
 });
 this.root.addEventListener('submit',e=>{
  const pending=e.target.closest('form[data-to-library]');

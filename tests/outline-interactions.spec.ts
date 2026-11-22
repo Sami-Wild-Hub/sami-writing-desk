@@ -60,9 +60,18 @@ test('F06,09,11–13,32: keyboard editors, blank validation, cancellation and cu
 
 test('F14–19: independent searches, disclosure persistence, pending and source statistics', async ({ page }) => {
   const root = await open(page);
-  await root.locator('#rel-groups [data-group="G02"] > summary').click();
+  const group = root.locator('#rel-groups [data-group="G02"]');
+  await expect(group).toHaveAttribute('open','');
+  await group.locator(':scope > summary > small').click();
   await chooseBeat(page, root, 'A3-B1');
-  await expect(root.locator('#rel-groups [data-group="G02"]')).toHaveAttribute('open','');
+  await expect(group).not.toHaveAttribute('open','');
+  const fold = (kind: string, to: string) => root.locator(`.state-filter[data-kind="${kind}"] [data-fold="${to}"]`);
+  await fold('RELATIONSHIP','open').click();
+  await expect(group).toHaveAttribute('open','');
+  await fold('RELATIONSHIP','close').click();
+  await expect(root.locator('#rel-groups details.group[open]')).toHaveCount(0);
+  await expect(root.locator('#event-groups details.group:not([open])')).toHaveCount(0);
+  await fold('RELATIONSHIP','open').click();
   for (const query of ['e004','CY × DEE','storyline','fictional turn','E004 stage','First detail']) {
     await root.locator('#rel-search').fill(query);
     await expect(root.locator('#rel-groups [data-group="G02"]')).toBeVisible();

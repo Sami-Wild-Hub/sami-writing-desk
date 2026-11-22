@@ -183,6 +183,7 @@
 .outline-view .state-chip.unplaced[aria-pressed=true] { border-color: var(--plan); background: var(--plan-soft); color: var(--plan); }
 .outline-view .state-chip.placed[aria-pressed=true] { border-color: var(--placed); background: var(--placed-soft); color: var(--placed); }
 .outline-view .state-chip.written[aria-pressed=true] { border-color: var(--done); background: var(--done-soft); color: var(--done); }
+.outline-view .fold-all { display: flex; gap: .15rem; margin-left: auto; }
 .outline-view .group { border-bottom: 1px solid var(--line); }
 .outline-view .group:last-child { border-bottom: 0; }
 .outline-view .group-summary { display: flex; align-items: center; gap: .3rem; min-height: 2.5rem; padding: .3rem .2rem; }
@@ -214,7 +215,11 @@
 @media (min-width: 1700px) {
   .outline-view .workbench { display: grid; grid-template-columns: minmax(0, 1fr) minmax(24rem, 30rem); gap: 1.5rem; align-items: start; }
   .outline-view .library { position: sticky; top: calc(var(--bar-h) + var(--tools-h) + .75rem); grid-template-columns: minmax(0, 1fr); gap: .75rem;
-    max-height: calc(100vh - var(--bar-h) - var(--tools-h) - 1.5rem); margin-top: 1.4rem; overflow: auto; overscroll-behavior: contain; }
+    height: calc(100vh - var(--bar-h) - var(--tools-h) - 2.5rem); margin-top: 1.4rem; grid-template-rows: repeat(2, minmax(0, 1fr)); }
+  /* The storylines start open: each panel scrolls by itself so Events stays in view. */
+  .outline-view .available { display: flex; flex-direction: column; align-self: start; max-height: 100%; overflow: auto; }
+  .outline-view .available > * { flex-shrink: 0; }
+  .outline-view .available > .groups { flex-shrink: 1; min-height: 6rem; overflow: auto; overscroll-behavior: contain; }
 }
 @media (max-width: 1100px) {
   .outline-view .chosen-lanes, .outline-view .library { grid-template-columns: minmax(0, 1fr); }
