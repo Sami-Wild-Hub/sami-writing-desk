@@ -130,6 +130,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       timeline: () => store.timeline(slug, book),
       outline: () => store.outline(slug, book),
       outlineDraftKey: `outline:${config.projectId}:${config.householdId}:${activeUid}:${slug}`,
+      people: () => store.people(slug, book),
       memo: (book.memo[view] ??= {}),
       href,
       readerHref: (path, hash = '') => (book.pathToKey.has(path) ? href({ view: 'reader', doc: path, hash }) : null),

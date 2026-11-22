@@ -3,6 +3,7 @@
 import type { PageEntry } from '../views/types.ts';
 import type { NovelTimelineData } from '../novelTimelineModel.ts';
 import type { OutlinePayload } from '../views/outline/schema.ts';
+import type { NovelPeopleData } from '../novelPeopleModel.ts';
 
 export interface BookInfo { title: string; scope?: string; pageCount?: number; hasOutline?: boolean; }
 export interface BookManifest { title: string; scope?: string; entries: Record<string, PageEntry>; hasOutline?: boolean; }
@@ -14,6 +15,7 @@ export interface LoadedBook {
   searchRead?: Promise<Record<string, string> | null | undefined>;
   timelineRead?: Promise<NovelTimelineData | null | undefined>;
   outlineRead?: Promise<OutlinePayload | null | undefined>;
+  peopleRead?: Promise<NovelPeopleData | null | undefined>;
   memo: Record<string, Record<string, unknown>>;
 }
 
