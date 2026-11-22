@@ -129,13 +129,19 @@ test('F29,33–38: optional placement, deletion guards, confirmation cancellatio
   await expect(root.locator('#status')).toContainText('没有已选节点');
 });
 
-test('the library hides written Elements on request and receives pending nodes before any Beat does', async ({ page }) => {
+test('the library filters by three states and receives pending nodes before any Beat does', async ({ page }) => {
   const root = await open(page);
   await chooseBeat(page, root, 'A3-B1');
   await expect(root.locator('#rel-left')).toHaveText('4 个可选');
-  await root.locator('[data-show-written="RELATIONSHIP"]').check();
+  const chip = (state: string) => root.locator(`.state-filter[data-kind="RELATIONSHIP"] [data-filter-state="${state}"]`);
+  await expect(chip('written')).toHaveAttribute('aria-pressed', 'false');
+  await chip('written').click();
   await expect(root.locator('#rel-left')).toHaveText('5 个可选');
-  await root.locator('[data-show-written="RELATIONSHIP"]').uncheck();
+  await chip('placed').click();
+  await expect(root.locator('#rel-left')).toHaveText('1 个可选');
+  await chip('written').click();
+  await chip('placed').click();
+  await chip('unplaced').click();
 
   await root.locator('#pending-box > summary').click();
   const pending = root.locator('[data-pending-id="U002"]');
@@ -146,6 +152,9 @@ test('the library hides written Elements on request and receives pending nodes b
   await expect(root.locator('.board .card')).toHaveCount(0);
   const card = root.locator('#rel-groups [data-group="G02"] .card', { hasText: 'U002 fictional turn' });
   await expect(card).toBeVisible();
+  await expect(chip('unplaced')).toHaveAttribute('aria-pressed', 'true');
+  await expect(card.locator('.editorial-badge')).toHaveText('待排');
   await card.locator('[data-add]').click();
   await expect(root.locator('#rel-selected [data-selected-era="PAST"] .card')).toContainText('U002 fictional turn');
+  await expect(root.locator('#rel-selected [data-selected-era="PAST"] .editorial-badge')).toHaveText('已排');
 });

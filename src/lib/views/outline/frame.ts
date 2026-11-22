@@ -9,7 +9,7 @@ export const outlineFrame = `<div class="outline-view frame">
     <button type="button" id="trigger-data">导入剧情 JSON</button><input type="file" id="import-data" accept=".json,application/json" hidden>
     <button type="button" id="trigger-plan">导入编排 JSON</button><input type="file" id="import-plan" accept=".json,application/json" hidden>
   </section>
-  <details class="sidebox rules"><summary>编排规则</summary><p>先排男女主主轴，再插入配角的 Relationship / Events 故事块。</p><p>一张卡对应一个阶段，展开看细节。</p><p>Current 与 Past 不混用，整块可移到其他 Beat。</p><p>标记「待写」的内容仍是大纲。</p></details>
+  <details class="sidebox rules"><summary>编排规则</summary><p>先排男女主主轴，再插入配角的 Relationship / Events 故事块。</p><p>一张卡对应一个阶段，展开看细节。</p><p>Current 与 Past 不混用，整块可移到其他 Beat。</p><p>待排：还没排进 Beat；已排：排进了 Beat、还没写；已写：正文已经写了。</p></details>
 </aside>
 <main class="outline-main" id="workspace-main">
   <div class="actions">
@@ -41,8 +41,8 @@ export const outlineFrame = `<div class="outline-view frame">
   </div>
 
   <section class="library" aria-label="素材库">
-    <div class="available" id="rel-available"><div class="available-hdr"><h4>Relationship 素材</h4><span class="muted" id="rel-left"></span><label class="checkbox-label"><input type="checkbox" data-show-written="RELATIONSHIP"> 显示已写</label><button class="create-storyline" data-create-storyline="RELATIONSHIP">＋ 新建故事线</button></div><input type="search" id="rel-search" placeholder="搜索故事线或情节点…" aria-label="搜索 Relationship"><div class="groups" id="rel-groups"></div></div>
-    <div class="available" id="event-available"><div class="available-hdr"><h4>Events 素材</h4><span class="muted" id="event-left"></span><label class="checkbox-label"><input type="checkbox" data-show-written="EVENT"> 显示已写</label><button class="create-storyline" data-create-storyline="EVENT">＋ 新建故事线</button></div><input type="search" id="event-search" placeholder="搜索故事线或情节点…" aria-label="搜索 Events"><div class="groups" id="event-groups"></div></div>
+    <div class="available" id="rel-available"><div class="available-hdr"><h4>Relationship 素材</h4><span class="muted" id="rel-left"></span><button class="create-storyline" data-create-storyline="RELATIONSHIP">＋ 新建故事线</button></div><div class="state-filter" data-kind="RELATIONSHIP" role="group" aria-label="Relationship 按状态筛选"><button type="button" class="state-chip unplaced" data-filter-state="unplaced" title="还没写，也没排进 Beat">待排 <b></b></button><button type="button" class="state-chip placed" data-filter-state="placed" title="排进了 Beat，还没写">已排 <b></b></button><button type="button" class="state-chip written" data-filter-state="written" title="正文已经写了">已写 <b></b></button></div><input type="search" id="rel-search" placeholder="搜索故事线或情节点…" aria-label="搜索 Relationship"><div class="groups" id="rel-groups"></div></div>
+    <div class="available" id="event-available"><div class="available-hdr"><h4>Events 素材</h4><span class="muted" id="event-left"></span><button class="create-storyline" data-create-storyline="EVENT">＋ 新建故事线</button></div><div class="state-filter" data-kind="EVENT" role="group" aria-label="Events 按状态筛选"><button type="button" class="state-chip unplaced" data-filter-state="unplaced" title="还没写，也没排进 Beat">待排 <b></b></button><button type="button" class="state-chip placed" data-filter-state="placed" title="排进了 Beat，还没写">已排 <b></b></button><button type="button" class="state-chip written" data-filter-state="written" title="正文已经写了">已写 <b></b></button></div><input type="search" id="event-search" placeholder="搜索故事线或情节点…" aria-label="搜索 Events"><div class="groups" id="event-groups"></div></div>
   </section>
   </div>
 

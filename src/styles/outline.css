@@ -3,7 +3,7 @@
    Main: toolbar, Beat header, a board of 主轴 / Relationship / Events rows split into
    Current and Past lanes, then the material library (a sticky right column on wide screens). */
 .outline-view { --cur: var(--accent-ink); --cur-soft: #eaf2f1; --past: #7a5838; --past-soft: #f4ece0;
-  --plan: #9a5b12; --plan-soft: #fbefd9; --done: #2b5e33; --done-soft: #e2efe3; --alert: #8a2a1c; --alert-soft: #fbe4df;
+  --plan: #9a5b12; --plan-soft: #fbefd9; --placed: #35557a; --placed-soft: #e4ebf3; --done: #2b5e33; --done-soft: #e2efe3; --alert: #8a2a1c; --alert-soft: #fbe4df;
   --tools-h: 3.25rem; color: var(--ink); font-size: .9375rem; overflow-wrap: anywhere; }
 .outline-view *, .outline-view *::before, .outline-view *::after { box-sizing: border-box; }
 
@@ -78,7 +78,7 @@
 .outline-view #beat-summary { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; margin: 0 0 .6rem; color: var(--ink-2); font-size: .875rem; }
 .outline-view .tally { padding: 0 .5rem; border-radius: 999px; font-size: .75rem; font-weight: 700; line-height: 1.5rem; }
 .outline-view .tally.written { background: var(--done-soft); color: var(--done); }
-.outline-view .tally.planned { background: var(--plan-soft); color: var(--plan); }
+.outline-view .tally.placed { background: var(--placed-soft); color: var(--placed); }
 .outline-view .beatnote { display: block; width: 100%; min-height: 2.75rem; max-height: 12rem; resize: vertical; field-sizing: content; background: var(--surface); }
 .outline-view .status { position: fixed; left: calc(var(--side-w) + 1rem); bottom: 1rem; z-index: 60; max-width: min(40rem, calc(100vw - var(--side-w) - 2rem));
   padding: .4rem .9rem; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink-2); font-size: .875rem;
@@ -119,11 +119,12 @@
 /* ---------- cards ---------- */
 .outline-view .card, .outline-view .pending-card { min-width: 0; margin: .45rem 0 0; padding: .55rem .75rem .45rem; border: 1px solid var(--line); border-radius: 10px;
   background: #fff; box-shadow: 0 1px 2px rgb(30 28 25 / .04); }
-.outline-view .card.planned { border: 1px dashed #d8b47c; background: #fffcf6; }
+.outline-view .card.unplaced { border: 1px dashed #d8b47c; background: #fffcf6; }
 .outline-view .card-head { display: flex; align-items: baseline; gap: .5rem; }
 .outline-view .editorial-badge, .outline-view .raw-badge { flex: none; padding: 0 .45rem; border-radius: 999px; font-size: .6875rem; font-weight: 700; line-height: 1.2rem; }
 .outline-view .written .editorial-badge { background: var(--done-soft); color: var(--done); }
-.outline-view .planned .editorial-badge { background: var(--plan-soft); color: var(--plan); }
+.outline-view .placed .editorial-badge { background: var(--placed-soft); color: var(--placed); }
+.outline-view .unplaced .editorial-badge { background: var(--plan-soft); color: var(--plan); }
 .outline-view .raw-badge { background: var(--sunk); color: var(--ink-2); }
 .outline-view .editorial-title { flex: 1; min-width: 0; font-size: .9375rem; font-weight: 700; line-height: 1.45; }
 .outline-view .cardtitle { flex: 1; min-width: 0; color: var(--ink-3); font-size: .8125rem; }
@@ -177,6 +178,11 @@
 .outline-view .available-hdr .muted { font-size: .8125rem; }
 .outline-view .create-storyline { margin-left: auto; }
 .outline-view .available input[type=search] { width: 100%; height: 2.3rem; margin: .6rem 0 .2rem; background: var(--bg); }
+.outline-view .state-filter { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .6rem; }
+.outline-view .state-chip { border-radius: 999px; color: var(--ink-3); }
+.outline-view .state-chip.unplaced[aria-pressed=true] { border-color: var(--plan); background: var(--plan-soft); color: var(--plan); }
+.outline-view .state-chip.placed[aria-pressed=true] { border-color: var(--placed); background: var(--placed-soft); color: var(--placed); }
+.outline-view .state-chip.written[aria-pressed=true] { border-color: var(--done); background: var(--done-soft); color: var(--done); }
 .outline-view .group { border-bottom: 1px solid var(--line); }
 .outline-view .group:last-child { border-bottom: 0; }
 .outline-view .group-summary { display: flex; align-items: center; gap: .3rem; min-height: 2.5rem; padding: .3rem .2rem; }

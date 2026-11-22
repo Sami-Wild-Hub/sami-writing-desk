@@ -2,10 +2,12 @@
 import { esc as html } from '../../archive/ui.ts';
 export function outlineTemplates(root, model, ui, config) {
  const { data, state, storyMap, unitMap, activeBeat, undoHistory, kindOf, placedList, orderedSelected, used } = model;
- const { openGroups, searchText, showOriginal, showWritten } = ui;
+ const { openGroups, searchText, showOriginal, shownStates } = ui;
  const $ = id => root.querySelector(`[id="${html(id)}"]`);
  const timeOrder = ['CURRENT','PAST'];
  const acts = [...new Set(data.beats.map(b=>b.act))];
+ const stateLabel = {written:'已写',placed:'已排',unplaced:'待排'};
+ const stateOf = u => u.status==='WRITTEN'?'written':used(u.unit_id)?'placed':'unplaced';
 function editable(field,id,value,className=''){
  return `<span role="button" tabindex="0" class="editable-field ${className}" data-edit-field="${html(field)}" data-id="${html(id)}" title="点击直接编辑">${html(value||'')||'<em class="placeholder">点击填写…</em>'}</span>`;
 }
@@ -21,7 +23,7 @@ function renderNav(){
  $('beat-title').innerHTML=editable('beat-title',b.beat_id,b.title||'','beat-title-value');
  $('beat-note').value=state.beat_notes[activeBeat]||'';
  const here=placed.filter(p=>p.beat_id===activeBeat),elements=here.map(p=>unitMap[p.unit_id]).filter(u=>u?.is_editorial_element),written=elements.filter(u=>u.status==='WRITTEN').length;
- $('beat-summary').innerHTML=`<span>本拍已选 <b>${here.length}</b> 块</span><span class="tally written">已写 ${written}</span><span class="tally planned">待写 ${elements.length-written}</span>`;
+ $('beat-summary').innerHTML=`<span>本拍已选 <b>${here.length}</b> 块</span><span class="tally written">已写 ${written}</span><span class="tally placed">已排 ${elements.length-written}</span>`;
  const support=kind=>here.filter(p=>unitMap[p.unit_id]?.storyline_group_id!==config.spineGroupId&&kindOf(unitMap[p.unit_id])===kind).length+' 块';
  $('rel-summary').textContent=support('RELATIONSHIP');$('event-summary').textContent=support('EVENT');$('undo').disabled=!undoHistory.length;
 }
@@ -35,9 +37,9 @@ function eraSelect(u){const chosen=state.placements[u.unit_id]?.era||u.era;retur
 function moveSelect(u,current){return `<select class="move" data-move="${html(u.unit_id)}" aria-label="${html(u.unit_id)} 整块移动到其他 Beat"><option value="">整块移动到…</option>${acts.map(act=>`<optgroup label="ACT ${html(act)}">${data.beats.filter(b=>b.act===act&&b.beat_id!==current).map(b=>`<option value="${html(b.beat_id)}">Beat ${html(b.beat)}${b.title?' · '+html(b.title):''}</option>`).join('')}</optgroup>`).join('')}</select>`}
 function editUnitText(u){return `<div class="cardtext editable-field" role="button" tabindex="0" data-edit-field="unit" data-id="${html(u.unit_id)}" title="点击编辑情节内容">${html(u.content)}</div>`}
 function editorialCard(u,selected){
- const p=state.placements[u.unit_id],details=u.details||[],written=u.status==="WRITTEN";
+ const p=state.placements[u.unit_id],details=u.details||[],written=u.status==="WRITTEN",progress=stateOf(u);
  const actions=selected?`<button class="remove" data-remove="${html(u.unit_id)}">移出</button>${moveSelect(u,p.beat_id)}`:p?`<button class="pick" data-move-here="${html(u.unit_id)}">从 ${html(p.beat_id)} 移入本 Beat</button>`:`<button class="pick" data-add="${html(u.unit_id)}">＋ 选入</button>`;
- return `<article class="card editorial ${written?"written":"planned"}"><div class="card-head"><span class="editorial-badge">${written?"已写":"待写"}</span><div class="editorial-title">${editable("element-title",u.unit_id,u.element_title||"阶段名")}</div><span class="card-id">${html(u.unit_id)}${u.source_refs?` · ${html(u.source_refs)}`:""}</span></div>${editUnitText(u)}<div class="card-foot"><details class="editorial-details"><summary>细节 ${details.length}</summary><ul>${details.map(d=>`<li>${html(d)}</li>`).join("")}</ul>${editable("element-details",u.unit_id,"✎ 编辑细节","details-edit")}</details>${sourceDetails(u)}<div class="cardactions">${actions}<button class="tiny" data-create-after="${html(u.unit_id)}" title="在这张卡后面新增一个阶段">＋ 后接</button><details class="editorial-controls"><summary>分类·状态</summary><div class="control-grid"><label>分类${kindSelect(u)}</label><label>时间线${eraSelect(u)}</label><label>写作状态<select data-editorial-status="${html(u.unit_id)}"><option value="WRITTEN" ${written?"selected":""}>已写</option><option value="PLANNED" ${!written?"selected":""}>待写</option></select></label><button class="delete-item" data-delete-unit="${html(u.unit_id)}">删除卡片</button></div></details></div></div></article>`;
+ return `<article class="card editorial ${progress}"><div class="card-head"><span class="editorial-badge">${stateLabel[progress]}</span><div class="editorial-title">${editable("element-title",u.unit_id,u.element_title||"阶段名")}</div><span class="card-id">${html(u.unit_id)}${u.source_refs?` · ${html(u.source_refs)}`:""}</span></div>${editUnitText(u)}<div class="card-foot"><details class="editorial-details"><summary>细节 ${details.length}</summary><ul>${details.map(d=>`<li>${html(d)}</li>`).join("")}</ul>${editable("element-details",u.unit_id,"✎ 编辑细节","details-edit")}</details>${sourceDetails(u)}<div class="cardactions">${actions}<button class="tiny" data-create-after="${html(u.unit_id)}" title="在这张卡后面新增一个阶段">＋ 后接</button><details class="editorial-controls"><summary>分类·状态</summary><div class="control-grid"><label>分类${kindSelect(u)}</label><label>时间线${eraSelect(u)}</label><label>写作状态<select data-editorial-status="${html(u.unit_id)}"><option value="WRITTEN" ${written?"selected":""}>已写</option><option value="PLANNED" ${!written?"selected":""}>未写</option></select></label><button class="delete-item" data-delete-unit="${html(u.unit_id)}">删除卡片</button></div></details></div></div></article>`;
 }
 function rawCard(u,meta,actions){return `<article class="card raw"><div class="card-head"><span class="raw-badge">原始</span><div class="cardtitle">${meta}</div></div>${editUnitText(u)}<div class="card-foot">${sourceDetails(u)}<div class="cardactions">${actions}${kindSelect(u)}${eraSelect(u)}</div></div></article>`}
 function selectedCard(p){
@@ -53,14 +55,19 @@ function renderSelected(kind,scope="support"){
    const g=storyMap[id],items=xs.filter(p=>unitMap[p.unit_id].storyline_group_id===id);
    return `<div class="selected-storyline"><div class="selected-storyline-head">${html(g?.title||id)} <small>${items.length} 个阶段</small></div><div class="selected-storyline-summary" title="${html(g?.summary||"")}">${html(g?.summary||"")}</div>${items.map(p=>selectedCard(p)).join("")}</div>`;
   }).join("");
-  return `<section class="time-lane ${era==="PAST"?"past":"current"}" data-selected-kind="${kind}" data-selected-era="${era}"><div class="label"><span class="era">${era==="PAST"?"PAST · T0 前":"CURRENT · T0 后"}</span><span class="label-actions"><span class="n">${xs.length} 块</span><button class="inline-plus" data-create-beat-unit="${kind}" data-group-id="${html(scope==="spine"?config.spineGroupId:"")}" data-era="${era}">＋ Element</button></span></div><div class="cards">${chunks||'<div class="empty">没有这一时间层的 Element</div>'}</div></section>`;
+  return `<section class="time-lane ${era==="PAST"?"past":"current"}" data-selected-kind="${kind}" data-selected-era="${era}"><div class="label"><span class="era">${era==="PAST"?"PAST":"CURRENT"}</span><span class="label-actions"><span class="n">${xs.length} 块</span><button class="inline-plus" data-create-beat-unit="${kind}" data-group-id="${html(scope==="spine"?config.spineGroupId:"")}" data-era="${era}">＋ Element</button></span></div><div class="cards">${chunks||'<div class="empty">没有这一时间层的 Element</div>'}</div></section>`;
  }).join("");
 }
 function candidateCard(u){if(u.is_editorial_element)return editorialCard(u,false);return rawCard(u,`${html(u.unit_id)} · 原始 XMind 节点`,`<button class="pick" data-add="${html(u.unit_id)}">＋ 选入</button>`)}
 function groupEligible(group,kind){return (group.kinds||[]).includes(kind)||group.default_kind===kind||data.plot_units.some(u=>u.storyline_group_id===group.id&&kindOf(u)===kind)}
 function renderLibrary(kind){const q=searchText[kind].trim().toLocaleLowerCase();let items=[],count=0;
+ const shown=shownStates[kind],hidden=u=>u.is_editorial_element&&!shown.has(stateOf(u));
+ // Counts cover the cards this library can offer for the active Beat, before search.
+ const offered=data.plot_units.filter(u=>u.is_editorial_element&&u.era!=='UNASSIGNED'&&kindOf(u)===kind&&state.placements[u.unit_id]?.beat_id!==activeBeat);
+ for(const chip of root.querySelectorAll(`.state-filter[data-kind="${kind}"] [data-filter-state]`)){
+  chip.setAttribute('aria-pressed',String(shown.has(chip.dataset.filterState)));chip.querySelector('b').textContent=offered.filter(u=>stateOf(u)===chip.dataset.filterState).length;
+ }
  for(const group of data.storyline_groups){if(!groupEligible(group,kind))continue;if(!showOriginal&&!group.is_custom&&!data.plot_units.some(u=>u.is_editorial_element&&u.storyline_group_id===group.id&&kindOf(u)===kind))continue;
-  const hidden=u=>!showWritten[kind]&&u.is_editorial_element&&u.status==='WRITTEN';
   const available=data.plot_units.filter(u=>u.storyline_group_id===group.id&&!hidden(u)&&u.era!=='UNASSIGNED'&&kindOf(u)===kind&&(u.is_editorial_element?(!used(u.unit_id)||state.placements[u.unit_id].beat_id!==activeBeat):showOriginal&&!used(u.unit_id)));
   const matched=available.filter(u=>!q||group.title.toLowerCase().includes(q)||(group.summary||'').toLowerCase().includes(q)||u.content.toLowerCase().includes(q)||String(u.element_title||'').toLowerCase().includes(q)||(u.details||[]).join(' ').toLowerCase().includes(q)||u.unit_id.toLowerCase().includes(q));
   const elements=data.plot_units.filter(u=>u.is_editorial_element&&u.storyline_group_id===group.id&&kindOf(u)===kind);
