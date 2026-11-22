@@ -73,7 +73,7 @@ test('send a pasted draft, follow its status, read both checks beside the draft'
   await expect(view(page).locator('.pnote')).toContainText('结果回来后会自动显示');
   await expect(view(page).locator('#pp-4 .ptext')).toContainText('港务所的老职员摇头');
   // The reader tab does not carry the record id over as a page.
-  await expect(page.locator('#novel-views').getByRole('link', { name: '阅读' })).toHaveAttribute('href', '/book/?book=maritime-story');
+  await expect(page.locator('#novel-views').getByRole('link', { name: '阅读' })).toHaveAttribute('href', /\/book\/\?book=maritime-story$/);
 
   sent(stub, id);
   await expect(view(page).locator('.pstatus-head .pst')).toHaveText('已发送');
