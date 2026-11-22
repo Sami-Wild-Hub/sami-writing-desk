@@ -1,4 +1,4 @@
-// Behavioral v6 model checks use the current maritime-story documents without embedding private data.
+// Behavioral v7 model checks use the current maritime-story documents without embedding private data.
 import assert from 'node:assert/strict';
 import rawTest from 'node:test';
 import { createOutlineModel } from '../src/lib/views/outline/model.js';
@@ -38,18 +38,23 @@ test('minimal mismatch marks prefer marking later cards and disappear when resto
   assert.deepEqual(Object.keys(m.marks()), [ids[1]]);
   assert.deepEqual(m.marks()[ids[1]].after, [ids[0]]);
 });
-test('participant ranking determines section, generated names, picker order; typed names append', () => {
+test('lead determines sections while ranking determines section and name order; edits and removal retain one lead', () => {
   const m = setup(), line = m.storyMap.G01, first = line.participants[0], second = line.participants[1];
   const before = m.exportWorkspace(); m.moveRank(second, 0);
   let v = presentation(m, {});
-  assert.equal(v.sections()[0].name, second);
+  assert.equal(v.sections().find(s => s.lines.some(l => l.id === line.id)).name, line.lead_participant);
   assert.ok(v.nameOf(v.lineOf(line.id)).startsWith(second));
   m.saveLine(line.id, 'Changed title', [first, second, 'New participant']);
   assert.equal(m.data.participant_order.at(-1), 'New participant');
   assert.throws(() => m.saveLine(line.id, 'Invalid', []));
-  m.undo(); m.undo(); assert.deepEqual(m.exportWorkspace(), before);
+  m.saveLine(line.id, line.title, [first, second], second);
+  v = presentation(m, {}); assert.equal(v.sections().find(s => s.lines.some(l => l.id === line.id)).name, second);
+  m.saveLine(line.id, line.title, [first]); assert.equal(m.storyMap[line.id].lead_participant, first);
+  const stable = m.exportWorkspace(); assert.throws(() => m.saveLine(line.id, line.title, [first], second)); assert.deepEqual(m.exportWorkspace(), stable);
+  const added = m.saveLine(null, 'New line', ['New participant', first]); assert.equal(m.storyMap[added].lead_participant, 'New participant');
+  for (let i = 0; i < 5; i++) m.undo(); assert.deepEqual(m.exportWorkspace(), before);
 });
-test('v6 imports and codec round trips retain ordering, participants, category and source/extension fields', () => {
+test('v7 imports and codec round trips retain ordering, participants, category and source/extension fields', () => {
   const m = setup(), id = m.visibleUnits()[0].unit_id;
   m.editCard(id, { extra_provenance: { path: ['source'], empty: [], absent: null } });
   m.state.notes = { extension: ['kept'] };

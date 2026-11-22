@@ -1,4 +1,4 @@
-// Preserve plan extensions during explicit file imports; only v6 core fields are supported.
+// Preserve plan extensions during explicit file imports; only v7 core fields are supported.
 export const PLAN_KEYS = new Set(['schema_version', 'source_data', 'placements', 'beat_notes']);
 export function completePlan(plan, current) {
   const result = {};

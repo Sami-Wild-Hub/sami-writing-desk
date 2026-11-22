@@ -17,23 +17,40 @@ Git uses the machine's existing credentials and RTDB uses the configured key pat
 reading RTDB. The installer writes `sync.log` beside the script; a manually
 created config without `log` reports errors to stderr.
 
-## v6 cutover
+## v7 cutover
 
-The watcher imports the same v6 validator as the browser. The RTDB envelope and
+The watcher imports the same v7 validator as the browser. The RTDB envelope and
 Firebase rules are unchanged; only the two compressed documents change.
 
-Stop the scheduled watcher before preparing the final cutover. Resolve pending
-repo conflicts, then use the approved private sample as the prefill input:
+Resolve pending repo conflicts, then prepare from the latest live v6 documents
+using the approved private merge/lead Markdown:
 
 ```powershell
-node sync/outline/migrate-v6-cli.mjs prepare --config <watcher-config> --sample <approved-sample.html> --data <data-checkout>
+node sync/outline/migrate-v7-cli.mjs prepare --config <watcher-config> --spec <04-final.md> --data <data-checkout>
 ```
 
-`prepare` reads the latest live copy and writes only the selected data checkout.
-Publish those files and the v6 site/worker together. After the old watcher lease
+`prepare` reads the latest live copy, writes only the selected data checkout, and
+reads it back to validate card/placement counts. It merges the approved groups,
+moves the specified card, and assigns each line one `lead_participant`. Merged
+lines and the moved card's destination use XMind time order within each category;
+other lines retain their live time order. Beat reveal order and card content/category
+are preserved. Unsourced editorial cards use their original sequence for anchoring;
+new cards without that provenance use their existing time position.
+
+For the final cutover, have the router stop the scheduled watcher and ensure
+pending edits are reconciled. Prepare again if live changed. Publish those files
+and the v7 site/worker together. After the old watcher lease
 expires, run the same command with `install` in place of `prepare`. It refuses
 uncommitted data, checks that published data exactly equals the conversion of
 current live, and uses CAS to prevent overwriting an intervening edit. It also
 converts starter/kept snapshots. If live changed, prepare and publish again.
-Then update the dedicated watcher clone, restart the scheduled task, verify one
-successful round, and dispatch the data repository's Outline sync workflow.
+Then update the dedicated watcher clone, have the router restart the scheduled
+task, verify one successful round, and dispatch the data repository's Outline sync
+workflow. Preparation alone does not change RTDB or the scheduled task.
+
+The page's “立即同步” button dispatches `outline-sync.yml` on data `main` through
+the GitHub REST API. Its first use requests a fine-grained token with Actions write
+permission on `Sami-Wild-Hub/sami-writing-desk-data`; it is stored only in this
+browser's localStorage. Invalid/insufficient authorization clears it and asks again.
+“查看同步结果” opens the workflow page. API success means dispatch accepted, not
+that the workflow has finished. See [GitHub's dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event).

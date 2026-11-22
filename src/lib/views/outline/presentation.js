@@ -6,7 +6,7 @@ import { CATEGORIES } from './validation.js';
 export const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 export function presentation(model, UI) {
   const DATA = { beats: model.data.beats.map(b => ({ ...b, id: b.beat_id, note: model.state.beat_notes[b.beat_id] || '' })), kb: model.data.participants };
-  const S = { ranking: model.data.participant_order, lines: model.data.storyline_groups.map(g => ({ id: g.id, title: g.title, parts: g.participants })), time: Object.fromEntries(model.data.storyline_groups.map(g => [g.id, g.time_order])), cards: {}, reveal: {} };
+  const S = { ranking: model.data.participant_order, lines: model.data.storyline_groups.map(g => ({ id: g.id, title: g.title, parts: g.participants, lead: g.lead_participant })), time: Object.fromEntries(model.data.storyline_groups.map(g => [g.id, g.time_order])), cards: {}, reveal: {} };
   for (const u of model.visibleUnits()) S.cards[u.unit_id] = { id: u.unit_id, line: u.storyline_group_id, cat: u.category, title: u.element_title || '', text: u.content, details: u.details, refs: u.source_refs, origins: (u.source_unit_ids || []).map(id => model.unitMap[id].content), status: u.status === 'WRITTEN' ? '已写' : u.is_editorial_element ? '未写' : '原纲' };
   const D = { placedIn: {}, marks: model.marks() };
   for (const b of model.beatIds) S.reveal[b] = model.placedList().filter(p => p.beat_id === b).map(p => p.unit_id);
@@ -21,7 +21,7 @@ export function presentation(model, UI) {
   v.clip = (s, n) => s.length > n ? s.slice(0, n) + '…' : s;
   v.cardLabel = c => c.title || v.clip(c.text, 20);
   v.countOf = id => CATEGORIES.reduce((n, c) => n + S.time[id][c].length, 0);
-  v.sections = (lines = S.lines) => S.ranking.map(name => ({ name, lines: lines.filter(l => v.partsOf(l)[0] === name) })).filter(s => s.lines.length);
+  v.sections = (lines = S.lines) => S.ranking.map(name => ({ name, lines: lines.filter(l => l.lead === name) })).filter(s => s.lines.length);
   v.list = items => `<ul>${items.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul>`;
   v.markText = m => {
     const q = ids => ids.map(id => `「${v.cardLabel(S.cards[id])}」`).join('、');

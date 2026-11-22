@@ -1,4 +1,4 @@
-// Account/book-scoped v6 drafts retain the base revision for CAS saves.
+// Account/book-scoped v7 drafts retain the base revision for CAS saves.
 // Reads/Writes: localStorage outline draft (JSON)
 export function draftStore(key, revision, storage) {
   let baseRevision = revision;

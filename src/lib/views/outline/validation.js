@@ -5,7 +5,7 @@ const strings = xs => Array.isArray(xs) && xs.every(x => typeof x === 'string');
 const require = (ok, why) => { if (!ok) throw Error(why); };
 
 export function validateData(data) {
-  require(data?.schema_version === '6.0', '需要 v6 大纲数据；请先完成一次性迁移');
+  require(data?.schema_version === '7.0', '需要 v7 大纲数据；请先完成一次性迁移');
   for (const field of ['plot_units', 'storyline_groups', 'beats', 'participants']) require(Array.isArray(data[field]), '缺少数组：' + field);
   require(strings(data.participant_order) && unique(data.participant_order), '参与者排序无效');
   require(data.beats.length && unique(data.beats.map(b => b.beat_id)), 'Beat 无效或重复');
@@ -27,6 +27,7 @@ export function validateData(data) {
   for (const g of data.storyline_groups) {
     require(typeof g.id === 'string' && g.id && typeof g.title === 'string' && g.title.trim(), '故事线标题无效');
     require(strings(g.participants) && g.participants.length && unique(g.participants) && g.participants.every(p => data.participant_order.includes(p)), '每条线至少一个已排序参与者');
+    require(typeof g.lead_participant === 'string' && g.participants.includes(g.lead_participant), '每条线必须有一个本线的标志性参与者');
     for (const c of CATEGORIES) {
       const col = g.time_order?.[c]; require(strings(col), '缺少时间顺序栏');
       require(col.every(id => units[id]?.storyline_group_id === g.id && units[id]?.category === c && !merged.has(id)), '时间顺序引用无效'); ordered.push(...col);
@@ -36,7 +37,7 @@ export function validateData(data) {
 }
 
 export function validatePlan(data, plan) {
-  require(plan?.schema_version === '6.0' && Array.isArray(plan.placements), '需要 v6 编排数据');
+  require(plan?.schema_version === '7.0' && Array.isArray(plan.placements), '需要 v7 编排数据');
   require(plan.beat_notes && typeof plan.beat_notes === 'object' && !Array.isArray(plan.beat_notes), 'Beat 备注无效');
   const beats = new Set(data.beats.map(b => b.beat_id));
   const ids = new Set(data.storyline_groups.flatMap(g => CATEGORIES.flatMap(c => g.time_order[c])));

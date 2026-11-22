@@ -11,7 +11,7 @@ const repo = resolve('..', 'sami-writing-desk-data-outline');
 const canonical = name => JSON.parse(readFileSync(resolve(repo, 'outline/maritime-story', name), 'utf8'));
 const options = { skip: !existsSync(repo) && 'public CI has no sibling data repository' };
 
-test('imported v6 plans inherit missing extensions in cloud key order without changing explicit values', options, () => {
+test('imported v7 plans inherit missing extensions in cloud key order without changing explicit values', options, () => {
   const current = canonical('placements.json');
   const old = Object.fromEntries(Object.entries(current).filter(([key]) => PLAN_KEYS.has(key)));
   const completed = completePlan(old, current);

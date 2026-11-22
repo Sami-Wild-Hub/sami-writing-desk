@@ -98,7 +98,7 @@ function stubBook(title: string, timeline: Timeline): Tree {
 async function canonicalOutline() {
   const repo = resolve(process.cwd(), '..', 'sami-writing-desk-data-outline');
   const [plot, plan] = await Promise.all(['plot-data.json', 'placements.json'].map(name => readFile(resolve(repo, 'outline/maritime-story', name), 'utf8')));
-  return { plot, plan, commit: 'workspace-v6' };
+  return { plot, plan, commit: 'workspace-v7' };
 }
 
 async function database({ canonical = false } = {}) {

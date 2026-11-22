@@ -137,6 +137,6 @@ updateSyncStatus = () => {
 downloadKept = async () => {
  const kept = this.remote.kept; if (!kept) return;
  const payload = await decodeState({ ...this.remote, live: { ...kept, base: '', at: kept.at, by: 'repo' } });
- if (payload) this.download('outline-kept.json', { schema_version: '6.0', format: 'storylines-workspace', plot_data: payload.plot_data, plan: payload.plan });
+ if (payload) this.download('outline-kept.json', { schema_version: '7.0', format: 'storylines-workspace', plot_data: payload.plot_data, plan: payload.plan });
 };
 }

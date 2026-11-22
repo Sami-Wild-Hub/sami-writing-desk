@@ -7,6 +7,7 @@ import { draftStore } from './draft.js';
 import { mountDrag } from './drag.js';
 import { completePlan, completeWorkspace } from './workspace.js';
 import { subscribe } from './sync.ts';
+import { mountManualSync } from './manual-sync.js';
 export const mountOutline = (root, payload, draftKey, host) => new OutlinePanel(root, payload, draftKey, host);
 class OutlinePanel extends OutlineCloud {
   constructor(root, payload, draftKey, host) {
@@ -14,6 +15,7 @@ class OutlinePanel extends OutlineCloud {
     this.localDirty = false; this.pendingWorkspace = null; this.cloudSaveTimer = null; this.pendingSince = 0;
     this.inFlight = null; this.remoteUpdates = Promise.resolve(); this.keepPrevious = false; this.noticeKind = ''; this.disposed = false;
     root.innerHTML = outlineFrame;
+    this.manualSync = mountManualSync(root.querySelector('.outline-view'));
     this.$ = id => root.querySelector(`[id="${id}"]`);
     root.querySelector('.outline-shell-head').append(host.sideHead());
     this.UI = { tab: 'story', line: payload.config.defaultStorylineId, beat: payload.plot_data.beats[0].beat_id, picker: false, rank: false, dialog: null, editing: null, composing: null, search: '', open: new Set(), filters: new Set(['unplaced']) };
@@ -68,12 +70,15 @@ class OutlinePanel extends OutlineCloud {
       case 'toggle-rank': u.rank = !u.rank; break;
       case 'toggle-picker': u.picker = !u.picker; break;
       case 'select-line': u.line = id; u.picker = false; u.editing = u.composing = null; break;
-      case 'new-line': u.dialog = { id: null, title: '', parts: [] }; u.picker = false; break;
-      case 'edit-line': { const l = m.storyMap[id]; u.dialog = { id, title: l.title, parts: [...l.participants] }; break; }
+      case 'new-line': u.dialog = { id: null, title: '', parts: [], lead: '' }; u.picker = false; break;
+      case 'edit-line': { const l = m.storyMap[id]; u.dialog = { id, title: l.title, parts: [...l.participants], lead: l.lead_participant }; break; }
       case 'open-line': u.tab = 'story'; u.line = id; break;
       case 'close-dialog': u.dialog = null; break;
       case 'add-part': this.addPart(); break;
-      case 'drop-part': u.dialog.parts = u.dialog.parts.filter(p => p !== t.dataset.name); break;
+      case 'drop-part':
+        u.dialog.parts = u.dialog.parts.filter(p => p !== t.dataset.name);
+        if (!u.dialog.parts.includes(u.dialog.lead)) u.dialog.lead = u.dialog.parts[0] || '';
+        break;
       case 'edit-card': u.editing = id; break;
       case 'cancel-edit': u.editing = null; break;
       case 'compose': u.composing = t.dataset.cat; break;
@@ -88,6 +93,7 @@ class OutlinePanel extends OutlineCloud {
     const form = this.root.querySelector('[data-form="line"]'), name = form.elements.part.value.trim();
     this.UI.dialog.title = form.elements.title.value;
     if (name && !this.UI.dialog.parts.includes(name)) this.UI.dialog.parts.push(name);
+    this.UI.dialog.lead ||= this.UI.dialog.parts[0] || '';
   };
   submit = form => {
     const value = name => form.elements[name]?.value || '', u = this.UI;
@@ -98,7 +104,7 @@ class OutlinePanel extends OutlineCloud {
       u.composing = null; this.model.addCard(u.line, form.dataset.cat, value('title'), value('text'));
     } else if (form.dataset.form === 'line') {
       const d = u.dialog; if (!value('title').trim() || !d.parts.length) return;
-      u.dialog = null; u.line = this.model.saveLine(d.id, value('title'), d.parts); this.render();
+      u.line = this.model.saveLine(d.id, value('title'), d.parts, d.lead); u.dialog = null; this.render();
     }
   };
   wire = () => {
@@ -110,6 +116,7 @@ class OutlinePanel extends OutlineCloud {
     this.root.addEventListener('submit', e => { if (e.target.dataset.form) { e.preventDefault(); this.attempt(() => this.submit(e.target)); } });
     this.root.addEventListener('change', e => {
       const t = e.target;
+      if (t.name === 'lead') this.UI.dialog.lead = t.value;
       if (t.dataset.change === 'move-beat' && t.value) this.attempt(() => this.model.placeInCell(t.dataset.id, t.value, this.model.unitMap[t.dataset.id].category));
     });
     this.root.addEventListener('input', e => {
@@ -163,7 +170,7 @@ class OutlinePanel extends OutlineCloud {
     this.root.prepend(node);
   };
   dispose = () => {
-    this.disposed = true; this.drag.dispose(); this.unsubscribe?.(); window.removeEventListener('online', this.online);
+    this.disposed = true; this.manualSync.dispose(); this.drag.dispose(); this.unsubscribe?.(); window.removeEventListener('online', this.online);
     if (this.cloudSaveTimer) clearTimeout(this.cloudSaveTimer); this.root.replaceChildren();
   };
 }

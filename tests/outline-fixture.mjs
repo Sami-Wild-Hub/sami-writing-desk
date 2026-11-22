@@ -1,5 +1,5 @@
 // Canonical private outline at runtime; no substitute book is embedded in the public repo.
-// Reads: sibling data checkout outline/maritime-story (v6 JSON)
+// Reads: sibling data checkout outline/maritime-story (v7 JSON)
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 export const outlinePath = resolve(process.env.OUTLINE_DATA_REPO || '../sami-writing-desk-data-outline', 'outline/maritime-story');

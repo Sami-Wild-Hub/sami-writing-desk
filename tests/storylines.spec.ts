@@ -1,4 +1,4 @@
-// Canonical v6 outline controls exercised with actual mouse drags at the approved desktop size.
+// Canonical v7 outline controls exercised with actual mouse drags at the approved desktop size.
 import { expect, test, type Page, type Locator } from '@playwright/test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -35,14 +35,14 @@ const cell = (r: Locator, beat: string, cat: string) => r.locator(`[data-zone="b
 test('picker, aligned reference, three categories and both tabs', async ({ page }) => {
  const { root, errors } = await open(page);
  await expect(root.locator('.self-col')).toHaveCount(3); await expect(root.locator('.mark')).toHaveCount(0);
- await root.locator('[data-act="toggle-picker"]').click(); await expect(root.locator('.pick-line')).toHaveCount(32);
- await root.locator('[data-act="select-line"][data-id="G21"]').click(); await expect(root.locator('.picker-panel')).toHaveCount(0); await select(root, 'G01');
+ await root.locator('[data-act="toggle-picker"]').click(); await expect(root.locator('.pick-line')).toHaveCount(26);
+ await root.locator('[data-act="select-line"][data-id="G11"]').click(); await expect(root.locator('.picker-panel')).toHaveCount(0); await select(root, 'G01');
  const rows = await root.locator('.bg-mine').evaluateAll(xs => xs.map(x => [x.getBoundingClientRect().top, x.previousElementSibling!.getBoundingClientRect().top]));
  expect(rows).toHaveLength(30); expect(rows.every(([a,b]) => Math.abs(a-b) < 1)).toBe(true);
  expect(await root.locator('.bg-other .ref-line').allTextContents()).not.toContain(await root.locator('.self-head h2').textContent());
- await page.screenshot({ path: join(tmpdir(), 'swd-storylines-v6-story.png') });
+ await page.screenshot({ path: join(tmpdir(), 'swd-storylines-v7-story.png') });
  await root.locator('[data-act="tab"][data-tab="outline"]').click(); await expect(root.locator('.lane')).toHaveCount(3); await expect(root.locator('[data-filter-state]')).toHaveCount(3);
- await page.screenshot({ path: join(tmpdir(), 'swd-storylines-v6-outline.png') }); expect(errors).toEqual([]);
+ await page.screenshot({ path: join(tmpdir(), 'swd-storylines-v7-outline.png') }); expect(errors).toEqual([]);
 });
 test('real drags: independent orders, inversions, category change, cross Beat and undecided', async ({ page }) => {
  const { root, errors } = await open(page), initial = await workspace(page, root);
@@ -60,7 +60,7 @@ test('real drags: independent orders, inversions, category change, cross Beat an
  const id = group.time_order.current.find((id: string) => !initial.plan.placements.some((p: any) => p.unit_id === id));
  await drag(page,card(root,id),cell(root,'A1-B1','current')); await expect(cell(root,'A1-B1','current').locator(`[data-card="${id}"]`)).toHaveCount(1); await expect(card(root,id)).toHaveCount(1);
  await drag(page,cell(root,'A1-B1','current').locator(`[data-card="${id}"]`),cell(root,'A2-B1','current')); await expect(cell(root,'A2-B1','current').locator(`[data-card="${id}"]`)).toHaveCount(1);
- await select(root,'G21'); const undecided = initial.plot_data.storyline_groups.find((g: any) => g.id === 'G21').time_order.undecided[0];
+ await select(root,'G11'); const undecided = initial.plot_data.storyline_groups.find((g: any) => g.id === 'G11').time_order.undecided[0];
  await drag(page,card(root,undecided),cell(root,'A1-B1','undecided')); await expect(cell(root,'A1-B1','undecided').locator(`[data-card="${undecided}"]`)).toHaveCount(1);
  const beforeCancel = await workspace(page,root), source = card(root,undecided); await source.scrollIntoViewIfNeeded(); const rect = (await source.boundingBox())!;
  await page.mouse.move(rect.x+30,rect.y+30); await page.mouse.down(); await page.mouse.move(rect.x+50,rect.y+50); await page.keyboard.press('Escape'); await page.mouse.up();

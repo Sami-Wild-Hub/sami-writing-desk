@@ -28,5 +28,5 @@ export async function inputScenarios(h, a) {
  assert.ok(a.wire.writes.length > sent, 'continuous input saves within ten seconds');
  await eventually('continuous edit confirmed', async () => !(await h.draft(a))); await h.synced();
  assert.equal((await h.live()).plan.beat_notes['A1-B1'], `continuous-${h.width}-11`);
- console.log(`PASS v6 echo/in-flight/participants/time/refresh/10s/multipath @ ${h.width}`);
+ console.log(`PASS v7 echo/in-flight/participants/time/refresh/10s/multipath @ ${h.width}`);
 }

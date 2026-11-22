@@ -1,4 +1,4 @@
-// Shared v6 outline state and reversible edits. Reads/Writes: workspace snapshots (v6 JSON).
+// Shared v7 outline state and reversible edits. Reads/Writes: workspace snapshots (v7 JSON).
 import { validateData, validatePlan, CATEGORIES } from './validation.js';
 import { mismatchMarks } from './ordering.js';
 export const clone = value => structuredClone(value);
@@ -26,7 +26,7 @@ class OutlineModel {
   savedCount = () => this.placedList().length;
   exportData = () => clone(this.data);
   exportPlan = () => ({ ...clone(this.state), placements: clone(this.placedList()) });
-  exportWorkspace = () => ({ schema_version: '6.0', format: 'storylines-workspace', plot_data: this.exportData(), plan: this.exportPlan(), active_beat: this.activeBeat });
+  exportWorkspace = () => ({ schema_version: '7.0', format: 'storylines-workspace', plot_data: this.exportData(), plan: this.exportPlan(), active_beat: this.activeBeat });
   snapshot = () => { this.undoHistory.push(this.exportWorkspace()); if (this.undoHistory.length > 50) this.undoHistory.shift(); };
   saveLocal = () => { try { this.hooks.save(this.exportWorkspace()); return true; } catch (error) { this.hooks.warning(error); return false; } };
   change = fn => {
@@ -68,14 +68,17 @@ class OutlineModel {
     }); return id;
   };
   editCard = (id, patch) => this.change(() => { Object.assign(this.unitMap[id], patch); });
-  saveLine = (id, title, participants) => {
+  saveLine = (id, title, participants, lead) => {
     if (!title.trim() || !participants.length || participants.some(p => !p.trim())) throw Error('需要标题和至少一个参与者');
     id ||= this.freshId('L', new Set(Object.keys(this.storyMap)));
     this.change(() => {
       for (const name of participants) if (!this.data.participant_order.includes(name)) this.data.participant_order.push(name);
       const group = this.storyMap[id];
-      if (group) Object.assign(group, { title: title.trim(), participants: [...new Set(participants)] });
-      else this.data.storyline_groups.push({ id, title: title.trim(), participants: [...new Set(participants)], time_order: Object.fromEntries(CATEGORIES.map(c => [c, []])) });
+      const chosen = lead ?? (participants.includes(group?.lead_participant) ? group.lead_participant : participants[0]);
+      if (!participants.includes(chosen)) throw Error('标志性参与者必须是本线参与者');
+      const fields = { title: title.trim(), participants: [...new Set(participants)], lead_participant: chosen };
+      if (group) Object.assign(group, fields);
+      else this.data.storyline_groups.push({ id, ...fields, time_order: Object.fromEntries(CATEGORIES.map(c => [c, []])) });
     }); return id;
   };
   moveRank = (name, index) => this.change(() => {

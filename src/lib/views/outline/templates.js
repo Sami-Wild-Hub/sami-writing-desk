@@ -71,7 +71,7 @@ export function rankPanel(v) {
     <span class="rn">${esc(n)}</span><span class="rt">${esc(KB_TYPE[n] || '手填')}</span><small>${used(n)} 条</small></li>`;
   return `<div class="pop rank-pop" role="dialog" aria-label="参与者排序"><div class="pop-head"><b>参与者排序</b>
     <button class="quiet" data-act="toggle-rank" aria-label="关闭">×</button></div>
-    <p class="hint">拖动调整排位。每条故事线列在排位最靠前的参与者下，名字也按这个顺序。</p>
+    <p class="hint">拖动调整 section 先后和名字前缀次序。每条故事线列在它的标志性参与者下。</p>
     <ol class="rank-list" data-zone="rank" data-accept="rank">${S.ranking.map(item).join('')}</ol></div>`;
 }
 
@@ -93,6 +93,7 @@ export function lineDialog(v) {
       <div class="add-part"><input name="part" list="kb-names" placeholder="从资料库选人物、组织、地点、物件，或直接填写" autocomplete="off">
       <button type="button" data-act="add-part">添加</button></div>
       <datalist id="kb-names">${DATA.kb.map(k => `<option value="${esc(k.name)}">${esc(k.type)}</option>`).join('')}</datalist></div>
+    <label class="field">标志性参与者<select name="lead" ${parts.length ? '' : 'disabled'}>${parts.map(p => `<option value="${esc(p)}" ${p === d.lead ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></label>
     <div class="form-actions"><button class="primary" type="submit" id="line-save" ${d.parts.length && d.title.trim() ? '' : 'disabled'}>保存</button>
       <button type="button" data-act="close-dialog">取消</button></div></form></div>`;
 }
