@@ -13,12 +13,12 @@ for (const width of [390, 1280]) {
     const root = page.locator('[data-view="outline"]');
     await exerciseOutline(page, root);
     expect(errors).toEqual([]);
-    expect(reads.filter(p => p.endsWith('/outline'))).toHaveLength(1);
+    expect(reads.filter(p => p.includes('/outlineSync/maritime-story'))).not.toHaveLength(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
     await page.getByRole('link', { name: '时间线', exact: true }).click();
     await page.getByRole('link', { name: '大纲', exact: true }).click();
     await expect(root.locator('#overall')).toHaveText('6 / 6');
-    expect(reads.filter(p => p.endsWith('/outline'))).toHaveLength(1);
+    expect(reads.filter(p => p.includes('/outlineSync/maritime-story'))).not.toHaveLength(0);
   });
 }
 

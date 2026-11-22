@@ -1,6 +1,10 @@
 import { readFile } from 'node:fs/promises';
+import { execFile as run } from 'node:child_process';
+import { promisify } from 'node:util';
+import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { outlineFixture } from './outline-fixture.mjs';
+import { pack } from '../src/lib/views/outline/codec.js';
 
 // A stubbed Firebase for the browser tests: Google sign-in is a persisted Auth user and
 // the Realtime Database is answered over its WebSocket protocol from the tree below.
@@ -8,6 +12,7 @@ import { outlineFixture } from './outline-fixture.mjs';
 export const env = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 const stub = { apiKey: 'novel-stub-key', projectId: 'novel-stub', householdId: 'novel-stub-house' };
 const reader = { uid: 'novel-stub-reader', email: 'reader@example.com' };
+const execFile = promisify(run);
 
 type Tree = { [key: string]: unknown };
 interface Point { title: string; locs: string[] }
@@ -93,21 +98,48 @@ function stubBook(title: string, timeline: Timeline): Tree {
 
 // NOVEL_STUB_DB may name a full private payload ({manifest,pages,search,timeline,people}) for
 // the first book, e.g. for screenshots with the real data; it is never committed.
-async function database() {
+async function canonicalOutline() {
+  const repo = resolve(process.cwd(), '..', 'sami-writing-desk-data-outline');
+  const show = async (file: string) => (await execFile('git', ['-C', repo, 'show', `origin/main:outline/maritime-story/${file}`])).stdout;
+  const [plot, plan, commit] = await Promise.all([
+    show('plot-data.json'), show('placements.json'), execFile('git', ['-C', repo, 'rev-parse', 'origin/main']).then(result => result.stdout.trim()),
+  ]);
+  return { plot, plan, commit };
+}
+
+async function database({ canonical = false } = {}) {
   const first = env.NOVEL_STUB_DB ? JSON.parse(await readFile(env.NOVEL_STUB_DB, 'utf8')) as Tree : stubBook('Maritime Story', fixture('Ann·Bo'));
-  if (!env.NOVEL_STUB_DB) {
-    first.outline = JSON.stringify({ ...outlineFixture(), revision: 'fiction-v1' });
-    (first.manifest as Tree).hasOutline = true;
+  let outlineSync: Tree = {};
+  if (env.NOVEL_STUB_DB) {
+    const raw = (typeof first.outline === 'string' ? JSON.parse(first.outline) : first.outline && typeof first.outline === 'object' ? first.outline : first) as Tree;
+    if (raw.plot_data && raw.plan) {
+      const plot = JSON.stringify(raw.plot_data, null, 2) + '\n', plan = JSON.stringify(raw.plan, null, 2) + '\n';
+      const packed = { plot: await pack(plot), plan: await pack(plan) }, revision = typeof raw.revision === 'string' ? raw.revision : 'private0001';
+      outlineSync = { 'maritime-story': {
+        head: { synced: { rev: revision, tree: 'private-tree', commit: revision }, repo: { tree: 'private-tree', commit: revision, at: Date.now() }, config: raw.config ? JSON.stringify(raw.config) + '\n' : '' },
+        live: { rev: revision, base: '', at: Date.now(), by: 'repo', ...packed }, starter: { commit: revision, ...packed },
+      } };
+    }
+  } else {
+    const f = outlineFixture();
+    const source = canonical ? await canonicalOutline() : { plot: JSON.stringify(f.plot_data, null, 2) + '\n', plan: JSON.stringify(f.plan, null, 2) + '\n', commit: 'fiction-v1' };
+    const { plot, plan } = source;
+    const packed = { plot: await pack(plot), plan: await pack(plan) };
+    outlineSync = { 'maritime-story': {
+      head: { synced: { rev: canonical ? 'canonical001' : 'fiction-v1', tree: 'fiction-tree', commit: source.commit }, repo: { tree: 'fiction-tree', commit: source.commit, at: Date.now() }, config: canonical ? '' : JSON.stringify(f.config) + '\n' },
+      live: { rev: canonical ? 'canonical001' : 'fiction-v1', base: '', at: Date.now(), by: 'repo', ...packed },
+      starter: { commit: source.commit, ...packed },
+    } };
   }
   const books: Record<string, Tree> = { 'maritime-story': first, 'second-book': stubBook('Second Book', fixture('第二本')) };
-  const catalog = Object.fromEntries(Object.entries(books).map(([slug, book]) => [slug, { title: (book.manifest as Tree).title, scope: (book.manifest as Tree).scope, hasOutline: (book.manifest as Tree).hasOutline === true }]));
-  return { households: { [stub.householdId]: { members: { [reader.uid]: { email: reader.email } }, settings: { enrollmentOpen: false }, novelArchive: { catalog, books } } } } as Tree;
+  const catalog = Object.fromEntries(Object.entries(books).map(([slug, book]) => [slug, { title: (book.manifest as Tree).title, scope: (book.manifest as Tree).scope }]));
+  return { households: { [stub.householdId]: { members: { [reader.uid]: { email: reader.email } }, settings: { enrollmentOpen: false }, novelArchive: { catalog, books }, outlineSync } } } as Tree;
 }
 
 /** Stubs Firebase for `page`; returns the database paths the page reads, with `server(path,
  * value)` to change the tree as another writer would (the page's live listeners hear it). */
-export async function stubFirebase(page: Page, { signedIn = true } = {}) {
-  const db = await database();
+export async function stubFirebase(page: Page, { signedIn = true, canonical = false } = {}) {
+  const db = await database({ canonical });
   const reads: string[] = [];
   const listens = new Map<{ send(data: unknown): void }, Set<string>>();
   const at = (path: string) => path.split('/').filter(Boolean).reduce<unknown>((node, key) => (node as Tree | null)?.[key] ?? null, db);

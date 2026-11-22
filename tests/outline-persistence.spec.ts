@@ -3,13 +3,14 @@ import { expect, test, type Page } from '@playwright/test';
 import { stubFirebase, watchErrors } from './stub.ts';
 import { chooseBeat, editField, exportJSON, importJSON } from './outline-scenario.mjs';
 import { outlineFixture } from './outline-fixture.mjs';
+import { pack } from '../src/lib/views/outline/codec.js';
 
 const draft = (page: Page) => page.evaluate(() => {
   const key = Object.keys(localStorage).find(k => k.startsWith('outline:'))!;
   return { key, raw: localStorage.getItem(key)! };
 });
 
-test('F39,48,49: reload preserves drafts and warns about repository updates without replacing them', async ({ page }) => {
+test('F39,48,49: local drafts survive a shared cloud update without being replaced', async ({ page }) => {
   const errors = watchErrors(page), reads = await stubFirebase(page);
   await page.goto('book/?book=maritime-story&view=outline');
   const root = page.locator('[data-view="outline"]');
@@ -17,25 +18,23 @@ test('F39,48,49: reload preserves drafts and warns about repository updates with
   await chooseBeat(page, root, 'A1-B2');
   await root.locator('#beat-note').fill('Local note');
   const saved = await draft(page);
-  const changed = { ...outlineFixture(), revision: 'fiction-v2' };
+  const changed = outlineFixture();
   changed.plot_data.plot_units[0].content = 'A revised repository turn';
-  reads.server('households/novel-stub-house/novelArchive/books/maritime-story/outline', JSON.stringify(changed));
-  await page.reload();
-  await expect(root.locator('.draft-notice')).toContainText('仓库预排已更新');
+  const cloudPath = 'households/novel-stub-house/outlineSync/maritime-story';
+  reads.server(`${cloudPath}/live/plot`, await pack(JSON.stringify(changed.plot_data, null, 2) + '\n'));
+  reads.server(`${cloudPath}/live/rev`, 'fiction-v2');
+  await expect(root.locator('.draft-notice')).toContainText('云端已有新版本');
   await expect(root.locator('#active-beat')).toHaveText('ACT 1 / BEAT 2');
   await expect(root.locator('#beat-note')).toHaveValue('Local note');
   expect((await draft(page)).raw).toEqual(saved.raw);
   await chooseBeat(page, root, 'A1-B1');
   await expect(root.locator('[data-edit-field="unit"][data-id="E001"]')).toHaveText('My local fictional turn');
   await root.locator('#beat-note').fill('More local work');
-  expect(JSON.parse((await draft(page)).raw).revision).toBe('fiction-v1');
-  page.once('dialog', d => d.dismiss());
-  await root.locator('#restore-starter').click();
-  await expect(root.locator('.draft-notice')).toBeVisible();
+  expect(JSON.parse((await draft(page)).raw).base).toBe('fiction-v1');
   page.once('dialog', d => d.accept());
   await root.locator('#restore-starter').click();
   await expect(root.locator('.draft-notice')).toHaveCount(0);
-  await expect(root.locator('[data-edit-field="unit"][data-id="E001"]')).toHaveText('A revised repository turn');
+  await expect(root.locator('[data-edit-field="unit"][data-id="E001"]')).toHaveText('E001 fictional turn');
   await root.locator('#undo').click();
   await expect(root.locator('[data-edit-field="unit"][data-id="E001"]')).toHaveText('My local fictional turn');
   expect(errors).toEqual([]);

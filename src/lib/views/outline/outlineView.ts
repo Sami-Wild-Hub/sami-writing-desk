@@ -1,6 +1,7 @@
-// Authenticated outline view; the archive supplies one private, read-only initial snapshot.
+// Authenticated outline view; the archive supplies the first shared outlineSync snapshot.
 import type { CreateNovelView } from '../types.ts';
 import { mountOutline } from './controller.js';
+import { decodeState } from './sync.ts';
 
 const createOutline: CreateNovelView = host => {
   let panel: ReturnType<typeof mountOutline> | null = null;
@@ -8,8 +9,9 @@ const createOutline: CreateNovelView = host => {
   return {
     async show(_route, context) {
       if (!panel) {
-        const payload = await host.outline();
-        if (payload === undefined || !context.latest()) return false;
+        const state = await host.outline();
+        if (state === undefined || !context.latest()) return false;
+        const payload = await decodeState(state);
         if (!payload) {
           host.root.textContent = '这本书的大纲尚未同步。';
           return true;

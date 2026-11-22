@@ -3,12 +3,13 @@
 import { get, ref } from 'firebase/database';
 import type { FirebaseHouseholdSession } from '../householdSession.ts';
 import { parseTimelineData } from '../novelTimelineModel.ts';
-import { parseOutline } from '../views/outline/schema.ts';
+import type { OutlineSyncState } from '../views/outline/sync.ts';
 import { parsePeopleData } from '../novelPeopleModel.ts';
 import { newBook, parseCatalog, parseSearch, validateManifest, type BookInfo, type LoadedBook } from './data.ts';
 
 export function createStore(session: FirebaseHouseholdSession, householdId: string) {
   const root = `households/${householdId}/novelArchive`;
+  const syncRoot = `households/${householdId}/outlineSync`;
   let generation = 0;
   let catalog: Record<string, BookInfo> = {};
   let books = new Map<string, LoadedBook>();
@@ -17,6 +18,11 @@ export function createStore(session: FirebaseHouseholdSession, householdId: stri
   const read = async (path: string) => {
     const at = generation;
     const snapshot = await get(ref(session.database, `${root}/${path}`));
+    return at === generation && session.getStatus().connection === 'connected' ? snapshot.val() as unknown : undefined;
+  };
+  const readSync = async (path: string) => {
+    const at = generation;
+    const snapshot = await get(ref(session.database, `${syncRoot}/${path}`));
     return at === generation && session.getStatus().connection === 'connected' ? snapshot.val() as unknown : undefined;
   };
 
@@ -51,12 +57,18 @@ export function createStore(session: FirebaseHouseholdSession, householdId: stri
       book.pages.set(key, html);
       return html;
     },
-    // Read once per book; a superseded or failed read is retried next time.
+    // Outline presence and content come from outlineSync, never novelArchive.
+    outlineHead(slug: string, book: LoadedBook) {
+      book.outlineHeadRead ??= readSync(`${slug}/head`).then(raw => raw === undefined ? undefined : raw as OutlineSyncState['head']);
+      return book.outlineHeadRead.then(
+        data => { if (data === undefined) book.outlineHeadRead = undefined; return data; },
+        (error: unknown) => { book.outlineHeadRead = undefined; throw error; });
+    },
     outline(slug: string, book: LoadedBook) {
-      book.outlineRead ??= read(`books/${slug}/outline`).then(raw => raw === undefined ? undefined : parseOutline(raw));
-      return book.outlineRead.then(
-        data => { if (data === undefined) book.outlineRead = undefined; return data; },
-        (error: unknown) => { book.outlineRead = undefined; throw error; });
+      book.outlineSyncRead ??= readSync(slug).then(raw => raw === undefined ? undefined : raw as OutlineSyncState);
+      return book.outlineSyncRead.then(
+        data => { if (data === undefined) book.outlineSyncRead = undefined; return data; },
+        (error: unknown) => { book.outlineSyncRead = undefined; throw error; });
     },
     timeline(slug: string, book: LoadedBook) {
       book.timelineRead ??= read(`books/${slug}/timeline`).then((raw) => (raw === undefined ? undefined : parseTimelineData(raw)));

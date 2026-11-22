@@ -4,6 +4,8 @@ import { createOutlineModel } from './model.js';
 import { outlineTemplates } from './templates.js';
 import { outlineFrame } from './frame.ts';
 import { draftStore } from './draft.js';
+import { classify } from './sync-state.js';
+import { decodeState, filesEqual, resolve, save, subscribe, workspaceFiles } from './sync.ts';
 export function mountOutline(root,payload,draftKey,host) { return new OutlinePanel(root,payload,draftKey,host); }
 
 class OutlinePanel {
@@ -16,15 +18,23 @@ this.root.innerHTML = outlineFrame;
 this.root.querySelector('.side').prepend(this.host.sideHead());
 this.$ = id => this.root.querySelector(`[id="${id}"]`);
 this.config = this.payload.config;
+this.remote = this.payload.sync;
+this.uid = this.host.uid;
+this.localDirty = false;
+this.pendingWorkspace = null;
+this.cloudSaveTimer = null;
+this.lastCloudSave = 0;
+this.keepPrevious = false;
+this.noticeKind = '';
 this.editing = null;
 this.composer = null;
 this.showOriginal = false;
 this.disposed = false;
 this.searchText = { RELATIONSHIP: '', EVENT: '' };
-this.draft = draftStore(this.draftKey, this.payload.revision);
+this.draft = draftStore(this.draftKey, this.remote.live?.rev || this.remote.head?.synced?.rev || '');
 this.report = (message, error = false) => { this.$('status').textContent = message; this.$('status').classList.toggle('error', error); };
 this.model = createOutlineModel(this.payload.plot_data, this.payload.plan, {
-  render: this.render, report: this.report, save: workspace => this.draft.save(workspace), confirm: message => window.confirm(message),
+  render: this.render, report: this.report, save: workspace => this.saveWorkspace(workspace), confirm: message => window.confirm(message),
   warning: () => { this.$('autosave-warning').hidden = false; },
  });
 this.data = undefined;
@@ -55,11 +65,114 @@ this.wireActions();
 this.sync();
 try {
   const saved = this.draft.load();
-  if (saved) { this.model.importWorkspace(saved.workspace, false); this.report('已恢复本地草稿。'); }
-  if (saved?.changed) this.notice('仓库预排已更新；当前保留本地草稿。请先导出，再决定是否恢复仓库预排。');
+  if (saved) this.loadSavedDraft(saved);
  } catch (error) { this.notice('本地草稿未能读取，原始草稿仍保留。可导出备份后恢复仓库预排。'); this.report(error.message, true); }
+this.unsubscribe = subscribe(this.host.householdRef, this.host.slug, state => { void this.receiveRemote(state); }, error => this.report('云端大纲读取失败：' + error.message, true));
 this.render();
 }
+cloudRevision = () => this.remote.live?.rev || this.remote.head?.synced?.rev || '';
+loadSavedDraft = (saved) => {
+ const local = workspaceFiles(saved.workspace), cloud = this.payload.texts;
+ const starter = this.payload.starter?.texts;
+ const localChanged = starter ? !filesEqual(local, starter) : !filesEqual(local, cloud);
+ const cloudChanged = starter ? !filesEqual(cloud, starter) : false;
+ if (!localChanged) { this.draft.clear(); return; }
+ this.model.importWorkspace(saved.workspace, false); this.localDirty = true; this.pendingWorkspace = saved.workspace;
+ if (filesEqual(local, cloud)) { this.draft.clear(); this.localDirty = false; this.pendingWorkspace = null; return; }
+ const canMigrate = saved.legacy && starter && !cloudChanged;
+ if (canMigrate || (!saved.legacy && saved.base === this.cloudRevision())) {
+   this.report('正在把本机草稿写入云端…'); this.queueCloudSave();
+ } else {
+   this.showRemoteConflict(this.payload);
+ }
+};
+saveWorkspace = (workspace) => {
+ try { this.draft.save(workspace); this.localDirty = true; this.pendingWorkspace = workspace; this.queueCloudSave(); }
+ catch (error) { this.$('autosave-warning').hidden = false; throw error; }
+};
+queueCloudSave = () => {
+ if (this.cloudSaveTimer) clearTimeout(this.cloudSaveTimer);
+ const since = this.lastCloudSave ? Date.now() - this.lastCloudSave : 0;
+ const delay = since >= 10_000 ? 0 : 2_000;
+ this.cloudSaveTimer = setTimeout(() => { this.cloudSaveTimer = null; void this.flushCloudSave(); }, delay);
+};
+flushCloudSave = async () => {
+ const workspace = this.pendingWorkspace; if (!workspace || !this.remote.live) return;
+ const keep = this.keepPrevious; this.keepPrevious = false; this.lastCloudSave = Date.now();
+ try {
+  const live = await save(this.host.householdRef, this.host.slug, workspace, {
+   base: this.draft.base() || this.remote.live.rev, uid: this.uid, previous: keep ? this.remote.live : undefined,
+  });
+  this.awaitingRevision = live.rev;
+ } catch (error) {
+  this.keepPrevious = keep; this.retrySave = this.remote.live.rev === this.draft.base(); this.report('云端保存失败：' + (error.message || error), true);
+  if (this.remote.live.rev !== this.draft.base()) this.showRemoteConflict(this.payload);
+ }
+};
+receiveRemote = async (state) => {
+ if (this.disposed || !state) return;
+ try {
+  const payload = await decodeState(state); if (!payload) return;
+  const nextRev = state.live?.rev || '';
+  const sameIncoming = this.remote.incoming?.tree === state.incoming?.tree;
+  const sameKept = this.remote.kept?.rev === state.kept?.rev;
+  if (nextRev === this.remote.live?.rev && this.remote.head?.repo?.commit === state.head?.repo?.commit && sameIncoming && sameKept) {
+   if (this.retrySave && this.pendingWorkspace && !this.awaitingRevision) { this.retrySave = false; this.queueCloudSave(); }
+   return;
+  }
+  if (this.awaitingRevision && nextRev === this.awaitingRevision && state.live?.by === 'web') {
+   this.remote = state; this.payload = payload; this.config = payload.config; this.draft.acceptRevision(nextRev); this.draft.clear();
+   this.localDirty = false; this.pendingWorkspace = null; this.awaitingRevision = null; this.retrySave = false; this.noticeKind = ''; this.root.querySelector('.draft-notice')?.remove(); this.render(); return;
+  }
+  if (this.localDirty || this.pendingWorkspace) { this.remote = state; this.showRemoteConflict(payload); return; }
+  this.applyRemote(payload);
+ } catch (error) { this.report('云端大纲格式无效：' + (error.message || error), true); }
+};
+applyRemote = (payload) => {
+ this.remote = payload.sync; this.payload = payload; this.config = payload.config; this.draft.acceptRevision(this.cloudRevision()); this.draft.clear();
+ this.model.importWorkspace({ plot_data: payload.plot_data, plan: payload.plan, active_beat: this.activeBeat }, false); this.model.undoHistory = [];
+ this.localDirty = false; this.pendingWorkspace = null; this.noticeKind = ''; this.root.querySelector('.draft-notice')?.remove(); this.render();
+};
+showRemoteConflict = (payload) => {
+ if (this.noticeKind === 'cloud') return; this.noticeKind = 'cloud';
+ this.notice('云端已有新版本；当前本机改动仍保留。', [
+  { label: '下载本机版', action: () => this.download('outline-local-draft.json', this.draft.raw()) },
+  { label: '载入云端版', action: () => this.applyRemote(payload) },
+  { label: '用本机版覆盖', action: () => void this.writeResolution('use-local') },
+ ]);
+};
+writeResolution = async (action) => {
+ const workspace = this.model.exportWorkspace(); this.pendingWorkspace = workspace; this.localDirty = true;
+ try { this.draft.save(workspace); const live = await resolve(this.host.householdRef, this.host.slug, action, this.remote, workspace, { uid: this.uid }); this.awaitingRevision = live.rev; }
+ catch (error) { this.report('处理云端版本失败：' + (error.message || error), true); }
+};
+showRepoConflict = () => {
+ if (this.noticeKind === 'repo') return; this.noticeKind = 'repo';
+ this.notice('仓库有新版，请选择要保留的版本。', [
+  { label: '下载网页版', action: () => this.download('outline-web-version.json', this.model.exportWorkspace()) },
+  { label: '保留网页版', action: () => void this.writeResolution('keep-web') },
+  { label: '用仓库版', action: () => void this.writeResolution('use-repo') },
+ ]);
+};
+showInvalidRepo = () => {
+ if (this.noticeKind === 'invalid') return; this.noticeKind = 'invalid';
+ this.notice('仓库版本无效：' + (this.remote.head?.repo?.error || '校验失败'), [
+  { label: '用网页版修复', action: () => void this.writeResolution('fix-repo') },
+ ]);
+};
+updateSyncStatus = () => {
+ const info = classify({ ...this.remote, now: Date.now() }); let label = info.label;
+ if (info.kind === 'synced' && info.commit) label += ' · ' + info.commit.slice(0, 7);
+ else if (info.kind === 'pending') label += info.online ? ' · 同步程序在线' : ' · 等待同步';
+ this.$('sync-state').textContent = label;
+ if (info.conflict) this.showRepoConflict(); else if (info.invalid) this.showInvalidRepo();
+ else if (this.remote.kept && !this.noticeKind) this.notice('最近被替换的版本仍可下载。', [{ label: '下载被替换的版本', action: () => void this.downloadKept() }]);
+};
+downloadKept = async () => {
+ const kept = this.remote.kept; if (!kept) return;
+ const payload = await decodeState({ ...this.remote, live: { ...kept, base: '', at: kept.at, by: 'repo' } });
+ if (payload) this.download('outline-kept.json', payload);
+};
 sync = () => {
   ({ data: this.data, state: this.state, storyMap: this.storyMap, unitMap: this.unitMap, activeBeat: this.activeBeat } = this.model);
   this.templates = outlineTemplates(this.root, this.model, { openGroups: this.openGroups, searchText: this.searchText, showOriginal: this.showOriginal }, this.config);
@@ -76,6 +189,7 @@ render = () => {
   this.root.querySelector('[data-original-count]').textContent = String(this.data.plot_units.filter(u => !u.is_custom).length);
   this.root.querySelector('[data-storyline-count]').textContent = String(this.data.storylines.filter(s => !s.is_custom).length);
   this.root.querySelector('[data-spine-title]').textContent = this.config.spineTitle;
+  this.updateSyncStatus();
  };
 editValue = (field,id) => {if(field==='unit')return this.unitMap[id]?.content;if(field==='element-title')return this.unitMap[id]?.element_title;if(field==='element-details')return (this.unitMap[id]?.details||[]).join('\n');if(field==='group-title')return this.storyMap[id]?.title;if(field==='group-summary')return this.storyMap[id]?.summary;if(field==='beat-title')return this.data.beats.find(x=>x.beat_id===id)?.title||'';return null};
 beginInline = (el) => {if(this.editing&&this.editing.element===el)return;if(this.editing&&!this.finishInline(true))return;this.discardComposer();
@@ -123,15 +237,16 @@ submitComposer = (form) => {const fd=new FormData(form),type=form.dataset.compos
  }catch(e){this.report('未能新增：'+e.message,true);form.querySelector('textarea,input')?.focus()}
 };
 download = (filename,body) => {const blob=new Blob([JSON.stringify(body,null,2)+'\n'],{type:'application/json;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1200)};
-notice = (text) => {
+notice = (text, actions = []) => {
+  this.root.querySelector('.draft-notice')?.remove();
   const p = document.createElement('div'); p.className = 'draft-notice'; p.setAttribute('role','status');
   const span = document.createElement('span'); span.textContent = text; p.append(span);
-  const b = document.createElement('button'); b.type = 'button'; b.textContent = '导出原始草稿';
-  b.onclick = () => { const raw = this.draft.raw(); if (raw) this.download('outline-local-draft.json', raw); };
-  p.append(b); this.root.prepend(p);
+  const fallback = actions.length ? [] : [{ label: '导出原始草稿', action: () => { const raw = this.draft.raw(); if (raw) this.download('outline-local-draft.json', raw); } }];
+  for (const item of [...actions, ...fallback]) { const b = document.createElement('button'); b.type = 'button'; b.textContent = item.label; b.onclick = item.action; p.append(b); }
+  this.root.prepend(p);
  };
 finish = () => !this.editing || this.finishInline(true);
-dispose = () => { this.disposed = true; this.discardComposer(); this.root.replaceChildren(); };
+dispose = () => { this.disposed = true; if (this.cloudSaveTimer) clearTimeout(this.cloudSaveTimer); this.unsubscribe?.(); this.discardComposer(); this.root.replaceChildren(); };
 wireDelegated = () => {
 this.root.addEventListener('click',e=>{
  const editSave=e.target.closest('[data-inline-save]');if(editSave){e.preventDefault();e.stopPropagation();this.finishInline(true);return}
@@ -206,9 +321,12 @@ for (const [kind, load] of [['plan',this.model.importPlan],['data',this.model.im
  }
 this.$('show-original').addEventListener('change', e => { this.showOriginal = e.target.checked; this.render(); this.report(this.showOriginal ? '已显示 XMind 原始节点。' : '已切换回合并 Element 视图。'); });
 this.action('restore-starter', () => {
-  if (!confirm('恢复仓库预排？未导出的浏览器草稿改动会丢失。')) return;
-  this.model.restore(); this.draft.acceptRevision(); this.saveLocal(); this.render();
-  this.root.querySelector('.draft-notice')?.remove(); this.report('已恢复仓库预排。');
+  const starter = this.payload.starter;
+  if (!starter) return this.report('仓库预排尚未同步。', true);
+  if (!confirm('恢复仓库预排？当前云端版本会保存在被替换版本中，可撤销。')) return;
+  this.model.importWorkspace({ plot_data: starter.plot_data, plan: starter.plan, active_beat: starter.plot_data.beats?.[0]?.beat_id }, true);
+  this.draft.acceptRevision(this.cloudRevision()); this.noticeKind = ''; this.root.querySelector('.draft-notice')?.remove();
+  this.keepPrevious = true; this.saveLocal(); this.render(); this.report('已恢复仓库预排，正在保存云端版本。');
  });
 };
 }

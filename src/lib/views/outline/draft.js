@@ -9,11 +9,14 @@ export function draftStore(key, revision, storage) {
       const raw = target().getItem(key);
       if (!raw) return null;
       const saved = JSON.parse(raw);
-      if (!saved.workspace || typeof saved.revision !== 'string') throw Error('本地草稿格式无效');
-      baseRevision = saved.revision;
-      return { workspace: saved.workspace, changed: saved.revision !== revision };
+      const savedBase = typeof saved.base === 'string' ? saved.base : saved.revision;
+      if (!saved.workspace || typeof savedBase !== 'string') throw Error('本地草稿格式无效');
+      baseRevision = savedBase;
+      return { workspace: saved.workspace, base: savedBase, legacy: typeof saved.base !== 'string', changed: savedBase !== revision };
     },
-    save(workspace) { target().setItem(key, JSON.stringify({ revision: baseRevision, workspace })); },
-    acceptRevision() { baseRevision = revision; },
+    save(workspace) { target().setItem(key, JSON.stringify({ base: baseRevision, revision: baseRevision, workspace })); },
+    clear() { target().removeItem(key); },
+    base: () => baseRevision,
+    acceptRevision(next = revision) { baseRevision = next; },
   };
 }

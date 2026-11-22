@@ -63,7 +63,8 @@ export function mountHome(config: Partial<FirebaseConfig>) {
       card.querySelector('[data-scope]')!.textContent = info ? `已处理正文：${info.scope ?? '—'}` : '尚未同步';
       const book = info ? await store.book(slug).catch(() => undefined) : undefined;
       if (book) card.querySelector('[data-stats]')!.innerHTML = stats(book);
-      if (book?.manifest.hasOutline && !card.querySelector('[data-outline-link]')) {
+      const hasOutline = book ? await store.outlineHead(slug, book).catch(() => null) : null;
+      if (hasOutline && !card.querySelector('[data-outline-link]')) {
         const link = document.createElement('a');
         const url = new URL(card.querySelector<HTMLAnchorElement>('a.cover')!.href);
         url.searchParams.set('view', 'outline');

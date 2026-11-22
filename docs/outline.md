@@ -1,10 +1,10 @@
 # Outline workbench
 
-The authenticated `outline` view reads `books/<slug>/outline` once through the archive store. A book's private manifest sets `hasOutline`; books without it have no outline entry. The client never writes outline data to Firebase.
+The authenticated `outline` view reads and writes `households/<id>/outlineSync/<slug>`. The tab and book-shelf entry exist only when `outlineSync/<slug>/head` exists; `novelArchive` is never used for outline data and the client does not read its legacy `hasOutline` flag.
 
-The private exporter wraps the original `plot-data.json` and `placements.json` without changing their fields. Its envelope adds `revision` and `config: {spineGroupId, spineTitle}`. Display names come from that private configuration and the source groups. Source archives and unknown provenance fields survive workspace edits and exports.
+The sync worker stores the original `plot-data.json` and `placements.json` text gzip-packed in RTDB. The web payload derives `config: {spineGroupId, spineTitle}` from `head.config` and the plot data. Source archives and unknown provenance fields survive workspace edits and exports.
 
-Local drafts are isolated by project, household, signed-in user and book. They retain their base revision. When the repository snapshot changes, the local draft stays active and a notice offers backup and explicit restore. Exported workspace, plot data and plan files use the original v5 format, including the legacy workspace format identifier and filename.
+Local drafts are isolated by project, household, signed-in user and book. They retain the live revision used for the next CAS write. Drafts written by 5b65c3e (`revision` plus `workspace`) are accepted: the first page load compares both the draft and cloud files with the immutable starter by content, imports the draft when cloud is unchanged, or presents the cloud-version choices without discarding the local copy. Exported workspace, plot data and plan files use the original v5 format, including the legacy workspace format identifier and filename.
 
 Presentation files for visual redesign:
 
@@ -13,9 +13,9 @@ Presentation files for visual redesign:
 - `src/lib/views/outline/templates.js`: cards, lanes, navigation, pools and statistics.
 - `src/lib/views/outline/forms.js`: inline editors and composers.
 
-Keep the existing IDs and `data-*` hooks, semantic controls, and phone `.side` drawer. `controller.js` owns interactions, `model.js` owns state and operations, `draft.js` owns local persistence, and `schema.ts` validates the private envelope.
+Keep the existing IDs and `data-*` hooks, semantic controls, and phone `.side` drawer. `sync.ts` owns the RTDB subscription, packed-file writes, CAS conflict actions and decode boundary; `controller.js` owns interactions, remote-state decisions and local persistence; `model.js` owns state and operations; `draft.js` owns local persistence; and `schema.ts` types the shared payload.
 
-Tests use fictional data in `tests/outline-fixture.mjs`. `outline-scenario.mjs` replays the same visible controls against the original and new workbenches. Model, interactions, persistence and archive lifecycle have separate test files. Private parity tests are opt-in and compare every Beat and time layer, the complete initial workspace, and both directions of all three interchange formats.
+The existing offline replay uses `tests/outline-fixture.mjs`; sync acceptance uses the `maritime-story` files from the sibling data repository at runtime and never copies them into this site. `outline-scenario.mjs` replays the same visible controls against the original and new workbenches. Model, sync, interactions, persistence and archive lifecycle have separate test files. Private parity tests are opt-in and compare every Beat and time layer, the complete initial workspace, and both directions of all three interchange formats.
 
 To reproduce private screenshots, first run in the private novel checkout:
 
