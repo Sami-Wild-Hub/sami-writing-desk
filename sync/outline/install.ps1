@@ -25,8 +25,9 @@ Push-Location $PSScriptRoot
 try {
   & npm.cmd ci
   if (-not (Test-Path -LiteralPath $DataRepo)) { & git clone --bare 'https://github.com/Sami-Wild-Hub/sami-writing-desk-data' $DataRepo }
-  $config = [ordered]@{ credentials = (Resolve-Path -LiteralPath $Credentials).Path; databaseURL = $DatabaseUrl; household = $Household; dataRepo = (Resolve-Path -LiteralPath $DataRepo).Path; pollSeconds = 10 }
-  $config | ConvertTo-Json | Set-Content -LiteralPath $configPath -Encoding utf8
+  $config = [ordered]@{ credentials = (Resolve-Path -LiteralPath $Credentials).Path; databaseURL = $DatabaseUrl; household = $Household; dataRepo = (Resolve-Path -LiteralPath $DataRepo).Path; pollSeconds = 10; log = (Join-Path $PSScriptRoot 'sync.log') }
+  $utf8NoBom = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
+  [System.IO.File]::WriteAllText($configPath, ($config | ConvertTo-Json), $utf8NoBom)
   $action = New-ScheduledTaskAction -Execute $node -Argument "`"$sync`" watch" -WorkingDirectory $PSScriptRoot
   $logon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
   $repeat = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)

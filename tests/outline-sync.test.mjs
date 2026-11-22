@@ -1,23 +1,37 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { pack, unpack } from '../src/lib/views/outline/codec.js';
 import { outlineConfig } from '../src/lib/views/outline/config.js';
 import { classify } from '../src/lib/views/outline/sync-state.js';
 import { createOutlineModel } from '../src/lib/views/outline/model.js';
 import { outlineFixture } from './outline-fixture.mjs';
 import { reconcileBook } from '../sync/outline/reconcile.mjs';
+import { preview } from '../sync/outline/preview.mjs';
 
 const text = value => `${JSON.stringify(value, null, 2)}\n`;
 const snapshot = (commit, tree, plot, plan, config = '{"spineGroupId":"G01"}\n') => ({ commit, tree, plot: text(plot), plan: text(plan), config });
 
 class FakeGit {
-  constructor(snapshots, tip, ancestors = {}, trailers = []) { this.snapshots = snapshots; this.current = tip; this.ancestors = ancestors; this.trailerList = trailers; this.pushed = []; }
+  constructor(snapshots, tip, ancestors = {}, trailers = [], { rejectPushes = 0, remoteTip = null } = {}) {
+    this.snapshots = snapshots; this.current = tip; this.ancestors = ancestors; this.trailerList = trailers; this.pushed = [];
+    this.rejectPushes = rejectPushes; this.remoteTip = remoteTip; this.commits = [];
+  }
   async tip() { return this.current; }
   async snapshot(commit) { return this.snapshots[commit]; }
   async isAncestor(a, b) { return a === b || this.ancestors[`${a}>${b}`] === true; }
   async trailers() { return this.trailerList; }
-  async commitFiles(parent, slug, files) { this.committed = { parent, slug, files }; return 'C-PUBLISHED'; }
-  async push(commit) { this.pushed.push(commit); this.current = commit; }
+  async commitFiles(parent, slug, files) { this.committed = { parent, slug, files }; this.commits.push(parent); return 'C-PUBLISHED'; }
+  async push(commit) {
+    if (this.rejectPushes) {
+      this.rejectPushes -= 1;
+      this.current = this.remoteTip;
+      const error = new Error('non-fast-forward'); error.pushRejected = true; throw error;
+    }
+    this.pushed.push(commit); this.current = commit;
+  }
   async fetch() {}
 }
 class FakeRtdb {
@@ -99,5 +113,44 @@ test('different-file edits merge, trailer confirmation avoids a duplicate publis
   const publishDb = new FakeRtdb({ head: { repo: { commit: 'P' }, synced: { rev: 'base', tree: 'TP', commit: 'P' } }, live: { rev: rev(), at: 0, plot: await pack(publishBase.plot), plan: await pack(text({ ...f.plan, notes: 'web' })) } });
   assert.equal((await reconcileBook({ git: publishGit, rtdb: publishDb, slug: 'book', now: 20_000 })).status, 'published');
   assert.deepEqual(publishGit.pushed, ['C-PUBLISHED']);
+});
+
+test('a rejected push restarts from the newly fetched tip', async () => {
+  const f = outlineFixture();
+  const base = snapshot('B', 'TB', f.plot_data, f.plan);
+  const remote = snapshot('R', 'TR', f.plot_data, f.plan);
+  const published = snapshot('C-PUBLISHED', 'TP', f.plot_data, { ...f.plan, notes: 'web' });
+  const git = new FakeGit({ B: base, R: remote, 'C-PUBLISHED': published }, 'B', { 'B>R': true, 'R>C-PUBLISHED': true }, [], { rejectPushes: 1, remoteTip: 'R' });
+  const rtdb = new FakeRtdb({ head: { repo: { commit: 'B' }, synced: { rev: 'base', tree: 'TB', commit: 'B' } }, live: { rev: rev(), at: 0, plot: await pack(base.plot), plan: await pack(text({ ...f.plan, notes: 'web' })) } });
+  assert.equal((await reconcileBook({ git, rtdb, slug: 'book', now: 20_000 })).status, 'published');
+  assert.equal(git.commits.at(-1), 'R');
+  assert.deepEqual(git.pushed, ['C-PUBLISHED']);
+});
+
+test('continuous edits become publishable after two minutes even while live keeps changing', async () => {
+  const f = outlineFixture();
+  const base = snapshot('B', 'TB', f.plot_data, f.plan);
+  const git = new FakeGit({ B: base }, 'B');
+  const rtdb = new FakeRtdb({ head: { repo: { commit: 'B', at: 0 }, synced: { rev: 'base', tree: 'TB', commit: 'B' } }, live: { rev: 'web', at: 119_000, plot: await pack(base.plot), plan: await pack(text({ ...f.plan, notes: 'web' })) } });
+  const result = await reconcileBook({ git, rtdb, slug: 'book', now: 120_000, dryRun: true });
+  assert.equal(result.status, 'would-publish');
+  assert.equal(result.actionable, true);
+});
+
+test('preview emits a private outline payload from a repository snapshot', async () => {
+  const f = outlineFixture();
+  const git = new FakeGit({ C1: snapshot('C1', 'T1', f.plot_data, f.plan) }, 'C1');
+  const folder = await mkdtemp(join(tmpdir(), 'swd-outline-preview-'));
+  const out = join(folder, 'outline-preview.json');
+  try {
+    const result = await preview({ dataRepo: 'unused' }, { slug: 'maritime-story', out, git });
+    const payload = JSON.parse(await readFile(out, 'utf8'));
+    assert.equal(result.status, 'preview');
+    assert.equal(payload.revision, 'C1');
+    assert.deepEqual(payload.config, { spineGroupId: 'G01', spineTitle: 'Ann × Bo' });
+    assert.deepEqual(payload.plan, f.plan);
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
 });
 

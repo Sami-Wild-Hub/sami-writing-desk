@@ -19,7 +19,7 @@ export function createRtdb({ credentials, databaseURL, household }) {
       });
       return result.committed;
     },
-    coordinator: root.parent().child('_coordinator'),
+    coordinator: root.child('_coordinator'),
   };
 }
 

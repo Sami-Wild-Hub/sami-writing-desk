@@ -38,7 +38,10 @@ export class GitRepo {
     this.branch = branch;
   }
 
-  async fetch() { await runGit(this.root, ['fetch', '--quiet', this.remote, this.branch]); }
+  async fetch() {
+    const ref = `+refs/heads/${this.branch}:refs/remotes/${this.remote}/${this.branch}`;
+    await runGit(this.root, ['fetch', '--quiet', this.remote, ref]);
+  }
   async tip() { return (await runGit(this.root, ['rev-parse', `${this.remote}/${this.branch}`])).trim(); }
   async isAncestor(older, newer) {
     if (!older || !newer) return false;

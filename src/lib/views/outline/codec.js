@@ -3,16 +3,19 @@ const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
 async function streamBytes(stream, input) {
+  const chunks = [];
+  const reader = stream.readable.getReader();
+  const read = (async () => {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+  })();
   const writer = stream.writable.getWriter();
   await writer.write(input);
   await writer.close();
-  const chunks = [];
-  const reader = stream.readable.getReader();
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
+  await read;
   const bytes = new Uint8Array(chunks.reduce((n, chunk) => n + chunk.length, 0));
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
