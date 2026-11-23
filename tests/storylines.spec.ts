@@ -25,7 +25,9 @@ async function select(root: Locator, id: string) {
 }
 async function drag(page: Page, source: Locator, target: Locator, before = false) {
  await source.scrollIntoViewIfNeeded();
- const a = (await source.boundingBox())!, x = a.x + a.width / 2, y = a.y + Math.min(30, a.height / 2);
+ const grip = source.locator('[data-drag-handle]');
+ const anchor = await grip.count() ? grip : source; // rank rows still drag from the whole row
+ const a = (await anchor.boundingBox())!, x = a.x + a.width / 2, y = a.y + a.height / 2;
  await page.mouse.move(x,y); await page.mouse.down(); await page.mouse.move(x+7,y+2,{steps:3});
  await target.scrollIntoViewIfNeeded(); const b = (await target.boundingBox())!;
  const tx=b.x+b.width/2, ty=Math.max(160,Math.min(860,before ? b.y+3 : b.y+Math.min(b.height-4,60)));
@@ -65,8 +67,8 @@ test('real drags: independent orders, inversions, category change, cross Beat an
  await drag(page,cell(root,'A1-B1','current').locator(`[data-card="${id}"]`),cell(root,'A2-B1','current')); await expect(cell(root,'A2-B1','current').locator(`[data-card="${id}"]`)).toHaveCount(1);
  await select(root,'G11'); const combined = initial.plot_data.storyline_groups.find((g: any) => g.id === 'G11').time_order.combined[0];
  await drag(page,card(root,combined),cell(root,'A1-B1','combined')); await expect(cell(root,'A1-B1','combined').locator(`[data-card="${combined}"]`)).toHaveCount(1);
- const beforeCancel = await workspace(page,root), source = card(root,combined); await source.scrollIntoViewIfNeeded(); const rect = (await source.boundingBox())!;
- await page.mouse.move(rect.x+30,rect.y+30); await page.mouse.down(); await page.mouse.move(rect.x+50,rect.y+50); await page.keyboard.press('Escape'); await page.mouse.up();
+ const beforeCancel = await workspace(page,root), source = card(root,combined); await source.scrollIntoViewIfNeeded(); const grip = (await source.locator('[data-drag-handle]').boundingBox())!;
+ await page.mouse.move(grip.x + grip.width / 2,grip.y + grip.height / 2); await page.mouse.down(); await page.mouse.move(grip.x+50,grip.y+50); await page.keyboard.press('Escape'); await page.mouse.up();
  await expect(root.locator('.drag-ghost')).toHaveCount(0); expect(await workspace(page,root)).toEqual(beforeCancel); expect(errors).toEqual([]);
 });
 test('new card, edit, participants, real ranking drag, cloud refresh and undo', async ({ page }) => {
@@ -80,4 +82,27 @@ test('new card, edit, participants, real ranking drag, cloud refresh and undo', 
  await expect.poll(async()=>JSON.parse(await unpack((reads.at('households/novel-stub-house/outlineSync/maritime-story/live') as {plot:string}).plot)).participant_order[0]).toBe(second);
  await page.reload(); await expect(root.locator('.self-head h2')).toContainText('更改标题'); const saved=await workspace(page,root); expect(saved.plot_data.plot_units.find((u:any)=>u.unit_id===added).content).toBe('修改后的内容'); expect(saved.plot_data.participant_order[0]).toBe(second);
  await root.locator('[data-act="toggle-rank"]').click(); await drag(page,root.locator('.rank-item').nth(1),root.locator('.rank-item').nth(0),true); await root.locator('.rank-pop [data-act="toggle-rank"]').click(); await root.locator('#undo').click(); expect((await workspace(page,root)).plot_data.participant_order[0]).toBe(second); expect(errors).toEqual([]);
+});
+
+test('card text can be selected and copied without dragging; paste remains available in the editor', async ({ page }) => {
+ const { root, errors } = await open(page);
+ const item = root.locator('.self-pane .card[data-drag="card"]').first(), text = item.locator('.c-text');
+ await expect(item.locator('[data-drag-handle]')).toBeVisible();
+ await expect(text).toBeVisible();
+ expect(await text.evaluate(el => getComputedStyle(el).userSelect)).toBe('text');
+ await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+ const box = (await text.boundingBox())!;
+ await page.mouse.move(box.x + 3, box.y + 10); await page.mouse.down();
+ await page.mouse.move(box.x + Math.min(140, box.width - 3), box.y + 10, { steps: 12 }); await page.mouse.up();
+ const selected = await page.evaluate(() => window.getSelection()?.toString() ?? '');
+ expect(selected.length).toBeGreaterThan(0);
+ await expect(root.locator('.drag-ghost')).toHaveCount(0);
+ await page.keyboard.press('ControlOrMeta+c');
+ expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(selected);
+ await item.getByRole('button', { name: '编辑', exact: true }).click();
+ const editor = root.locator('[data-form="card"] [name="text"]');
+ await editor.fill(''); await editor.focus(); await page.keyboard.press('ControlOrMeta+v');
+ await expect(editor).toHaveValue(selected);
+ await root.locator('[data-form="card"] [data-act="cancel-edit"]').click();
+ expect(errors).toEqual([]);
 });

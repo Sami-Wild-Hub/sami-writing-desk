@@ -11,6 +11,8 @@ class OutlineDrag {
   down = (e) => {
     const src = e.target.closest('[data-drag]');
     if (!src || e.button !== 0 || src.hasAttribute('data-locked') || e.target.closest(FIXED)) return;
+    // Card text remains native selectable/copyable; only its grip starts a drag.
+    if (src.dataset.drag === 'card' && !e.target.closest('[data-drag-handle]')) return;
     this.state = { src, kind: src.dataset.drag, id: src.dataset.id, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, on: false };
   };
   begin = () => {

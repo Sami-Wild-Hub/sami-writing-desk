@@ -27,7 +27,7 @@ const card = (r: Locator, id: string) => r.locator(`.self-pane [data-card="${id}
 const line = (w: any, id: string) => w.plot_data.storyline_groups.find((g: any) => g.id === id);
 const unit = (w: any, id: string) => w.plot_data.plot_units.find((u: any) => u.unit_id === id);
 async function grab(page: Page, source: Locator) {
-  await source.scrollIntoViewIfNeeded(); const a = (await source.boundingBox())!, x = a.x + a.width / 2, y = a.y + 12;
+  await source.scrollIntoViewIfNeeded(); const grip = source.locator('[data-drag-handle]'); const a = (await grip.boundingBox())!, x = a.x + a.width / 2, y = a.y + a.height / 2;
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 7, y + 2, { steps: 3 });
 }
 async function dropAt(page: Page, target: Locator, dy: (b: { y: number; height: number }) => number) {

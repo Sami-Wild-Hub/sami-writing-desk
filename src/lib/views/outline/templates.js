@@ -32,7 +32,7 @@ export function cardFull(v, c, { actions = '', where = true, drag = false, mark 
     c.refs ? `<span class="refs">出处 ${esc(c.refs)}</span>` : '',
   ].join('');
   return `<article class="card ${c.cat} ${m ? 'marked' : ''}" ${drag ? `data-drag="card" data-id="${c.id}"` : ''} data-card="${c.id}">
-    <div class="c-head">${badge(c)}${place}</div>
+    <div class="c-head">${drag ? '<span class="drag-grip" data-drag-handle title="拖动卡片排序" aria-hidden="true">⋮⋮</span>' : ''}${badge(c)}${place}</div>
     <div class="c-text">${esc(c.text)}</div>${m ? markBlock(c) : ''}
     <div class="c-foot">${foot}<span class="c-actions">${actions}</span></div></article>`;
 }
@@ -41,7 +41,7 @@ export function cardFull(v, c, { actions = '', where = true, drag = false, mark 
 export function cardMini(v, c) {
   const { D, esc, markBlock, badge } = v;
   return `<div class="mini ${c.cat} ${D.marks[c.id] ? 'marked' : ''}" data-drag="card" data-id="${c.id}" data-card="${c.id}">
-    <div class="mini-head">${badge(c)}<span class="mini-text">${esc(c.text)}</span>
+    <div class="mini-head"><span class="drag-grip" data-drag-handle title="拖动卡片排序" aria-hidden="true">⋮⋮</span>${badge(c)}<span class="mini-text">${esc(c.text)}</span>
     <button class="x" data-act="unplace" data-id="${c.id}" title="移出这一拍" aria-label="移出这一拍">×</button></div>${markBlock(c)}</div>`;
 }
 
