@@ -1,5 +1,5 @@
 // Validate the sole supported outline format at the shared browser/worker boundary.
-export const CATEGORIES = ['past', 'current', 'undecided'];
+export const CATEGORIES = ['past', 'current', 'combined'];
 const unique = xs => new Set(xs).size === xs.length;
 const strings = xs => Array.isArray(xs) && xs.every(x => typeof x === 'string');
 const require = (ok, why) => { if (!ok) throw Error(why); };
@@ -28,6 +28,7 @@ export function validateData(data) {
     require(typeof g.id === 'string' && g.id && typeof g.title === 'string' && g.title.trim(), '故事线标题无效');
     require(strings(g.participants) && g.participants.length && unique(g.participants) && g.participants.every(p => data.participant_order.includes(p)), '每条线至少一个已排序参与者');
     require(typeof g.lead_participant === 'string' && g.participants.includes(g.lead_participant), '每条线必须有一个本线的标志性参与者');
+    require(g.time_order && Object.keys(g.time_order).length === CATEGORIES.length && Object.keys(g.time_order).every(c => CATEGORIES.includes(c)), '时间顺序栏无效');
     for (const c of CATEGORIES) {
       const col = g.time_order?.[c]; require(strings(col), '缺少时间顺序栏');
       require(col.every(id => units[id]?.storyline_group_id === g.id && units[id]?.category === c && !merged.has(id)), '时间顺序引用无效'); ordered.push(...col);

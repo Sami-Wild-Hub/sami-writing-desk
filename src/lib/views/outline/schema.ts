@@ -1,7 +1,7 @@
 // Shared v7 outline payload and decoded cloud snapshot.
 import type { OutlineSyncState } from './sync.ts';
 
-export type Category = 'past' | 'current' | 'undecided';
+export type Category = 'past' | 'current' | 'combined';
 export interface Storyline {
   id: string;
   title: string;

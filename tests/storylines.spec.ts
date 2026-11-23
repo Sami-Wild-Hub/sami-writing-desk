@@ -44,7 +44,7 @@ test('picker, aligned reference, three categories and both tabs', async ({ page 
  await root.locator('[data-act="tab"][data-tab="outline"]').click(); await expect(root.locator('.lane')).toHaveCount(3); await expect(root.locator('[data-filter-state]')).toHaveCount(3);
  await page.screenshot({ path: join(tmpdir(), 'swd-storylines-v7-outline.png') }); expect(errors).toEqual([]);
 });
-test('real drags: independent orders, inversions, category change, cross Beat and undecided', async ({ page }) => {
+test('real drags: independent orders, inversions, category change, cross Beat and combined', async ({ page }) => {
  const { root, errors } = await open(page), initial = await workspace(page, root);
  const group = initial.plot_data.storyline_groups.find((g: any) => g.id === 'G01'), order = group.time_order.current;
  const beatOf = (id: string) => initial.plan.placements.find((p: any) => p.unit_id === id)?.beat_id;
@@ -62,15 +62,15 @@ test('real drags: independent orders, inversions, category change, cross Beat an
  const id = group.time_order.current.find((id: string) => !initial.plan.placements.some((p: any) => p.unit_id === id));
  await drag(page,card(root,id),cell(root,'A1-B1','current')); await expect(cell(root,'A1-B1','current').locator(`[data-card="${id}"]`)).toHaveCount(1); await expect(card(root,id)).toHaveCount(1);
  await drag(page,cell(root,'A1-B1','current').locator(`[data-card="${id}"]`),cell(root,'A2-B1','current')); await expect(cell(root,'A2-B1','current').locator(`[data-card="${id}"]`)).toHaveCount(1);
- await select(root,'G11'); const undecided = initial.plot_data.storyline_groups.find((g: any) => g.id === 'G11').time_order.undecided[0];
- await drag(page,card(root,undecided),cell(root,'A1-B1','undecided')); await expect(cell(root,'A1-B1','undecided').locator(`[data-card="${undecided}"]`)).toHaveCount(1);
- const beforeCancel = await workspace(page,root), source = card(root,undecided); await source.scrollIntoViewIfNeeded(); const rect = (await source.boundingBox())!;
+ await select(root,'G11'); const combined = initial.plot_data.storyline_groups.find((g: any) => g.id === 'G11').time_order.combined[0];
+ await drag(page,card(root,combined),cell(root,'A1-B1','combined')); await expect(cell(root,'A1-B1','combined').locator(`[data-card="${combined}"]`)).toHaveCount(1);
+ const beforeCancel = await workspace(page,root), source = card(root,combined); await source.scrollIntoViewIfNeeded(); const rect = (await source.boundingBox())!;
  await page.mouse.move(rect.x+30,rect.y+30); await page.mouse.down(); await page.mouse.move(rect.x+50,rect.y+50); await page.keyboard.press('Escape'); await page.mouse.up();
  await expect(root.locator('.drag-ghost')).toHaveCount(0); expect(await workspace(page,root)).toEqual(beforeCancel); expect(errors).toEqual([]);
 });
 test('new card, edit, participants, real ranking drag, cloud refresh and undo', async ({ page }) => {
  const { root, reads, errors } = await open(page);
- await root.locator('[data-act="compose"][data-cat="undecided"]').click();
+ await root.locator('[data-act="compose"][data-cat="combined"]').click();
  let form = root.locator('[data-form="new"]'); await expect(form.locator('[name="title"]')).toHaveCount(0); await form.locator('[name="text"]').fill('验证新增 保存往返'); await form.getByRole('button',{name:'添加',exact:true}).click();
  const added = (await workspace(page,root)).plot_data.plot_units.find((u:any)=>u.content==='验证新增 保存往返').unit_id;
  await card(root,added).getByRole('button',{name:'编辑',exact:true}).click(); form=root.locator('[data-form="card"]'); await form.locator('[name="text"]').fill('修改后的内容'); await form.getByRole('button',{name:'保存',exact:true}).click();

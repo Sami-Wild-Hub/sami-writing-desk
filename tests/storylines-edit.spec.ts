@@ -68,8 +68,8 @@ test('move cards by dropdown and by dragging onto the picker; drop into blank co
   w = await workspace(page, root); expect(unit(w, y).storyline_group_id).toBe('G03'); expect(line(w, 'G03').time_order.current.at(-1)).toBe(y);
 
   const past = g01.time_order.past[0];
-  await grab(page, card(root, past)); await dropAt(page, root.locator('.self-col.undecided .col-body'), b => b.y + b.height - 30);
-  w = await workspace(page, root); expect(unit(w, past).category).toBe('undecided'); expect(line(w, 'G01').time_order.undecided.at(-1)).toBe(past);
+  await grab(page, card(root, past)); await dropAt(page, root.locator('.self-col.combined .col-body'), b => b.y + b.height - 30);
+  w = await workspace(page, root); expect(unit(w, past).category).toBe('combined'); expect(line(w, 'G01').time_order.combined.at(-1)).toBe(past);
   await root.locator('#undo').click();
 
   const free = g01.time_order.current.find((id: string) => id !== x && id !== y && !initial.plan.placements.some((p: any) => p.unit_id === id));
@@ -85,7 +85,7 @@ test('move cards by dropdown and by dragging onto the picker; drop into blank co
     expect(await text.evaluate(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight + 1 && el.clientHeight > 60)).toBe(true);
   }
   await expect(root.locator('.badge')).toHaveText(Array(await root.locator('.badge').count()).fill(/^(已写|已排|未排)$/));
-  await expect(root.locator('.self-col.undecided .era')).toHaveText('Combined');
+  await expect(root.locator('.self-col.combined .era')).toHaveText('Combined');
   await expect(root.locator(`.bg-mine [data-card="${free}"]`)).toBeVisible();
   mkdirSync(shots, { recursive: true }); await page.screenshot({ path: join(shots, 'beat-view.png') });
   await root.locator('[data-act="toggle-picker"]').click();

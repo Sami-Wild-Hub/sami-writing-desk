@@ -16,13 +16,13 @@ test('time reordering does not change reveal order, and reveal reordering does n
 });
 test('all three categories accept drops; a changed category appends in time but uses explicit reveal position', () => {
   const m = setup(), id = m.storyMap.G01.time_order.current[0];
-  const old = [...m.storyMap.G01.time_order.undecided];
-  m.placeInCell(id, m.beatIds[0], 'undecided', 0);
-  assert.equal(m.unitMap[id].category, 'undecided');
-  assert.deepEqual(m.storyMap.G01.time_order.undecided, [...old, id]);
-  const undecided = m.visibleUnits().find(u => u.category === 'undecided');
-  m.placeInCell(undecided.unit_id, m.beatIds[2], 'undecided');
-  assert.equal(m.unitMap[undecided.unit_id].category, 'undecided');
+  const old = [...m.storyMap.G01.time_order.combined];
+  m.placeInCell(id, m.beatIds[0], 'combined', 0);
+  assert.equal(m.unitMap[id].category, 'combined');
+  assert.deepEqual(m.storyMap.G01.time_order.combined, [...old, id]);
+  const combined = m.visibleUnits().find(u => u.category === 'combined');
+  m.placeInCell(combined.unit_id, m.beatIds[2], 'combined');
+  assert.equal(m.unitMap[combined.unit_id].category, 'combined');
 });
 test('minimal mismatch marks prefer marking later cards and disappear when restored', () => {
   const m = setup(), ids = m.storyMap.G01.time_order.current.slice(0, 3);
@@ -64,6 +64,10 @@ test('v7 imports and codec round trips retain ordering, participants, category a
   const bad = structuredClone(before); bad.plan.placements[0].unit_id = 'missing';
   assert.throws(() => m.importWorkspace(bad)); assert.deepEqual(m.exportWorkspace(), before);
   assert.throws(() => createOutlineModel({ ...before.plot_data, schema_version: '5.0' }, before.plan));
+  const oldCategory = structuredClone(before.plot_data); oldCategory.plot_units[0].category = 'undecided';
+  assert.throws(() => createOutlineModel(oldCategory, before.plan), /卡片字段无效/);
+  const oldKey = structuredClone(before.plot_data); oldKey.storyline_groups[0].time_order.undecided = [];
+  assert.throws(() => createOutlineModel(oldKey, before.plan), /时间顺序栏无效/);
   m.clear(true); assert.deepEqual(m.exportPlan().notes, before.plan.notes);
 });
 test('deleting a card removes it with its merged originals and placement; undo restores it', () => {
@@ -95,13 +99,17 @@ test('moving a card to another line appends it to the same category and keeps it
   assert.deepEqual(m.exportPlan(), before.plan);
   m.undo(); assert.deepEqual(m.exportWorkspace(), before);
 });
-test('cards show one text with only 已写/已排/未排 tags; counts read 未排|已排|total; undecided reads Combined', () => {
-  const m = setup(), v = presentation(m, {}), line = m.data.storyline_groups[0], ids = m.lineCards(line.id);
-  const placed = ids.filter(m.used).length; assert.equal(v.countOf(line.id), `${ids.length - placed}|${placed}|${ids.length}`);
+test('cards show one text with only 已写/已排/未排 tags; counts read 未排|已排|total; combined reads Combined', () => {
+  const m = setup(), [written, placed, unplaced] = m.visibleUnits();
+  m.editCard(written.unit_id, { status: 'WRITTEN' });
+  m.editCard(placed.unit_id, { status: 'PLANNED' }); m.placeInCell(placed.unit_id, m.beatIds[0], placed.category);
+  m.editCard(unplaced.unit_id, { status: 'PLANNED' }); m.removeUnit(unplaced.unit_id);
+  const v = presentation(m, {}), line = m.data.storyline_groups[0], ids = m.lineCards(line.id);
+  const placedCount = ids.filter(m.used).length; assert.equal(v.countOf(line.id), `${ids.length - placedCount}|${placedCount}|${ids.length}`);
   assert.deepEqual(new Set(Object.values(v.S.cards).map(c => c.status)), new Set(['已写', '已排', '未排']));
-  assert.equal(v.CAT_LABEL.undecided, 'Combined');
+  assert.equal(v.CAT_LABEL.combined, 'Combined');
   assert.equal(cardText({ element_title: '标题', content: '内容' }), '内容'); assert.equal(cardText({ element_title: '标题', content: '' }), '标题');
-  const titled = m.visibleUnits().find(u => u.element_title && u.content), text = cardText(titled);
+  const titled = m.visibleUnits()[0]; m.editCard(titled.unit_id, { element_title: '标题' }); const text = cardText(titled);
   m.editText(titled.unit_id, text, titled.details || []);
   assert.equal(m.unitMap[titled.unit_id].content, text); assert.equal(m.unitMap[titled.unit_id].element_title, ''); assert.equal(cardText(m.unitMap[titled.unit_id]), text);
 });
