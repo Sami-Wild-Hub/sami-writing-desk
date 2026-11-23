@@ -1,7 +1,7 @@
 // Exercise canonical lead sections/persistence and mocked GitHub workflow dispatch.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { stubFirebase, watchErrors } from './stub.ts';
-import { hasOutline, outlineFixture } from './outline-fixture.mjs';
+import { hasOutline, outlineFixture, overallText } from './outline-fixture.mjs';
 import { unpack } from '../src/lib/views/outline/codec.js';
 test.skip(!hasOutline, 'private canonical data is not in public CI');
 test.use({ viewport: { width: 1440, height: 900 } });
@@ -11,7 +11,7 @@ async function open(page: Page) {
   const reads = await stubFirebase(page, { canonical: true }), errors = watchErrors(page);
   await page.goto('book/?book=maritime-story&view=outline');
   const root = page.locator('[data-view="outline"]');
-  await expect(root.locator('#overall')).toHaveText('108 张 · 36 已排');
+  await expect(root.locator('#overall')).toHaveText(overallText());
   return { root, reads, errors };
 }
 const section = (item: Locator) => item.evaluate(el => {

@@ -1,4 +1,4 @@
-// 大纲 tab: choose a Beat, see it in Past / Current / 未确定, pick cards in from the library; all grouped by participant.
+// 大纲 tab: choose a Beat, see it in Past / Current / Combined, pick cards in from the library; all grouped by participant.
 export function renderOutline(v) {
   const { CATS, beatNav, beatHeader, boardLane, library } = v;
   return `<div class="ol"><nav class="ol-side" aria-label="Act 与 Beat">${beatNav()}</nav>
@@ -48,16 +48,16 @@ export function boardLane(v, cat) {
 
 export function matches(v, c, l, q) {
   const { nameOf } = v;
-  return [nameOf(l), c.title, c.text, ...(c.details || [])].some(x => x.toLowerCase().includes(q));
+  return [nameOf(l), c.text, ...(c.details || [])].some(x => x.toLowerCase().includes(q));
 }
 
 // Library: every storyline once, under its section; cards not in this Beat, by category in time order.
 export function library(v) {
-  const { UI, S, D, CATS, CAT_LABEL, beatShort, nameOf, sections, esc, cardFull, matches } = v;
+  const { UI, S, D, CATS, CAT_LABEL, beatShort, nameOf, sections, esc, cardFull, matches, statusClass } = v;
   const q = UI.search.trim().toLowerCase();
   let total = 0;
   const lineBlock = l => {
-    const per = CATS.map(cat => [cat, S.time[l.id][cat].filter(id => D.placedIn[id]?.beat !== UI.beat && UI.filters.has(S.cards[id].status === '已写' ? 'written' : D.placedIn[id] ? 'placed' : 'unplaced') && (!q || matches(S.cards[id], l, q)))]);
+    const per = CATS.map(cat => [cat, S.time[l.id][cat].filter(id => D.placedIn[id]?.beat !== UI.beat && UI.filters.has(statusClass[S.cards[id].status]) && (!q || matches(S.cards[id], l, q)))]);
     const n = per.reduce((a, [, xs]) => a + xs.length, 0);
     if (q && !n) return '';
     total += n;

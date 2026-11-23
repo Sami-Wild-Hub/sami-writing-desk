@@ -40,19 +40,33 @@ class OutlineDrag {
     this.state.ghost.style.transform = `translate(${this.state.x - this.state.dx}px, ${this.state.y - this.state.dy}px)`;
     this.locate();
   };
-  // Count items above the pointer, excluding the dragged card.
+  // Count items above the pointer, excluding the dragged card. Blank space in a zone's area drops into that zone.
   locate = () => {
-    const el = document.elementFromPoint(this.state.x, this.state.y);
-    const zone = el && el.closest(`[data-zone][data-accept~="${this.state.kind}"]`);
+    const el = document.elementFromPoint(this.state.x, this.state.y), accept = `[data-zone][data-accept~="${this.state.kind}"]`;
+    this.hover(el);
+    const zone = el && (el.closest(accept) || el.closest('[data-zone-area]')?.querySelector(accept));
     this.root.querySelectorAll('.drop-on').forEach(z => z !== zone && z.classList.remove('drop-on'));
     this.state.zone = zone;
     if (!zone) return this.state.mark.remove();
     zone.classList.add('drop-on');
+    if (zone.hasAttribute('data-nomark')) return this.state.mark.remove();
     const items = [...zone.querySelectorAll(':scope > [data-drag]')].filter(x => x !== this.state.src);
     this.state.index = items.filter(x => { const r = x.getBoundingClientRect(); return r.top + r.height / 2 < this.state.y; }).length;
     const next = items[this.state.index];
     if (next) zone.insertBefore(this.state.mark, next);
     else zone.append(this.state.mark);
+  };
+  // Resting a dragged card on a [data-drag-open] element for a moment opens it; leaving closes it again.
+  hover = (el) => {
+    const opener = (this.state.kind === 'card' && el?.closest('[data-drag-open]')) || null;
+    if (opener === this.state.opener) return;
+    this.closeOpener(this.state);
+    this.state.opener = opener;
+    if (opener) this.state.openTimer = setTimeout(() => { opener.classList.add('drag-open'); if (this.state?.on) this.locate(); }, 300);
+  };
+  closeOpener = (st) => {
+    clearTimeout(st.openTimer);
+    this.root.querySelectorAll('.drag-open').forEach(x => x.classList.remove('drag-open'));
   };
   up = () => {
     if (!this.state) return;
@@ -68,6 +82,7 @@ class OutlineDrag {
     st.ghost.remove();
     st.mark.remove();
     st.src.classList.remove('dragging');
+    this.closeOpener(st);
     this.root.querySelectorAll('.drop-on').forEach(z => z.classList.remove('drop-on'));
     this.root.classList.remove('is-dragging');
   };

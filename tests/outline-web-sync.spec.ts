@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { stubFirebase } from './stub.ts';
+import { overallText } from './outline-fixture.mjs';
 
 const dataRepo = resolve(process.cwd(), '..', 'sami-writing-desk-data-outline');
 
@@ -28,12 +29,12 @@ test('an unusable default-storyline config does not block cloud data', async ({ 
   const reads = await stubFirebase(page, { canonical: true });
   await page.goto('book/?book=maritime-story&view=outline');
   const root = page.locator('[data-view="outline"]');
-  await expect(root.locator('#overall')).toContainText('108 张');
+  await expect(root.locator('#overall')).toHaveText(overallText());
   const path = 'households/novel-stub-house/outlineSync/maritime-story';
   const head = reads.at(`${path}/head`) as { repo: object };
   reads.server(`${path}/head`, { ...head, config: '{', repo: { ...head.repo, configError: 'bad JSON' } });
   await expect(root.locator('#sync-state')).toContainText('config.json 无效');
-  await page.reload(); await expect(root.locator('#overall')).toContainText('108 张');
+  await page.reload(); await expect(root.locator('#overall')).toHaveText(overallText());
 });
 
 test('the bookshelf follows the outline head without a reload', async ({ page }) => {

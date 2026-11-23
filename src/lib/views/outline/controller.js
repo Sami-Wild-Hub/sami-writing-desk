@@ -27,6 +27,7 @@ class OutlinePanel extends OutlineCloud {
       if (kind === 'rank') this.model.moveRank(id, index);
       else if (zone.zone === 'time') this.model.moveInTime(id, zone.cat, index);
       else if (zone.zone === 'beat') this.model.placeInCell(id, zone.beat, zone.cat, index);
+      else if (zone.zone === 'line') this.moveToLine(id, zone.line);
     });
     this.wire(); this.wireFiles();
     this.online = () => { if (this.pendingWorkspace) { this.retrySave = false; this.queueCloudSave(); } };
@@ -42,12 +43,21 @@ class OutlinePanel extends OutlineCloud {
   finishInline = () => {
     const form = this.root.querySelector('[data-form="card"], [data-form="new"]');
     if (!form) return true;
-    if (form.dataset.form === 'new' && !form.elements.title.value.trim() && !form.elements.text.value.trim()) return true;
+    if (form.dataset.form === 'new' && !form.elements.text.value.trim()) return true;
     try { this.submit(form); return true; }
     catch (error) { this.report(error.message, true); return false; }
   };
   finish = () => this.finishInline();
   attempt = fn => { try { fn(); } catch (error) { this.report(error.message, true); } };
+  moveToLine = (id, line) => {
+    if (this.model.unitMap[id].storyline_group_id === line) return;
+    this.UI.picker = false; this.model.moveToLine(id, line); this.report(`已转到「${this.model.storyMap[line].title}」，可撤销。`);
+  };
+  deleteLine = id => {
+    const n = this.model.lineCards(id).length, title = this.model.storyMap[id].title;
+    if (!confirm(n ? `删除故事线「${title}」和它的 ${n} 张卡？可撤销。` : `删除故事线「${title}」？可撤销。`)) return;
+    this.model.deleteLine(id); this.UI.dialog = null; this.render(); this.report(`已删除故事线「${title}」，可撤销。`);
+  };
   render = () => {
     const u = this.UI, root = this.root;
     if (!this.model.storyMap[u.line]) u.line = this.model.data.storyline_groups[0].id;
@@ -80,6 +90,8 @@ class OutlinePanel extends OutlineCloud {
         if (!u.dialog.parts.includes(u.dialog.lead)) u.dialog.lead = u.dialog.parts[0] || '';
         break;
       case 'edit-card': u.editing = id; break;
+      case 'delete-card': if (u.editing === id) u.editing = null; m.deleteCard(id); this.report('已删除卡片，可撤销。'); return;
+      case 'delete-line': this.deleteLine(id); return;
       case 'cancel-edit': u.editing = null; break;
       case 'compose': u.composing = t.dataset.cat; break;
       case 'cancel-compose': u.composing = null; break;
@@ -98,10 +110,10 @@ class OutlinePanel extends OutlineCloud {
   submit = form => {
     const value = name => form.elements[name]?.value || '', u = this.UI;
     if (form.dataset.form === 'card') {
-      u.editing = null; this.model.editCard(form.dataset.id, { element_title: value('title').trim(), content: value('text').trim(), details: value('details').split('\n').map(s => s.trim()).filter(Boolean) });
+      this.model.editText(form.dataset.id, value('text'), value('details').split('\n').map(s => s.trim()).filter(Boolean)); u.editing = null; this.render();
     } else if (form.dataset.form === 'new') {
-      if (!value('title').trim() && !value('text').trim()) return;
-      u.composing = null; this.model.addCard(u.line, form.dataset.cat, value('title'), value('text'));
+      if (!value('text').trim()) return;
+      u.composing = null; this.model.addCard(u.line, form.dataset.cat, value('text'));
     } else if (form.dataset.form === 'line') {
       const d = u.dialog; if (!value('title').trim() || !d.parts.length) return;
       u.line = this.model.saveLine(d.id, value('title'), d.parts, d.lead); u.dialog = null; this.render();
@@ -117,6 +129,7 @@ class OutlinePanel extends OutlineCloud {
     this.root.addEventListener('change', e => {
       const t = e.target;
       if (t.name === 'lead') this.UI.dialog.lead = t.value;
+      if (t.dataset.change === 'move-line' && t.value) this.attempt(() => this.moveToLine(t.dataset.id, t.value));
       if (t.dataset.change === 'move-beat' && t.value) this.attempt(() => this.model.placeInCell(t.dataset.id, t.value, this.model.unitMap[t.dataset.id].category));
     });
     this.root.addEventListener('input', e => {

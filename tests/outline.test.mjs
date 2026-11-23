@@ -1,7 +1,7 @@
 // Behavioral v7 model checks use the current maritime-story documents without embedding private data.
 import assert from 'node:assert/strict';
 import rawTest from 'node:test';
-import { createOutlineModel } from '../src/lib/views/outline/model.js';
+import { createOutlineModel, cardText } from '../src/lib/views/outline/model.js';
 import { presentation } from '../src/lib/views/outline/presentation.js';
 import { outlineFixture, hasOutline } from './outline-fixture.mjs';
 const test = (name, fn) => rawTest(name, { skip: !hasOutline }, fn);
@@ -65,4 +65,44 @@ test('v7 imports and codec round trips retain ordering, participants, category a
   assert.throws(() => m.importWorkspace(bad)); assert.deepEqual(m.exportWorkspace(), before);
   assert.throws(() => createOutlineModel({ ...before.plot_data, schema_version: '5.0' }, before.plan));
   m.clear(true); assert.deepEqual(m.exportPlan().notes, before.plan.notes);
+});
+test('deleting a card removes it with its merged originals and placement; undo restores it', () => {
+  const m = setup(), before = m.exportWorkspace();
+  const card = m.visibleUnits().find(u => u.source_unit_ids?.length && m.used(u.unit_id)), gone = [card.unit_id, ...card.source_unit_ids];
+  m.deleteCard(card.unit_id);
+  assert.ok(gone.every(id => !m.unitMap[id])); assert.equal(m.used(card.unit_id), false);
+  assert.ok(!m.lineCards(card.storyline_group_id).includes(card.unit_id));
+  const saved = m.exportWorkspace(); assert.deepEqual(createOutlineModel(saved.plot_data, saved.plan).exportWorkspace(), saved);
+  m.undo(); assert.deepEqual(m.exportWorkspace(), before);
+});
+test('deleting a line removes its cards, keeps originals merged into other lines, and keeps one line', () => {
+  const m = setup(), before = m.exportWorkspace(), units = Object.fromEntries(before.plot_data.plot_units.map(u => [u.unit_id, u]));
+  const owner = before.plot_data.plot_units.find(u => (u.source_unit_ids || []).some(s => units[s].storyline_group_id !== u.storyline_group_id));
+  const src = owner.source_unit_ids.find(s => units[s].storyline_group_id !== owner.storyline_group_id), line = units[src].storyline_group_id, cards = m.lineCards(line);
+  m.deleteLine(line);
+  assert.equal(m.storyMap[line], undefined); assert.ok(cards.every(id => !m.unitMap[id] && !m.used(id)));
+  assert.equal(m.unitMap[src].storyline_group_id, owner.storyline_group_id);
+  m.undo(); assert.deepEqual(m.exportWorkspace(), before);
+  const one = setup(); for (const g of one.data.storyline_groups.slice(1)) one.deleteLine(g.id);
+  assert.throws(() => one.deleteLine(one.data.storyline_groups[0].id), /至少保留/);
+});
+test('moving a card to another line appends it to the same category and keeps its Beat placement', () => {
+  const m = setup(), before = m.exportWorkspace(), p = before.plan.placements[0], unit = m.unitMap[p.unit_id];
+  const from = unit.storyline_group_id, target = m.data.storyline_groups.find(g => g.id !== from).id;
+  m.moveToLine(unit.unit_id, target);
+  assert.equal(m.unitMap[unit.unit_id].storyline_group_id, target);
+  assert.equal(m.storyMap[target].time_order[unit.category].at(-1), unit.unit_id); assert.ok(!m.lineCards(from).includes(unit.unit_id));
+  assert.deepEqual(m.exportPlan(), before.plan);
+  m.undo(); assert.deepEqual(m.exportWorkspace(), before);
+});
+test('cards show one text with only 已写/已排/未排 tags; counts read 未排|已排|total; undecided reads Combined', () => {
+  const m = setup(), v = presentation(m, {}), line = m.data.storyline_groups[0], ids = m.lineCards(line.id);
+  const placed = ids.filter(m.used).length; assert.equal(v.countOf(line.id), `${ids.length - placed}|${placed}|${ids.length}`);
+  assert.deepEqual(new Set(Object.values(v.S.cards).map(c => c.status)), new Set(['已写', '已排', '未排']));
+  assert.equal(v.CAT_LABEL.undecided, 'Combined');
+  assert.equal(cardText({ element_title: '标题', content: '内容' }), '标题：内容');
+  assert.equal(cardText({ element_title: '标题', content: '' }), '标题'); assert.equal(cardText({ element_title: '标题', content: '标题之后' }), '标题之后');
+  const titled = m.visibleUnits().find(u => u.element_title && u.content), text = cardText(titled);
+  m.editText(titled.unit_id, text, titled.details || []);
+  assert.equal(m.unitMap[titled.unit_id].content, text); assert.equal(m.unitMap[titled.unit_id].element_title, ''); assert.equal(cardText(m.unitMap[titled.unit_id]), text);
 });

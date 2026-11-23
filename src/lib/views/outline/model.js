@@ -2,6 +2,11 @@
 import { validateData, validatePlan, CATEGORIES } from './validation.js';
 import { mismatchMarks } from './ordering.js';
 export const clone = value => structuredClone(value);
+// Cards show one text: a stored title is joined in front of the content unless the content already starts with it.
+export const cardText = u => {
+  const title = (u.element_title || '').trim(), text = u.content || '';
+  return !title || text.startsWith(title) ? text : text.trim() ? `${title}：${text}` : title;
+};
 export const createOutlineModel = (data, plan, hooks) => new OutlineModel(data, plan, hooks);
 class OutlineModel {
   constructor(data, plan, hooks = {}) {
@@ -59,15 +64,43 @@ class OutlineModel {
   });
   removeUnit = id => this.change(() => { delete this.state.placements[id]; });
   freshId = (prefix, existing) => { let n = 1; while (existing.has(prefix + n)) n++; return prefix + n; };
-  addCard = (line, category, title, content) => {
-    if (!title.trim() && !content.trim()) throw Error('卡片不能为空');
+  addCard = (line, category, content) => {
+    if (!content.trim()) throw Error('卡片不能为空');
     const id = this.freshId('N', new Set(Object.keys(this.unitMap)));
     this.change(() => {
-      this.data.plot_units.push({ unit_id: id, storyline_group_id: line, category, element_title: title.trim(), content: content.trim(), details: [], source_unit_ids: [], source_refs: '', status: 'PLANNED', is_editorial_element: true, is_custom: true });
+      this.data.plot_units.push({ unit_id: id, storyline_group_id: line, category, element_title: '', content: content.trim(), details: [], source_unit_ids: [], source_refs: '', status: 'PLANNED', is_editorial_element: true, is_custom: true });
       this.storyMap[line].time_order[category].push(id);
     }); return id;
   };
   editCard = (id, patch) => this.change(() => { Object.assign(this.unitMap[id], patch); });
+  // The edited text replaces both stored title and content.
+  editText = (id, text, details) => {
+    if (!text.trim()) throw Error('卡片不能为空');
+    this.editCard(id, { content: text.trim(), details, ...(this.unitMap[id].element_title ? { element_title: '' } : {}) });
+  };
+  dropCard = id => {
+    const unit = this.unitMap[id], gone = new Set([id, ...(unit.source_unit_ids || [])]), col = this.storyMap[unit.storyline_group_id].time_order;
+    col[unit.category] = col[unit.category].filter(x => x !== id); delete this.state.placements[id];
+    this.data.plot_units = this.data.plot_units.filter(u => !gone.has(u.unit_id));
+  };
+  deleteCard = id => this.change(() => this.dropCard(id));
+  lineCards = line => CATEGORIES.flatMap(c => this.storyMap[line].time_order[c]);
+  // Cards go with their line; merged originals kept here for another line's card follow that card.
+  deleteLine = line => this.change(() => {
+    if (this.data.storyline_groups.length < 2) throw Error('至少保留一条故事线');
+    this.lineCards(line).forEach(this.dropCard);
+    for (const owner of this.data.plot_units) for (const src of owner.source_unit_ids || []) {
+      const u = this.data.plot_units.find(x => x.unit_id === src);
+      if (u.storyline_group_id === line) u.storyline_group_id = owner.storyline_group_id;
+    }
+    this.data.storyline_groups = this.data.storyline_groups.filter(g => g.id !== line);
+  });
+  // Another line takes the card at the end of the same category; its Beat placement and reveal position stay.
+  moveToLine = (id, line) => this.change(() => {
+    const unit = this.unitMap[id], from = this.storyMap[unit.storyline_group_id].time_order, to = this.storyMap[line].time_order;
+    if (unit.storyline_group_id === line) return;
+    from[unit.category] = from[unit.category].filter(x => x !== id); to[unit.category].push(id); unit.storyline_group_id = line;
+  });
   saveLine = (id, title, participants, lead) => {
     if (!title.trim() || !participants.length || participants.some(p => !p.trim())) throw Error('需要标题和至少一个参与者');
     id ||= this.freshId('L', new Set(Object.keys(this.storyMap)));

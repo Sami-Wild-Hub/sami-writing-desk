@@ -3,14 +3,14 @@ import { expect, test, type Page, type Locator } from '@playwright/test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { stubFirebase, watchErrors } from './stub.ts';
-import { hasOutline } from './outline-fixture.mjs';
+import { hasOutline, overallText } from './outline-fixture.mjs';
 import { unpack } from '../src/lib/views/outline/codec.js';
 test.skip(!hasOutline, 'private canonical data is not in public CI');
 test.use({ viewport: { width: 1440, height: 900 } });
 async function open(page: Page) {
  const reads = await stubFirebase(page, { canonical: true }), errors = watchErrors(page);
  await page.goto('book/?book=maritime-story&view=outline');
- const root = page.locator('[data-view="outline"]'); await expect(root.locator('#overall')).toHaveText('108 张 · 36 已排');
+ const root = page.locator('[data-view="outline"]'); await expect(root.locator('#overall')).toHaveText(overallText());
  return { root, reads, errors };
 }
 async function workspace(page: Page, root: Locator) {
@@ -36,7 +36,7 @@ test('picker, aligned reference, three categories and both tabs', async ({ page 
  const { root, errors } = await open(page);
  await expect(root.locator('.self-col')).toHaveCount(3); await expect(root.locator('.mark')).toHaveCount(0);
  await root.locator('[data-act="toggle-picker"]').click(); await expect(root.locator('.pick-line')).toHaveCount(26);
- await root.locator('[data-act="select-line"][data-id="G11"]').click(); await expect(root.locator('.picker-panel')).toHaveCount(0); await select(root, 'G01');
+ await root.locator('[data-act="select-line"][data-id="G11"]').click(); await expect(root.locator('.picker-panel')).toBeHidden(); await select(root, 'G01');
  const rows = await root.locator('.bg-mine').evaluateAll(xs => xs.map(x => [x.getBoundingClientRect().top, x.previousElementSibling!.getBoundingClientRect().top]));
  expect(rows).toHaveLength(30); expect(rows.every(([a,b]) => Math.abs(a-b) < 1)).toBe(true);
  expect(await root.locator('.bg-other .ref-line').allTextContents()).not.toContain(await root.locator('.self-head h2').textContent());
@@ -46,15 +46,17 @@ test('picker, aligned reference, three categories and both tabs', async ({ page 
 });
 test('real drags: independent orders, inversions, category change, cross Beat and undecided', async ({ page }) => {
  const { root, errors } = await open(page), initial = await workspace(page, root);
- const group = initial.plot_data.storyline_groups.find((g: any) => g.id === 'G01'), [a,b] = group.time_order.current;
+ const group = initial.plot_data.storyline_groups.find((g: any) => g.id === 'G01'), order = group.time_order.current;
+ const beatOf = (id: string) => initial.plan.placements.find((p: any) => p.unit_id === id)?.beat_id;
+ const i = order.findIndex((id: string, k: number) => k > 0 && beatOf(id) && beatOf(id) === beatOf(order[k-1])), [a,b] = [order[i-1], order[i]], beat = beatOf(a);
  await drag(page, card(root,b), card(root,a), true);
- let current = await workspace(page, root); expect(current.plot_data.storyline_groups.find((g: any) => g.id === 'G01').time_order.current[0]).toBe(b);
+ let current = await workspace(page, root); expect(current.plot_data.storyline_groups.find((g: any) => g.id === 'G01').time_order.current[i-1]).toBe(b);
  expect(current.plan).toEqual(initial.plan); await root.locator('#undo').click();
- await drag(page, cell(root,'A1-B1','current').locator(`[data-card="${b}"]`), cell(root,'A1-B1','current').locator(`[data-card="${a}"]`), true);
- await expect(root.locator('.bg-mine .marked')).toHaveCount(1); await expect(cell(root,'A1-B1','current').locator(`[data-card="${b}"] .mark`)).toContainText('之后');
+ await drag(page, cell(root,beat,'current').locator(`[data-card="${b}"]`), cell(root,beat,'current').locator(`[data-card="${a}"]`), true);
+ await expect(root.locator('.bg-mine .marked')).toHaveCount(1); await expect(cell(root,beat,'current').locator(`[data-card="${b}"] .mark`)).toContainText('之后');
  expect((await workspace(page,root)).plot_data).toEqual(initial.plot_data);
- await drag(page, cell(root,'A1-B1','current').locator(`[data-card="${a}"]`), cell(root,'A1-B1','current').locator(`[data-card="${b}"]`), true); await expect(root.locator('.mark')).toHaveCount(0);
- await drag(page, card(root,a), cell(root,'A1-B1','past'));
+ await drag(page, cell(root,beat,'current').locator(`[data-card="${a}"]`), cell(root,beat,'current').locator(`[data-card="${b}"]`), true); await expect(root.locator('.mark')).toHaveCount(0);
+ await drag(page, card(root,a), cell(root,beat,'past'));
  current = await workspace(page,root); expect(current.plot_data.plot_units.find((u: any) => u.unit_id === a).category).toBe('past');
  expect(current.plot_data.storyline_groups.find((g: any) => g.id === 'G01').time_order.past.at(-1)).toBe(a); await root.locator('#undo').click();
  const id = group.time_order.current.find((id: string) => !initial.plan.placements.some((p: any) => p.unit_id === id));
@@ -69,8 +71,8 @@ test('real drags: independent orders, inversions, category change, cross Beat an
 test('new card, edit, participants, real ranking drag, cloud refresh and undo', async ({ page }) => {
  const { root, reads, errors } = await open(page);
  await root.locator('[data-act="compose"][data-cat="undecided"]').click();
- let form = root.locator('[data-form="new"]'); await form.locator('[name="title"]').fill('验证新增'); await form.locator('[name="text"]').fill('保存往返'); await form.getByRole('button',{name:'添加',exact:true}).click();
- const added = (await workspace(page,root)).plot_data.plot_units.find((u:any)=>u.element_title==='验证新增').unit_id;
+ let form = root.locator('[data-form="new"]'); await expect(form.locator('[name="title"]')).toHaveCount(0); await form.locator('[name="text"]').fill('验证新增 保存往返'); await form.getByRole('button',{name:'添加',exact:true}).click();
+ const added = (await workspace(page,root)).plot_data.plot_units.find((u:any)=>u.content==='验证新增 保存往返').unit_id;
  await card(root,added).getByRole('button',{name:'编辑',exact:true}).click(); form=root.locator('[data-form="card"]'); await form.locator('[name="text"]').fill('修改后的内容'); await form.getByRole('button',{name:'保存',exact:true}).click();
  await root.locator('.self-head [data-act="edit-line"]').click(); form=root.locator('[data-form="line"]'); await form.locator('[name="title"]').fill('更改标题'); await form.locator('[name="part"]').fill('手填参与者'); await form.getByRole('button',{name:'添加',exact:true}).click(); await root.locator('[data-form="line"]').getByRole('button',{name:'保存',exact:true}).click();
  await root.locator('[data-act="toggle-rank"]').click(); const ranking=root.locator('.rank-item'), second=await ranking.nth(1).getAttribute('data-id'); await drag(page,ranking.nth(1),ranking.nth(0),true); await root.locator('.rank-pop [data-act="toggle-rank"]').click(); await expect(root.locator('.self-head h2')).toContainText(`${second} ×`);

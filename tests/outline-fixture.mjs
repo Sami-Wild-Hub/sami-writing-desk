@@ -9,3 +9,8 @@ export function outlineFixture() {
   const read = name => JSON.parse(readFileSync(resolve(outlinePath, name), 'utf8'));
   return { plot_data: read('plot-data.json'), plan: read('placements.json'), config: { defaultStorylineId: 'G01' } };
 }
+// The top bar's card and placement counts for the current canonical documents.
+export function overallText() {
+  const { plot_data, plan } = outlineFixture(), merged = new Set(plot_data.plot_units.flatMap(u => u.source_unit_ids || []));
+  return `${plot_data.plot_units.filter(u => !merged.has(u.unit_id)).length} 张 · ${plan.placements.length} 已排`;
+}

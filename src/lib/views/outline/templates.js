@@ -19,7 +19,7 @@ export function fold(v, key, label, body) {
 export function cardFull(v, c, { actions = '', where = true, drag = false, mark = true } = {}) {
   const { D, beatShort, esc, list, markBlock, statusClass, fold } = v;
   const p = D.placedIn[c.id], m = mark && D.marks[c.id];
-  const place = where ? `<span class="where ${p ? 'placed' : ''}">${p ? '排在 ' + beatShort(p.beat) : '未排'}</span>` : '';
+  const place = where && p ? `<span class="where placed">排在 ${beatShort(p.beat)}</span>` : '';
   const foot = [
     c.details?.length ? fold(`d:${c.id}`, `细节 ${c.details.length}`, list(c.details)) : '',
     c.origins?.length ? fold(`o:${c.id}`, `并入的原纲 ${c.origins.length}`, list(c.origins)) : '',
@@ -27,29 +27,34 @@ export function cardFull(v, c, { actions = '', where = true, drag = false, mark 
   ].join('');
   return `<article class="card ${c.cat} ${m ? 'marked' : ''}" ${drag ? `data-drag="card" data-id="${c.id}"` : ''} data-card="${c.id}">
     <div class="c-head"><span class="badge ${statusClass[c.status]}">${c.status}</span>${place}</div>
-    ${c.title ? `<div class="c-title">${esc(c.title)}</div>` : ''}<div class="c-text">${esc(c.text)}</div>${m ? markBlock(c) : ''}
+    <div class="c-text">${esc(c.text)}</div>${m ? markBlock(c) : ''}
     <div class="c-foot">${foot}<span class="c-actions">${actions}</span></div></article>`;
 }
 
 // Compact card in a Beat cell of the current storyline.
 export function cardMini(v, c) {
-  const { D, cardLabel, esc, markBlock, statusClass } = v;
-  return `<div class="mini ${c.cat} ${D.marks[c.id] ? 'marked' : ''}" data-drag="card" data-id="${c.id}" data-card="${c.id}" title="${esc(c.text)}">
-    <div class="mini-head"><span class="badge ${statusClass[c.status]}">${c.status}</span><span class="mini-title">${esc(cardLabel(c))}</span>
+  const { D, esc, markBlock, statusClass } = v;
+  return `<div class="mini ${c.cat} ${D.marks[c.id] ? 'marked' : ''}" data-drag="card" data-id="${c.id}" data-card="${c.id}">
+    <div class="mini-head"><span class="badge ${statusClass[c.status]}">${c.status}</span><span class="mini-text">${esc(c.text)}</span>
     <button class="x" data-act="unplace" data-id="${c.id}" title="移出这一拍" aria-label="移出这一拍">×</button></div>${markBlock(c)}</div>`;
+}
+
+// Move a card to another storyline; it keeps its category and Beat placement.
+export function lineSelect(v, c) {
+  const { S, sections, nameOf, esc } = v;
+  const groups = sections(S.lines.filter(l => l.id !== c.line)).map(s => `<optgroup label="${esc(s.name)}">${s.lines.map(l => `<option value="${l.id}">${esc(nameOf(l))}</option>`).join('')}</optgroup>`).join('');
+  return `<select data-change="move-line" data-id="${c.id}" aria-label="转到其他故事线"><option value="">转到…</option>${groups}</select>`;
 }
 
 // Read-only reference to another storyline's card.
 export function refChip(v, c) {
-  const { lineOf, nameOf, cardLabel, esc } = v;
-  const l = lineOf(c.line);
-  return `<div class="ref" title="${esc(nameOf(l))}\n${esc(c.text)}"><span class="ref-line">${esc(nameOf(l))}</span><span class="ref-title">${esc(cardLabel(c))}</span></div>`;
+  const { lineOf, nameOf, esc } = v;
+  return `<div class="ref"><span class="ref-line">${esc(nameOf(lineOf(c.line)))}</span><span class="ref-text">${esc(c.text)}</span></div>`;
 }
 
 export function cardEditor(v, c) {
   const { esc } = v;
   return `<form class="card editor ${c.cat}" data-form="card" data-drag="card" data-id="${c.id}" data-locked>
-    <label class="field">标题<input name="title" value="${esc(c.title)}" placeholder="可留空"></label>
     <label class="field">内容<textarea name="text" rows="4">${esc(c.text)}</textarea></label>
     <label class="field">细节（每行一条）<textarea name="details" rows="3">${esc((c.details || []).join('\n'))}</textarea></label>
     <div class="form-actions"><button class="primary" type="submit">保存</button><button type="button" data-act="cancel-edit">取消</button></div></form>`;
@@ -59,7 +64,6 @@ export function composer(v, cat) {
   const { CAT_LABEL } = v;
   return `<form class="card editor composer ${cat}" data-form="new" data-cat="${cat}">
     <div class="composer-caption">新增到 ${CAT_LABEL[cat]} 末尾</div>
-    <label class="field">标题<input name="title" placeholder="这一段的名字"></label>
     <label class="field">内容<textarea name="text" rows="3" placeholder="发生了什么"></textarea></label>
     <div class="form-actions"><button class="primary" type="submit">添加</button><button type="button" data-act="cancel-compose">取消</button></div></form>`;
 }
@@ -95,5 +99,5 @@ export function lineDialog(v) {
       <datalist id="kb-names">${DATA.kb.map(k => `<option value="${esc(k.name)}">${esc(k.type)}</option>`).join('')}</datalist></div>
     <label class="field">标志性参与者<select name="lead" ${parts.length ? '' : 'disabled'}>${parts.map(p => `<option value="${esc(p)}" ${p === d.lead ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></label>
     <div class="form-actions"><button class="primary" type="submit" id="line-save" ${d.parts.length && d.title.trim() ? '' : 'disabled'}>保存</button>
-      <button type="button" data-act="close-dialog">取消</button></div></form></div>`;
+      <button type="button" data-act="close-dialog">取消</button>${d.id ? `<button type="button" class="danger" data-act="delete-line" data-id="${d.id}">删除故事线</button>` : ''}</div></form></div>`;
 }
