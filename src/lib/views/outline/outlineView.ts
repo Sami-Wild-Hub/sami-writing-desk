@@ -17,6 +17,7 @@ const createOutline: CreateNovelView = host => {
           return true;
         }
         panel = mountOutline(host.root, payload, host.outlineDraftKey, host);
+        y = panel.initialY; // where this browser last left the workbench
       }
       document.title = `大纲 · ${host.bookTitle} · Sami Writing Desk`;
       window.scrollTo(0, context.restore ?? y);

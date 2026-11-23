@@ -22,6 +22,8 @@ Source entry points:
 - `presentation.js`, `templates.js`, `render-outline.js`, `render-story.js`, `drag.js`: approved sample presentation bound to the live model.
 - `sync/outline/migrate-combined.mjs`, `migrate-combined-cli.mjs`: one-time category conversion and guarded cutover. Browser and worker accept only the current category values and three time-order keys.
 
+The workbench remembers where it was left (tab, storyline, Beat, open library groups, status filters, 只看未排 and pane scroll) under `<draft key>:view` in localStorage, per account and book; storylines or Beats that no longer exist fall back to the defaults. `view-state.js` owns this.
+
 Local drafts use the existing account/book key. An incompatible draft stays in localStorage and displays the existing read-error notice; it is not converted or saved to the cloud.
 
 Run `npm run test:unit`, `npm run test:browser` and `npm run test:e2e:real`. Private outline tests load the sibling data checkout at runtime, or `OUTLINE_DATA_REPO`; public CI skips those tests when the private source is absent. They do not embed a substitute book. The real acceptance harness uses temporary git remotes and an RTDB emulator and cleans them on exit. Default viewport is 1440×900 for the storyline UI.
