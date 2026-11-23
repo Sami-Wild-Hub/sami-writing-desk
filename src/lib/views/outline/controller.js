@@ -9,6 +9,7 @@ import { completePlan, completeWorkspace } from './workspace.js';
 import { subscribe } from './sync.ts';
 import { mountManualSync } from './manual-sync.js';
 import { fullTimeIndex } from './ordering.js';
+import { viewStore } from './view-state.js';
 export const mountOutline = (root, payload, draftKey, host) => new OutlinePanel(root, payload, draftKey, host);
 class OutlinePanel extends OutlineCloud {
   constructor(root, payload, draftKey, host) {
@@ -35,6 +36,7 @@ class OutlinePanel extends OutlineCloud {
     window.addEventListener('online', this.online);
     try { const saved = this.draft.load(); if (saved) this.loadSavedDraft(saved); }
     catch (error) { this.noticeKind = 'draft'; this.notice('本地草稿未能读取，原始草稿仍保留。'); this.report(error.message, true); }
+    this.restoreView();
     this.unsubscribe = subscribe(host.householdRef, host.slug, state => { this.remoteUpdates = this.remoteUpdates.then(() => this.receiveRemote(state)); }, error => this.report(error.message, true));
     this.render();
   }
@@ -75,9 +77,32 @@ class OutlinePanel extends OutlineCloud {
     root.querySelector('[data-workbench]').innerHTML = u.tab === 'story' ? v.renderStory() : v.renderOutline();
     root.querySelector('[data-layer]').innerHTML = (u.rank ? v.rankPanel() : '') + (u.dialog ? v.lineDialog() : '');
     for (const [key, top] of scroll) root.querySelector(`[data-keep="${key}"]`)?.scrollTo(0, top);
+    if (this.scroll && !this.viewShown) { this.viewShown = true; for (const [key, top] of Object.entries(this.scroll)) root.querySelector(`[data-keep="${CSS.escape(key)}"]`)?.scrollTo(0, top); }
     if (focused !== null) { const input = root.querySelector('[data-input="search"]'); input.focus(); input.setSelectionRange(focused, focused); }
-    this.updateSyncStatus();
+    this.updateSyncStatus(); this.queueView();
   };
+  // Reopen at the tab, storyline, Beat, library groups, filters and scroll left last time in this browser.
+  restoreView = () => {
+    this.views = viewStore(this.draftKey + ':view');
+    const { beat, scroll = {}, y = 0, ...ui } = this.views.load(this.model);
+    Object.assign(this.UI, ui); if (beat) this.model.activeBeat = beat;
+    this.scroll = scroll; this.y = y; this.viewTimer = null;
+    this.onScroll = e => {
+      const key = e.target.dataset?.keep;
+      if (key) this.scroll[key] = e.target.scrollTop;
+      else if (e.target === document && !this.root.closest('[hidden]')) this.y = window.scrollY;
+      else return;
+      this.queueView();
+    };
+    this.root.addEventListener('scroll', this.onScroll, true); document.addEventListener('scroll', this.onScroll);
+    this.flushView = () => {
+      if (this.viewTimer) { clearTimeout(this.viewTimer); this.viewTimer = null; }
+      const u = this.UI; this.views.save({ tab: u.tab, line: u.line, beat: this.model.activeBeat, open: u.open, filters: u.filters, onlyUnplaced: u.onlyUnplaced, scroll: this.scroll, y: this.y });
+    };
+    window.addEventListener('pagehide', this.flushView);
+  };
+  get initialY() { return this.y; }
+  queueView = () => { if (this.views && !this.viewTimer) this.viewTimer = setTimeout(this.flushView, 300); };
   action = t => {
     const u = this.UI, id = t.dataset.id, m = this.model;
     switch (t.dataset.act) {
@@ -158,7 +183,7 @@ class OutlinePanel extends OutlineCloud {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.target.closest('input,textarea')) { e.preventDefault(); this.model.undo(); }
       if (e.key === 'Escape' && !this.drag.active()) { Object.assign(this.UI, { dialog: null, picker: false, rank: false, editing: null, composing: null }); this.render(); }
     });
-    this.root.addEventListener('toggle', e => { const key = e.target.dataset?.key; if (key) e.target.open ? this.UI.open.add(key) : this.UI.open.delete(key); }, true);
+    this.root.addEventListener('toggle', e => { const key = e.target.dataset?.key; if (key) { e.target.open ? this.UI.open.add(key) : this.UI.open.delete(key); this.queueView(); } }, true);
   };
   wireFiles = () => {
     const on = (id, fn) => this.$(id).addEventListener('click', () => this.attempt(fn));
@@ -196,6 +221,7 @@ class OutlinePanel extends OutlineCloud {
   };
   dispose = () => {
     this.disposed = true; this.manualSync.dispose(); this.drag.dispose(); this.unsubscribe?.(); window.removeEventListener('online', this.online);
+    this.flushView(); window.removeEventListener('pagehide', this.flushView); document.removeEventListener('scroll', this.onScroll);
     if (this.cloudSaveTimer) clearTimeout(this.cloudSaveTimer); this.root.replaceChildren();
   };
 }
