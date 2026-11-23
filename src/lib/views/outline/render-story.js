@@ -33,19 +33,21 @@ export function beatsGrid(v, line) {
 }
 
 export function selfPane(v, line) {
-  const { CATS, nameOf, esc, selfCol } = v;
+  const { UI, CATS, nameOf, esc, selfCol } = v;
   return `<div class="self-head"><div class="self-title"><span class="kicker">故事线 · 时间顺序</span><h2>${esc(nameOf(line))}</h2></div>
+    <button class="btn" data-act="toggle-unplaced" aria-pressed="${UI.onlyUnplaced}" title="隐藏已排和已写的卡">只看未排</button>
     <button class="btn" data-act="edit-line" data-id="${line.id}">编辑名称与参与者</button></div>
     <div class="self-cols">${CATS.map(cat => selfCol(line, cat)).join('')}</div>`;
 }
 
 export function selfCol(v, line, cat) {
   const { UI, S, CAT_LABEL, list, cardFull, cardEditor, composer, lineSelect } = v;
-  const ids = S.time[line.id][cat];
+  const all = S.time[line.id][cat], ids = UI.onlyUnplaced ? all.filter(id => S.cards[id].status === '未排') : all;
+  const hidden = all.length - ids.length;
   const actions = id => `<button class="tiny" data-act="edit-card" data-id="${id}">编辑</button>${lineSelect(S.cards[id])}<button class="tiny danger" data-act="delete-card" data-id="${id}">删除</button>`;
   const card = id => (UI.editing === id ? cardEditor(S.cards[id]) : cardFull(S.cards[id], { drag: true, mark: false, actions: actions(id) }));
-  return `<section class="self-col ${cat}"><div class="col-head"><span class="era">${CAT_LABEL[cat]}</span><span class="n">${ids.length} 张</span>
+  return `<section class="self-col ${cat}"><div class="col-head"><span class="era">${CAT_LABEL[cat]}</span><span class="n">${UI.onlyUnplaced ? `${ids.length} / ${all.length}` : all.length} 张</span>
     <button class="inline-plus" data-act="compose" data-cat="${cat}">＋ 新增</button></div>
     <div class="col-body" data-keep="col-${cat}" data-zone-area><div class="col-list" data-zone="time" data-accept="card" data-cat="${cat}">${ids.map(card).join('')}</div>
-    ${UI.composing === cat ? composer(cat) : ''}</div></section>`;
+    ${hidden ? `<button class="quiet tiny hidden-note" data-act="toggle-unplaced">另有 ${hidden} 张已排/已写，点此显示</button>` : ''}${UI.composing === cat ? composer(cat) : ''}</div></section>`;
 }

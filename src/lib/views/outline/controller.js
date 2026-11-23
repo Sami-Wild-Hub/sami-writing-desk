@@ -8,6 +8,7 @@ import { mountDrag } from './drag.js';
 import { completePlan, completeWorkspace } from './workspace.js';
 import { subscribe } from './sync.ts';
 import { mountManualSync } from './manual-sync.js';
+import { fullTimeIndex } from './ordering.js';
 export const mountOutline = (root, payload, draftKey, host) => new OutlinePanel(root, payload, draftKey, host);
 class OutlinePanel extends OutlineCloud {
   constructor(root, payload, draftKey, host) {
@@ -18,14 +19,14 @@ class OutlinePanel extends OutlineCloud {
     this.manualSync = mountManualSync(root.querySelector('.outline-view'));
     this.$ = id => root.querySelector(`[id="${id}"]`);
     root.querySelector('.outline-shell-head').append(host.sideHead());
-    this.UI = { tab: 'story', line: payload.config.defaultStorylineId, beat: payload.plot_data.beats[0].beat_id, picker: false, rank: false, dialog: null, editing: null, composing: null, search: '', open: new Set(), filters: new Set(['unplaced']) };
+    this.UI = { tab: 'story', line: payload.config.defaultStorylineId, beat: payload.plot_data.beats[0].beat_id, picker: false, rank: false, dialog: null, editing: null, composing: null, search: '', open: new Set(), filters: new Set(['unplaced']), onlyUnplaced: true };
     this.draft = draftStore(draftKey, this.cloudRevision());
     this.report = (text, error = false) => { this.$('status').textContent = text; this.$('status').classList.toggle('error', error); };
     this.model = createOutlineModel(payload.plot_data, payload.plan, { render: this.render, save: this.saveWorkspace, warning: () => { this.$('autosave-warning').hidden = false; } });
     this.drag = mountDrag(root.querySelector('.outline-view'));
     this.drag.onDrop = ({ kind, id, zone, index }) => this.attempt(() => {
       if (kind === 'rank') this.model.moveRank(id, index);
-      else if (zone.zone === 'time') this.model.moveInTime(id, zone.cat, index);
+      else if (zone.zone === 'time') this.model.moveInTime(id, zone.cat, this.timeIndex(id, zone.cat, index));
       else if (zone.zone === 'beat') this.model.placeInCell(id, zone.beat, zone.cat, index);
       else if (zone.zone === 'line') this.moveToLine(id, zone.line);
     });
@@ -37,6 +38,11 @@ class OutlinePanel extends OutlineCloud {
     this.unsubscribe = subscribe(host.householdRef, host.slug, state => { this.remoteUpdates = this.remoteUpdates.then(() => this.receiveRemote(state)); }, error => this.report(error.message, true));
     this.render();
   }
+  // With placed/written cards hidden, the drop index counts shown cards only.
+  timeIndex = (id, cat, index) => {
+    const m = this.model, ids = m.storyMap[m.unitMap[id].storyline_group_id].time_order[cat];
+    return this.UI.onlyUnplaced ? fullTimeIndex(ids, id, x => m.unitMap[x].status !== 'WRITTEN' && !m.used(x), index) : index;
+  };
   get activeBeat() { return this.model.activeBeat; }
   get editing() { return this.UI.editing; }
   get composer() { return this.UI.composing; }
@@ -103,6 +109,7 @@ class OutlinePanel extends OutlineCloud {
         u.filters.add(written ? 'written' : m.used(id) ? 'placed' : 'unplaced'); m.setWritten(id, written);
         this.report(written ? '已标为已写，可撤销。' : '已改回未写，可撤销。'); return;
       }
+      case 'toggle-unplaced': u.onlyUnplaced = !u.onlyUnplaced; break;
       case 'filter': if (!u.filters.delete(t.dataset.filterState)) u.filters.add(t.dataset.filterState); break;
     } this.render();
   };

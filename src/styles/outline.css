@@ -81,6 +81,8 @@ button.badge { min-height: 0; border: 1px solid transparent; cursor: pointer; }
 button.badge:hover { border-color: currentColor; }
 button.badge.written:hover { color: var(--done); }
 button.badge.placed:hover { color: var(--placed); }
+.outline-view button.badge.written { background: var(--done-soft); }
+.hidden-note { display: flex; width: 100%; margin-top: .3rem; font-size: .75rem; }
 .where { margin-left: auto; color: var(--ink-3); font-size: .6875rem; white-space: nowrap; }
 .where.placed { color: var(--accent-ink); font-weight: 700; }
 .c-text { margin-top: .15rem; color: var(--ink); font-size: .8125rem; line-height: 1.65; white-space: pre-wrap; }

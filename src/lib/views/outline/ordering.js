@@ -21,3 +21,10 @@ export function mismatchMarks(data, plan) {
     seq.forEach((id, i) => { if (!keep.has(i)) marks[id] = { after: seq.filter((_, j) => j > i && t[j] < t[i]), before: seq.filter((_, j) => j < i && t[j] > t[i]) }; });
   } return marks;
 }
+
+// A drop among only the shown cards of a time column, as a position in the full column (without the dragged card).
+export function fullTimeIndex(ids, id, shown, index) {
+  const rest = ids.filter(x => x !== id), seen = rest.filter(shown);
+  if (index < seen.length) return rest.indexOf(seen[index]);
+  return seen.length ? rest.indexOf(seen.at(-1)) + 1 : rest.length;
+}

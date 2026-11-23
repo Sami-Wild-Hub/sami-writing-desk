@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import rawTest from 'node:test';
 import { createOutlineModel, cardText } from '../src/lib/views/outline/model.js';
 import { presentation } from '../src/lib/views/outline/presentation.js';
+import { fullTimeIndex } from '../src/lib/views/outline/ordering.js';
 import { outlineFixture, hasOutline } from './outline-fixture.mjs';
 const test = (name, fn) => rawTest(name, { skip: !hasOutline }, fn);
 const setup = () => { const f = outlineFixture(); return createOutlineModel(f.plot_data, f.plan); };
@@ -123,4 +124,15 @@ test('manual 已写 toggle overrides placement status, clears back to 已排/未
   m.setWritten(a.unit_id, false); assert.equal(m.unitMap[a.unit_id].status, 'PLANNED'); assert.equal(status(a.unit_id), '已排');
   m.undo(); assert.equal(status(a.unit_id), '已写');
   m.undo(); m.undo(); assert.equal(status(a.unit_id), '已排'); assert.equal(m.unitMap[a.unit_id].status, a.status);
+});
+rawTest('a drop among shown time cards maps to the full column around hidden cards', () => {
+  const ids = ['a', 'B', 'c', 'D', 'e'], shown = x => x === x.toLowerCase();   // B and D hidden
+  assert.equal(fullTimeIndex(ids, 'z', shown, 0), 0);                        // before a
+  assert.equal(fullTimeIndex(ids, 'z', shown, 1), 2);                        // before c, after hidden B
+  assert.equal(fullTimeIndex(ids, 'z', shown, 3), 5);                        // after e
+  assert.equal(fullTimeIndex(ids, 'c', shown, 0), 0);                        // dragged card itself is not counted
+  assert.equal(fullTimeIndex(ids, 'c', shown, 1), 3);                        // c after e: rest is a,B,D,e
+  assert.equal(fullTimeIndex(['B', 'D'], 'z', shown, 0), 2);                 // nothing shown: end
+  const out = ids.filter(x => x !== 'a'); out.splice(fullTimeIndex(ids, 'a', shown, 1), 0, 'a');
+  assert.deepEqual(out, ['B', 'c', 'D', 'a', 'e']);                          // a dropped between c and e keeps D before it
 });

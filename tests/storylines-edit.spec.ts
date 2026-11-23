@@ -14,6 +14,7 @@ async function open(page: Page) {
   const reads = await stubFirebase(page, { canonical: true }), errors = watchErrors(page);
   await page.goto('book/?book=maritime-story&view=outline');
   const root = page.locator('[data-view="outline"]'); await expect(root.locator('#overall')).toHaveText(overallText());
+  await root.locator('.self-head [data-act="toggle-unplaced"]').click(); // these specs work with every card shown
   return { root, reads, errors };
 }
 async function workspace(page: Page, root: Locator) {
