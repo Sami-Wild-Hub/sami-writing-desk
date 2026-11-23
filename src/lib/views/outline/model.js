@@ -3,10 +3,7 @@ import { validateData, validatePlan, CATEGORIES } from './validation.js';
 import { mismatchMarks } from './ordering.js';
 export const clone = value => structuredClone(value);
 // Cards show one text: a stored title is joined in front of the content unless the content already starts with it.
-export const cardText = u => {
-  const title = (u.element_title || '').trim(), text = u.content || '';
-  return !title || text.startsWith(title) ? text : text.trim() ? `${title}：${text}` : title;
-};
+export const cardText = u => u.content || u.element_title || '';
 export const createOutlineModel = (data, plan, hooks) => new OutlineModel(data, plan, hooks);
 class OutlineModel {
   constructor(data, plan, hooks = {}) {

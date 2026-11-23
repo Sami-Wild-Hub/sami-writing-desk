@@ -100,8 +100,7 @@ test('cards show one text with only 已写/已排/未排 tags; counts read 未�
   const placed = ids.filter(m.used).length; assert.equal(v.countOf(line.id), `${ids.length - placed}|${placed}|${ids.length}`);
   assert.deepEqual(new Set(Object.values(v.S.cards).map(c => c.status)), new Set(['已写', '已排', '未排']));
   assert.equal(v.CAT_LABEL.undecided, 'Combined');
-  assert.equal(cardText({ element_title: '标题', content: '内容' }), '标题：内容');
-  assert.equal(cardText({ element_title: '标题', content: '' }), '标题'); assert.equal(cardText({ element_title: '标题', content: '标题之后' }), '标题之后');
+  assert.equal(cardText({ element_title: '标题', content: '内容' }), '内容'); assert.equal(cardText({ element_title: '标题', content: '' }), '标题');
   const titled = m.visibleUnits().find(u => u.element_title && u.content), text = cardText(titled);
   m.editText(titled.unit_id, text, titled.details || []);
   assert.equal(m.unitMap[titled.unit_id].content, text); assert.equal(m.unitMap[titled.unit_id].element_title, ''); assert.equal(cardText(m.unitMap[titled.unit_id]), text);
