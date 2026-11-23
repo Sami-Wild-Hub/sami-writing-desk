@@ -98,6 +98,11 @@ class OutlinePanel extends OutlineCloud {
       case 'choose-beat': m.activeBeat = id; break;
       case 'unplace': u.filters.add(m.unitMap[id].status === 'WRITTEN' ? 'written' : 'unplaced'); u.open.add('lib:' + m.unitMap[id].storyline_group_id); m.removeUnit(id); return;
       case 'pick': m.placeInCell(id, m.activeBeat, m.unitMap[id].category); return;
+      case 'toggle-written': {
+        const written = m.unitMap[id].status !== 'WRITTEN';
+        u.filters.add(written ? 'written' : m.used(id) ? 'placed' : 'unplaced'); m.setWritten(id, written);
+        this.report(written ? '已标为已写，可撤销。' : '已改回未写，可撤销。'); return;
+      }
       case 'filter': if (!u.filters.delete(t.dataset.filterState)) u.filters.add(t.dataset.filterState); break;
     } this.render();
   };

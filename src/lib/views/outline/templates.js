@@ -15,9 +15,15 @@ export function fold(v, key, label, body) {
   return `<details class="fold" data-key="${esc(key)}" ${UI.open.has(key) ? 'open' : ''}><summary>${label}</summary>${body}</details>`;
 }
 
+// Status badge doubles as the manual 已写 switch; 已排/未排 still follow placement.
+export function badge(v, c) {
+  const { statusClass } = v, written = c.status === '已写';
+  return `<button type="button" class="badge ${statusClass[c.status]}" data-act="toggle-written" data-id="${c.id}" aria-pressed="${written}" title="${written ? '已写 · 点击改回未写' : '点击标为已写'}">${c.status}</button>`;
+}
+
 // Full card: badge, where it is placed, text, details and origins, actions.
 export function cardFull(v, c, { actions = '', where = true, drag = false, mark = true } = {}) {
-  const { D, beatShort, esc, list, markBlock, statusClass, fold } = v;
+  const { D, beatShort, esc, list, markBlock, badge, fold } = v;
   const p = D.placedIn[c.id], m = mark && D.marks[c.id];
   const place = where && p ? `<span class="where placed">排在 ${beatShort(p.beat)}</span>` : '';
   const foot = [
@@ -26,16 +32,16 @@ export function cardFull(v, c, { actions = '', where = true, drag = false, mark 
     c.refs ? `<span class="refs">出处 ${esc(c.refs)}</span>` : '',
   ].join('');
   return `<article class="card ${c.cat} ${m ? 'marked' : ''}" ${drag ? `data-drag="card" data-id="${c.id}"` : ''} data-card="${c.id}">
-    <div class="c-head"><span class="badge ${statusClass[c.status]}">${c.status}</span>${place}</div>
+    <div class="c-head">${badge(c)}${place}</div>
     <div class="c-text">${esc(c.text)}</div>${m ? markBlock(c) : ''}
     <div class="c-foot">${foot}<span class="c-actions">${actions}</span></div></article>`;
 }
 
 // Compact card in a Beat cell of the current storyline.
 export function cardMini(v, c) {
-  const { D, esc, markBlock, statusClass } = v;
+  const { D, esc, markBlock, badge } = v;
   return `<div class="mini ${c.cat} ${D.marks[c.id] ? 'marked' : ''}" data-drag="card" data-id="${c.id}" data-card="${c.id}">
-    <div class="mini-head"><span class="badge ${statusClass[c.status]}">${c.status}</span><span class="mini-text">${esc(c.text)}</span>
+    <div class="mini-head">${badge(c)}<span class="mini-text">${esc(c.text)}</span>
     <button class="x" data-act="unplace" data-id="${c.id}" title="移出这一拍" aria-label="移出这一拍">×</button></div>${markBlock(c)}</div>`;
 }
 

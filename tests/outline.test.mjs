@@ -113,3 +113,14 @@ test('cards show one text with only 已写/已排/未排 tags; counts read 未�
   m.editText(titled.unit_id, text, titled.details || []);
   assert.equal(m.unitMap[titled.unit_id].content, text); assert.equal(m.unitMap[titled.unit_id].element_title, ''); assert.equal(cardText(m.unitMap[titled.unit_id]), text);
 });
+test('manual 已写 toggle overrides placement status, clears back to 已排/未排, and undoes', () => {
+  const m = setup(), [a, b] = m.visibleUnits().filter(u => u.status !== 'WRITTEN');
+  m.placeInCell(a.unit_id, m.beatIds[0], a.category); m.removeUnit(b.unit_id);
+  const status = id => presentation(m, {}).S.cards[id].status;
+  assert.equal(status(a.unit_id), '已排'); assert.equal(status(b.unit_id), '未排');
+  m.setWritten(a.unit_id, true); m.setWritten(b.unit_id, true);
+  assert.equal(status(a.unit_id), '已写'); assert.equal(status(b.unit_id), '已写'); assert.ok(m.used(a.unit_id));
+  m.setWritten(a.unit_id, false); assert.equal(m.unitMap[a.unit_id].status, 'PLANNED'); assert.equal(status(a.unit_id), '已排');
+  m.undo(); assert.equal(status(a.unit_id), '已写');
+  m.undo(); m.undo(); assert.equal(status(a.unit_id), '已排'); assert.equal(m.unitMap[a.unit_id].status, a.status);
+});

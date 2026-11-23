@@ -77,6 +77,10 @@ details[open] > summary::before { transform: rotate(90deg); }
 .badge.written { background: var(--done-soft); color: var(--done); }
 .badge.placed { background: var(--placed-soft); color: var(--placed); }
 .badge.unplaced { background: var(--sunk); color: var(--ink-2); }
+button.badge { min-height: 0; border: 1px solid transparent; cursor: pointer; }
+button.badge:hover { border-color: currentColor; }
+button.badge.written:hover { color: var(--done); }
+button.badge.placed:hover { color: var(--placed); }
 .where { margin-left: auto; color: var(--ink-3); font-size: .6875rem; white-space: nowrap; }
 .where.placed { color: var(--accent-ink); font-weight: 700; }
 .c-text { margin-top: .15rem; color: var(--ink); font-size: .8125rem; line-height: 1.65; white-space: pre-wrap; }

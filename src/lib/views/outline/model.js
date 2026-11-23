@@ -70,6 +70,11 @@ class OutlineModel {
     }); return id;
   };
   editCard = (id, patch) => this.change(() => { Object.assign(this.unitMap[id], patch); });
+  // Manual 已写 mark. Clearing it returns the card to PLANNED, so 已排/未排 again follows its Beat placement.
+  setWritten = (id, written) => this.change(() => {
+    const unit = this.unitMap[id];
+    if (written) unit.status = 'WRITTEN'; else if (unit.status === 'WRITTEN') unit.status = 'PLANNED';
+  });
   // The edited text replaces both stored title and content.
   editText = (id, text, details) => {
     if (!text.trim()) throw Error('卡片不能为空');
