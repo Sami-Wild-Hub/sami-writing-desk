@@ -228,6 +228,10 @@ export class FirebaseHouseholdSession {
         this.setStatus({ connection: 'pending', label: '家庭权限已撤销', uid: this.uid, email: this.email, enrollmentOpen: false });
         return;
       }
+      if (this.status.connection !== 'connected') {
+        this.connectMember(memberRef, next.child('displayName').val(), enrollmentOpen);
+        return;
+      }
       const nextDisplayName = normalizeHouseholdDisplayName(next.child('displayName').val()) ?? '';
       if (nextDisplayName !== this.displayName) {
         this.displayName = nextDisplayName;

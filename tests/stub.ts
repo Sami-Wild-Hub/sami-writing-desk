@@ -138,6 +138,10 @@ async function database({ canonical = false } = {}) {
 export async function stubFirebase(page: Page, { signedIn = true, canonical = false } = {}) {
   const db = await database({ canonical });
   const reads: string[] = [];
+  let hold = false;
+  const receipts: (() => void)[] = [];
+  let heldRead = '';
+  const readReceipts: (() => void)[] = [];
   const listens = new Map<{ send(data: unknown): void }, Set<string>>();
   let holdWrite = false;
   let acknowledge: (() => void) | undefined;
@@ -189,6 +193,8 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
       if (a === 'n') paths.delete(b.p!);
       const ack = () => send({ r, b: { s: 'ok', d: a === 'g' ? at(b.p!) : {} } });
       if (holdWrite && (a === 'p' || a === 'm')) { holdWrite = false; acknowledge = ack; }
+      else if (hold && (a === 'p' || a === 'm')) receipts.push(ack);
+      else if (a === 'g' && heldRead && b.p?.includes(heldRead)) readReceipts.push(ack);
       else ack();
     });
   });
@@ -199,8 +205,12 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
       for (const p of paths) if (norm(path).startsWith(norm(p)) || norm(p).startsWith(norm(path))) socket.send({ a: 'd', b: { p, d: at(p) } });
     }
   };
-  return Object.assign(reads, { server, at, holdNextWrite: () => { holdWrite = true; },
-    releaseWrite: () => { if (!acknowledge) throw Error('No write awaiting confirmation'); acknowledge(); acknowledge = undefined; } });
+  return Object.assign(reads, {
+    server, at, holdWrites: () => { hold = true; }, releaseWrites: () => { hold = false; receipts.splice(0).forEach(send => send()); },
+    holdReads: (part: string) => { heldRead = part; }, releaseReads: () => { heldRead = ''; readReceipts.splice(0).forEach(send => send()); },
+    holdNextWrite: () => { holdWrite = true; },
+    releaseWrite: () => { if (!acknowledge) throw Error('No write awaiting confirmation'); acknowledge(); acknowledge = undefined; },
+  });
 }
 
 /** Collects uncaught page errors and console errors. */

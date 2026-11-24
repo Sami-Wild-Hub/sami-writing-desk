@@ -116,6 +116,7 @@ test('cards show one text with only 已写/已排/未排 tags; counts read 未�
 });
 test('manual 已写 toggle overrides placement status, clears back to 已排/未排, and undoes', () => {
   const m = setup(), [a, b] = m.visibleUnits().filter(u => u.status !== 'WRITTEN');
+  const originalStatus = a.status;
   m.placeInCell(a.unit_id, m.beatIds[0], a.category); m.removeUnit(b.unit_id);
   const status = id => presentation(m, {}).S.cards[id].status;
   assert.equal(status(a.unit_id), '已排'); assert.equal(status(b.unit_id), '未排');
@@ -123,7 +124,7 @@ test('manual 已写 toggle overrides placement status, clears back to 已排/未
   assert.equal(status(a.unit_id), '已写'); assert.equal(status(b.unit_id), '已写'); assert.ok(m.used(a.unit_id));
   m.setWritten(a.unit_id, false); assert.equal(m.unitMap[a.unit_id].status, 'PLANNED'); assert.equal(status(a.unit_id), '已排');
   m.undo(); assert.equal(status(a.unit_id), '已写');
-  m.undo(); m.undo(); assert.equal(status(a.unit_id), '已排'); assert.equal(m.unitMap[a.unit_id].status, a.status);
+  m.undo(); m.undo(); assert.equal(status(a.unit_id), '已排'); assert.equal(m.unitMap[a.unit_id].status, originalStatus);
 });
 rawTest('a drop among shown time cards maps to the full column around hidden cards', () => {
   const ids = ['a', 'B', 'c', 'D', 'e'], shown = x => x === x.toLowerCase();   // B and D hidden

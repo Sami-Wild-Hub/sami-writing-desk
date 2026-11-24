@@ -55,6 +55,7 @@ test('sync asks once and dispatches main with the stored token after refresh', a
   const requests: any[] = [];
   await page.route(endpoint, async route => { requests.push(route.request()); await route.fulfill({ status: 204 }); });
   const { root, errors } = await open(page);
+  await root.locator('.file-recovery > summary').click();
   await expect(root.getByRole('link', { name: '查看同步结果' })).toHaveAttribute('href', endpoint.replace('api.github.com/repos/', 'github.com/').replace('/dispatches', ''));
   await root.locator('#manual-sync').click(); const form = root.getByRole('form', { name: '同步授权' });
   await expect(form.locator('input')).toHaveAttribute('type', 'password');
@@ -62,7 +63,7 @@ test('sync asks once and dispatches main with the stored token after refresh', a
   await expect(root.locator('#manual-sync-status')).toContainText('已触发同步');
   expect(requests[0].method()).toBe('POST'); expect(requests[0].postDataJSON()).toEqual({ ref: 'main' });
   expect(requests[0].headers().authorization).toBe('Bearer test-valid-token');
-  await page.reload(); await expect(root.locator('#overall')).toBeVisible(); await root.locator('#manual-sync').click();
+  await page.reload(); await expect(root.locator('#overall')).toBeVisible(); await root.locator('.file-recovery > summary').click(); await root.locator('#manual-sync').click();
   await expect(root.locator('#manual-sync-status')).toContainText('已触发同步'); expect(requests).toHaveLength(2);
   await expect(root.getByRole('form', { name: '同步授权' })).toHaveCount(0); expect(errors).toEqual([]);
 });
@@ -74,7 +75,7 @@ test('invalid token shows failure, removes stored token and asks for a replaceme
   });
   const { root } = await open(page);
   await page.evaluate(({ key }) => localStorage.setItem(key, 'test-invalid-token'), { key: tokenKey });
-  await root.locator('#manual-sync').click(); await expect(root.locator('#manual-sync-status')).toContainText('token 无效');
+  await root.locator('.file-recovery > summary').click(); await root.locator('#manual-sync').click(); await expect(root.locator('#manual-sync-status')).toContainText('token 无效');
   const form = root.getByRole('form', { name: '同步授权' }); await expect(form).toBeVisible();
   expect(await page.evaluate(key => localStorage.getItem(key), tokenKey)).toBeNull();
   await expect(form.getByLabel('GitHub token')).toHaveValue('');

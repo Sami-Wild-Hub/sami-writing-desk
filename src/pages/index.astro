@@ -29,7 +29,7 @@ const spine = (title: string) => (title.match(/\b[A-Z]/g)?.join('') ?? title).sl
     </section>
     <div class="sec">
       <h2>书架</h2><span class="n">{novelBooks.length} 本</span><span class="sp"></span>
-      <input type="search" id="home-filter" placeholder="找书名…" aria-label="找书名" autocomplete="off" />
+      {novelBooks.length >= 6 && <input type="search" id="home-filter" placeholder="找书名…" aria-label="找书名" autocomplete="off" />}
     </div>
     <div class="shelf" id="home-shelf">
       {novelBooks.map((book) => (
@@ -49,9 +49,9 @@ const spine = (title: string) => (title.match(/\b[A-Z]/g)?.join('') ?? title).sl
           </div>
         </article>
       ))}
-      <div class="ghost"><b>下一本书</b>书稿同步进来后会出现在这里</div>
+      {novelBooks.length >= 6 && <div class="ghost"><b>下一本书</b>书稿同步进来后会出现在这里</div>}
     </div>
-    <p class="foot">公开页面只有登录和阅读器外壳；小说内容只在家庭成员登录后从私有数据库读取。</p>
+    <p class="foot">家里人的书稿与笔记，登录后一起读。</p>
   </main>
   <script>
     import { mountHome } from '../lib/home.ts';

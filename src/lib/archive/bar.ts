@@ -2,9 +2,16 @@
 // buttons and the account menu. The shell says what is shown; choices go back via handlers.
 import type { HouseholdSessionStatus } from '../householdSession.ts';
 import type { BookInfo } from './data.ts';
+import { hide, hideNow, isShown, show } from './motion.ts';
 import { esc, plainClick, toast } from './ui.ts';
 
 interface BarHandlers { book(slug: string): void; signOut(): void; search(): void; drawer(): void; }
+
+function selectTab(bar: HTMLElement, current: string) {
+  for (const tab of bar.querySelectorAll<HTMLAnchorElement>('a[data-novel-view]')) {
+    if (tab.dataset.novelView === current) tab.setAttribute('aria-current', 'page'); else tab.removeAttribute('aria-current');
+  }
+}
 
 export function mountBar(bar: HTMLElement, handlers: BarHandlers) {
   const $ = <T extends HTMLElement>(selector: string) => bar.querySelector<T>(selector)!;
@@ -15,9 +22,10 @@ export function mountBar(bar: HTMLElement, handlers: BarHandlers) {
   const accountMenu = $('#novel-account-menu');
   const menus = [bookMenu, accountMenu];
 
-  const closeMenus = (except?: HTMLElement) => {
+  // Losing access closes them at once (no exit animation over private content).
+  const closeMenus = (except?: HTMLElement, now = false) => {
     for (const menu of menus) if (menu !== except) {
-      menu.hidden = true;
+      if (now) hideNow(menu); else hide(menu);
       menu.previousElementSibling?.setAttribute('aria-expanded', 'false');
     }
   };
@@ -27,8 +35,9 @@ export function mountBar(bar: HTMLElement, handlers: BarHandlers) {
     if (opener) {
       const menu = opener.nextElementSibling as HTMLElement;
       closeMenus(menu);
-      menu.hidden = !menu.hidden;
-      opener.setAttribute('aria-expanded', String(!menu.hidden));
+      const open = !isShown(menu);
+      if (open) show(menu); else hide(menu);
+      opener.setAttribute('aria-expanded', String(open));
       return;
     }
     const soon = target.closest<HTMLElement>('[data-soon]');
@@ -65,11 +74,13 @@ export function mountBar(bar: HTMLElement, handlers: BarHandlers) {
         else tab.removeAttribute('aria-current');
       }
     },
+    select: (current: string) => selectTab(bar, current),
+    setDrawerAvailable(available: boolean) { bar.querySelector<HTMLElement>('[data-drawer]')!.hidden = !available; },
     /** Shows the parts that need an open book (tabs, search, drawer) only when ready. */
     setReady(ready: boolean) {
       bar.classList.toggle('ready', ready);
       for (const node of bar.querySelectorAll<HTMLElement>('[data-needs-book]')) node.hidden = !ready;
-      if (!ready) closeMenus();
+      if (!ready) closeMenus(undefined, true);
     },
     setAccount(status: HouseholdSessionStatus) {
       const email = status.email ?? '';
@@ -78,7 +89,7 @@ export function mountBar(bar: HTMLElement, handlers: BarHandlers) {
       account.textContent = name.slice(0, 1).toUpperCase();
       account.setAttribute('aria-label', `账号：${name}`);
       accountMenu.querySelector('.who')!.innerHTML = `${esc(status.displayName ?? '')}<small>${esc(email)}</small>`;
-      if (!email) closeMenus();
+      if (!email) closeMenus(undefined, true);
     },
   };
 }

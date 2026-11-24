@@ -7,7 +7,7 @@ export const cardText = u => u.content || u.element_title || '';
 export const createOutlineModel = (data, plan, hooks) => new OutlineModel(data, plan, hooks);
 class OutlineModel {
   constructor(data, plan, hooks = {}) {
-    this.hooks = { render() {}, save() {}, warning() {}, ...hooks };
+    this.hooks = { render() {}, save() {}, warning() {}, changed() {}, ...hooks };
     this.undoHistory = []; this.load(data, plan); this.activeBeat = this.beatIds[0];
   }
   load(data, plan) {
@@ -29,7 +29,6 @@ class OutlineModel {
   exportData = () => clone(this.data);
   exportPlan = () => ({ ...clone(this.state), placements: clone(this.placedList()) });
   exportWorkspace = () => ({ schema_version: '7.0', format: 'storylines-workspace', plot_data: this.exportData(), plan: this.exportPlan(), active_beat: this.activeBeat });
-  snapshot = () => { this.undoHistory.push(this.exportWorkspace()); if (this.undoHistory.length > 50) this.undoHistory.shift(); };
   saveLocal = () => { try { this.hooks.save(this.exportWorkspace()); return true; } catch (error) { this.hooks.warning(error); return false; } };
   change = fn => {
     const before = this.exportWorkspace();
@@ -37,7 +36,11 @@ class OutlineModel {
     catch (error) { this.load(before.plot_data, before.plan); throw error; }
     if (JSON.stringify(before) === JSON.stringify(this.exportWorkspace())) return;
     this.undoHistory.push(before); if (this.undoHistory.length > 50) this.undoHistory.shift();
-    this.refreshData(); this.saveLocal(); this.hooks.render();
+    this.refreshData(); this.hooks.changed(); this.saveLocal(); this.hooks.render();
+  };
+  setBeatNote = text => {
+    if ((this.state.beat_notes[this.activeBeat] || '') === text) return;
+    this.state.beat_notes[this.activeBeat] = text; this.hooks.changed(); this.saveLocal();
   };
   setCategory = (id, category) => {
     if (!CATEGORIES.includes(category)) throw Error('未知 category');
@@ -121,8 +124,12 @@ class OutlineModel {
   });
   marks = () => mismatchMarks(this.data, this.exportPlan());
   importWorkspace = (raw, remember = true) => {
-    validateData(raw.plot_data); validatePlan(raw.plot_data, raw.plan); if (remember) this.snapshot();
+    validateData(raw.plot_data); validatePlan(raw.plot_data, raw.plan);
+    const before = this.exportWorkspace();
     this.load(raw.plot_data, raw.plan); this.activeBeat = this.beatIds.includes(raw.active_beat) ? raw.active_beat : this.beatIds[0];
+    if (JSON.stringify(before) === JSON.stringify(this.exportWorkspace())) return;
+    if (remember) { this.undoHistory.push(before); if (this.undoHistory.length > 50) this.undoHistory.shift(); }
+    this.hooks.changed();
   };
   importData = data => this.importWorkspace({ ...this.exportWorkspace(), plot_data: data });
   importPlan = plan => this.importWorkspace({ ...this.exportWorkspace(), plan });

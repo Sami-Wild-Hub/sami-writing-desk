@@ -1,7 +1,5 @@
 // Canonical v7 outline controls exercised with actual mouse drags at the approved desktop size.
 import { expect, test, type Page, type Locator } from '@playwright/test';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { stubFirebase, watchErrors } from './stub.ts';
 import { hasOutline, overallText } from './outline-fixture.mjs';
 import { unpack } from '../src/lib/views/outline/codec.js';
@@ -15,7 +13,9 @@ async function open(page: Page) {
  return { root, reads, errors };
 }
 async function workspace(page: Page, root: Locator) {
+ await root.locator('.file-recovery > summary').click();
  const event = page.waitForEvent('download'); await root.locator('#export-workspace').click();
+ await root.locator('.file-recovery > summary').click();
  const stream = await (await event).createReadStream(), chunks: Buffer[] = [];
  for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
  return JSON.parse(Buffer.concat(chunks).toString());
@@ -43,9 +43,8 @@ test('picker, aligned reference, three categories and both tabs', async ({ page 
  const rows = await root.locator('.bg-mine').evaluateAll(xs => xs.map(x => [x.getBoundingClientRect().top, x.previousElementSibling!.getBoundingClientRect().top]));
  expect(rows).toHaveLength(30); expect(rows.every(([a,b]) => Math.abs(a-b) < 1)).toBe(true);
  expect(await root.locator('.bg-other .ref-line').allTextContents()).not.toContain(await root.locator('.self-head h2').textContent());
- await page.screenshot({ path: join(tmpdir(), 'swd-storylines-v7-story.png') });
  await root.locator('[data-act="tab"][data-tab="outline"]').click(); await expect(root.locator('.lane')).toHaveCount(3); await expect(root.locator('[data-filter-state]')).toHaveCount(3);
- await page.screenshot({ path: join(tmpdir(), 'swd-storylines-v7-outline.png') }); expect(errors).toEqual([]);
+ expect(errors).toEqual([]);
 });
 test('real drags: independent orders, inversions, category change, cross Beat and combined', async ({ page }) => {
  const { root, errors } = await open(page), initial = await workspace(page, root);

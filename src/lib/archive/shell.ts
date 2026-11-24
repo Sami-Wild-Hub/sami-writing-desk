@@ -10,6 +10,7 @@ import type { NovelViewHost, NovelViewInstance, ShowContext } from '../views/typ
 import { mountBar } from './bar.ts';
 import type { LoadedBook } from './data.ts';
 import { mountGate } from './gate.ts';
+import { enter } from './motion.ts';
 import { mountSearch } from './search.ts';
 import { createStore } from './store.ts';
 import { esc, icon, plainClick, toast } from './ui.ts';
@@ -31,12 +32,22 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
   const live = el('novel-live');
   const back = el('novel-back') as HTMLButtonElement;
   const scrim = el('novel-scrim');
-  const message = (text: string) => { live.textContent = text; };
+  live.className = 'view-progress'; live.hidden = true; app.before(live);
+  const message = (text: string) => {
+    live.hidden = !text; live.setAttribute('role', 'status');
+    live.innerHTML = text ? `<p>${esc(text)}</p><div class="skeleton" aria-hidden="true"><i></i><i></i><i></i></div>` : '';
+    if (text) app.setAttribute('aria-busy', 'true'); else app.removeAttribute('aria-busy');
+  };
+  const failure = (text: string, retry: () => void) => {
+    live.hidden = false; live.setAttribute('role', 'alert'); live.innerHTML = `<p>${esc(text)}</p>`;
+    const button = Object.assign(document.createElement('button'), { type: 'button', className: 'btn', textContent: '重试' });
+    button.onclick = retry; live.append(button); app.removeAttribute('aria-busy');
+  };
   const bar = mountBar(el('novel-bar'), {
     book: (slug) => go({ book: slug, view: parseNovelRoute(url()).view, doc: '', hash: '' }, 'nav'),
     signOut: () => void session?.signOut(),
     search: () => search.open(),
-    drawer: () => setDrawer(true),
+    drawer: () => setDrawer(!shown?.root.querySelector('.side.show')),
   });
 
   // The book name is public, so it is shown before sign-in too.
@@ -61,14 +72,43 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
   let shown: MountedView | null = null;
   const connected = () => session.getStatus().connection === 'connected';
 
+  // One drawer state drives the panel, scrim, openers' aria-expanded and focus: opening on a
+  // phone moves focus in, closing brings it back to the opener; Esc closes.
+  const phone = window.matchMedia('(max-width: 860px)');
+  let drawerOpener: HTMLElement | null = null;
   function setDrawer(open: boolean) {
     const side = shown?.root.querySelector<HTMLElement>('.side');
-    side?.classList.toggle('show', open);
-    scrim.classList.toggle('show', open && Boolean(side));
+    const was = Boolean(side?.classList.contains('show'));
+    const now = open && phone.matches && Boolean(side);
+    const focusInside = Boolean(side?.contains(document.activeElement)) || document.activeElement === document.body;
+    side?.classList.toggle('show', now);
+    if (side) side.inert = phone.matches && !now;
+    scrim.classList.toggle('show', now);
+    for (const opener of document.querySelectorAll('[data-drawer]')) opener.setAttribute('aria-expanded', String(now));
+    if (now && !was && phone.matches) {
+      drawerOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      side!.querySelector<HTMLElement>('[aria-current="page"], a[href], button, summary, input')?.focus();
+    } else if (!now && was) {
+      if (focusInside && drawerOpener?.isConnected) drawerOpener.focus();
+      drawerOpener = null;
+    }
   }
   scrim.addEventListener('click', () => setDrawer(false));
+  phone.addEventListener('change', () => setDrawer(false));
+  document.addEventListener('keydown', (event) => {
+    const side = shown?.root.querySelector<HTMLElement>('.side.show');
+    if (!side || event.defaultPrevented) return;
+    if (event.key === 'Escape') { event.preventDefault(); setDrawer(false); }
+    if (event.key === 'Tab') {
+      const items = [...side.querySelectorAll<HTMLElement>('a[href], button, summary, input')].filter(el => el.getClientRects().length && !el.closest('[inert]'));
+      const first = items[0], last = items.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+  });
 
   const dropBook = () => {
+    setDrawer(false);
     for (const mounted of current?.views.values() ?? []) mounted.view.dispose();
     current = null;
     shown = null;
@@ -86,8 +126,11 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
     message('');
   };
 
+  let previousAccess = session.getStatus().connection;
   const showStatus = (status: HouseholdSessionStatus) => {
     const ok = status.connection === 'connected';
+    if (ok && previousAccess === 'pending') toast('权限已开通');
+    previousAccess = status.connection;
     gate.hidden = ok;
     app.hidden = !ok;
     bar.setAccount(status);
@@ -116,7 +159,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       }
       await render('load');
     } catch (error) {
-      message(error instanceof Error ? `读取小说目录失败：${error.message}` : '读取小说目录失败');
+      failure(error instanceof Error ? `读取小说目录失败：${error.message}` : '读取小说目录失败', () => void loadCatalog());
     }
   };
 
@@ -186,8 +229,10 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
     const route = parseNovelRoute(url());
     route.book = catalog[route.book] ? route.book : Object.keys(catalog).sort()[0];
     showBookName(route.book, catalog[route.book].title, catalog[route.book].scope);
+    bar.select(route.view);
+    const targetName = routableViews.find(view => view.id === route.view)?.label ?? '页面';
+    message(`正在打开${targetName}…`);
     try {
-      if (!current || current.slug !== route.book) message('正在读取知识库索引…');
       const opened = await openBook(route.book);
       if (!opened || !latest()) return;
       const outlineHead = await store.outlineHead(route.book, opened.book);
@@ -197,6 +242,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       const view = await viewFor(opened, route.view);
       if (!view || !latest()) return;
       const backLabel = shown?.view.label() ?? '';
+      const switched = shown !== null && shown !== view;
       if (shown && shown !== view) {
         shown.view.hide();
         shown.root.hidden = true;
@@ -206,7 +252,9 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       shown = view;
       const restore = via === 'pop' && typeof history.state?.y === 'number' ? history.state.y as number : undefined;
       if (!await view.view.show(route, { latest, via, restore }) || !latest()) return;
+      setDrawer(false);
       bar.setReady(true);
+      bar.setDrawerAvailable(route.view !== 'outline');
       bar.setBooks(catalog, route.book, (slug) => novelRouteHref(url(), { book: slug, view: route.view, doc: '', hash: '' }));
       // Other tabs keep the page that is open, but not a view's own doc (a 校稿 record).
       const keep = (id: string) => id === route.view || opened.book.pathToKey.has(route.doc);
@@ -218,9 +266,10 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       if (!back.hidden) back.innerHTML = `${icon('back')}<span>返回 ${esc(backLabel)}</span>`;
       const key = route.view === 'reader' ? opened.book.pathToKey.get(route.doc) : undefined;
       if (key) search.remember(opened.book.manifest.entries[key], normal);
+      if (switched) enter(view.root, 'view-enter');
       message('');
     } catch (error) {
-      if (mine === serial) message(error instanceof Error ? error.message : '知识库加载失败');
+      if (mine === serial) failure(error instanceof Error ? error.message : '知识库加载失败', () => void render(via));
     }
   };
 

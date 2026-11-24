@@ -5,11 +5,13 @@ import { esc, icon } from '../../archive/ui.ts';
 import { filterPeople, groupsOf, hasEntries, parsePeopleData, type NovelPeopleData, type PeopleFilter } from '../../novelPeopleModel.ts';
 import type { CreateNovelView, NovelViewHost, ShowContext } from '../types.ts';
 import { detailHtml, peopleLinks, rowHtml, type PeopleLinks } from './cells.ts';
+import { searchInput } from '../../archive/input.ts';
+import { enter } from '../../archive/motion.ts';
 
 export { parsePeopleData };
 
 interface PeopleState { q: string; filter: PeopleFilter; open: Set<string>; y?: number; }
-const COLUMNS = ['姓名', '称呼/别名', '所属', '一句话身份', '首次出现', '当前状态', '记忆钩子', '主要关系'];
+const COLUMNS = ['姓名', '称呼/别名', '所属', '一句话身份', '首次出现', '当前状态', '记忆钩子'];
 
 class PeoplePanel {
   private st: PeopleState;
@@ -17,6 +19,7 @@ class PeoplePanel {
   private asOf: string;
   private el: Record<'tools' | 'chips' | 'side' | 'rows' | 'cnt', HTMLElement>;
   private input: HTMLInputElement;
+  private search: ReturnType<typeof searchInput> | null = null;
 
   constructor(private host: NovelViewHost, private data: NovelPeopleData) {
     this.st = (host.memo.state as PeopleState | undefined) ?? { q: '', filter: '', open: new Set() };
@@ -25,10 +28,9 @@ class PeoplePanel {
     this.asOf = `截至 ${data.scope.split(/[–-]/).pop() ?? ''}`;
     const frame = document.createElement('div');
     frame.className = 'ppl';
-    const notes = [data.scope && `KB ${data.scope}`, `称呼、外在与言行已抽 ${data.extracted || '—'}`, '主要关系暂未生成'].filter(Boolean).join(' · ');
     frame.innerHTML = '<aside class="side" aria-label="所属"><div class="side-body"></div></aside><main class="pmain"><div class="tools"><div class="t1">' +
       `<h2>人物</h2><label class="find">${icon('search')}<input type="search" enterkeyhint="search" placeholder="找姓名或称呼…" aria-label="找姓名或称呼"></label>` +
-      `<span class="cnt" aria-live="polite"></span><span class="sp"></span><span class="note">${esc(notes)}</span></div>` +
+      '<span class="cnt" aria-live="polite"></span><span class="sp"></span></div>' +
       '<div class="chips" role="group" aria-label="按所属筛选"></div></div>' +
       `<div class="tbl"><table class="people"><thead><tr>${COLUMNS.map((c) => `<th scope="col">${c}</th>`).join('')}</tr></thead><tbody></tbody></table>` +
       '<p class="none" hidden>没有符合的人物。</p></div></main>';
@@ -75,8 +77,9 @@ class PeoplePanel {
     };
     this.el.chips.addEventListener('click', pick);
     this.el.side.addEventListener('click', pick);
-    this.input.addEventListener('input', () => { this.st.q = this.input.value; this.render(); });
+    this.search = searchInput(this.input, () => { this.st.q = this.input.value; this.render(); });
     this.input.addEventListener('keydown', (event) => {
+      if (event.isComposing || this.search?.composing()) return;
       if (event.key === 'Escape') { this.input.value = ''; this.st.q = ''; this.render(); }
     });
     this.el.rows.addEventListener('click', (event) => {
@@ -100,11 +103,20 @@ class PeoplePanel {
 
   /** Opens or closes a person's detail; closing from the detail's own button brings the row back into view. */
   private toggle(id: string, fromDetail: boolean) {
-    if (this.st.open.has(id)) this.st.open.delete(id); else this.st.open.add(id);
-    const before = this.rowEl(id)?.getBoundingClientRect().top;
-    this.render();
     const row = this.rowEl(id);
-    if (!row) return;
+    const person = this.data.people.find((p) => p.id === id);
+    if (!row || !person) return;
+    const open = !this.st.open.has(id);
+    if (open) this.st.open.add(id); else this.st.open.delete(id);
+    const before = row.getBoundingClientRect().top;
+    // Only this row changes: the detail row is added or removed beside it, the rest stays put.
+    row.classList.toggle('open', open);
+    row.querySelector('.who-btn')?.setAttribute('aria-expanded', String(open));
+    if (open) {
+      row.insertAdjacentHTML('afterend', detailHtml(person, this.data, this.links));
+      const pd = row.nextElementSibling?.querySelector<HTMLElement>('.pd');
+      if (pd) enter(pd, 'reveal');
+    } else if (row.nextElementSibling?.matches('tr.detail')) row.nextElementSibling.remove();
     const top = row.getBoundingClientRect().top;
     if (fromDetail && top < this.stickyH()) window.scrollTo({ top: top + window.scrollY - this.stickyH() - 8, behavior: 'instant' });
     else if (before !== undefined) window.scrollBy({ top: top - before, behavior: 'instant' });
@@ -118,6 +130,7 @@ class PeoplePanel {
   }
 
   hide() { this.st.y = window.scrollY; }
+  dispose() { this.search?.dispose(); }
 }
 
 const createPeople: CreateNovelView = (host) => {
@@ -141,7 +154,7 @@ const createPeople: CreateNovelView = (host) => {
       return true;
     },
     hide: () => panel?.hide(),
-    dispose: () => undefined,
+    dispose: () => panel?.dispose(),
     label: () => '人物',
   };
 };

@@ -23,7 +23,7 @@ export function sideHtml(model: TimelineModel, lay: TimelineLayout, st: Timeline
 }
 
 /** Wires the side column; `changed` re-renders, `band` scrolls to a 时段. */
-export function wireSide(side: HTMLElement, model: TimelineModel, st: TimelineState, changed: (focus?: string) => void, band: (b: string) => void) {
+export function wireSide(side: HTMLElement, model: TimelineModel, st: TimelineState, changed: (focus?: string, previous?: Set<string>) => void, band: (b: string) => void) {
   side.addEventListener('change', (event) => {
     const input = event.target as HTMLInputElement;
     const id = input.dataset.o;
@@ -41,9 +41,10 @@ export function wireSide(side: HTMLElement, model: TimelineModel, st: TimelineSt
     }
     const b = target.closest<HTMLButtonElement>('button[data-all], button[data-dom]');
     if (!b) return;
+    const previous = new Set(st.sel);
     const on = (b.dataset.all ?? b.dataset.v) === '1';
     model.ordered.filter((o) => !o.axis && (b.dataset.all !== undefined || o.domain === b.dataset.dom))
       .forEach((o) => { if (on) st.sel.add(o.id); else st.sel.delete(o.id); });
-    changed();
+    if (previous.size !== st.sel.size || [...previous].some(id => !st.sel.has(id))) changed(undefined, previous);
   });
 }

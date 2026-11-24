@@ -3,6 +3,8 @@
 import { cleanTitle, ownerName, ownerPages, pageLabel, pathInfo } from '../labels.ts';
 import type { PageEntry } from '../views/types.ts';
 import { esc, icon } from './ui.ts';
+import { searchInput } from './input.ts';
+import { hide, hideNow, isShown, show } from './motion.ts';
 
 export interface SearchSource {
   entries: Record<string, PageEntry>;
@@ -56,9 +58,7 @@ function find(source: SearchSource, texts: Record<string, string>, query: string
     hits.push({ group, title: shown, excerpt, href, titleMatch, position });
   }
   return hits
-    .sort((a, b) => Number(b.titleMatch) - Number(a.titleMatch) || (a.position < 0 ? 1e9 : a.position) - (b.position < 0 ? 1e9 : b.position))
-    .slice(0, LIMIT)
-    .sort((a, b) => groups.indexOf(a.group) - groups.indexOf(b.group));
+    .sort((a, b) => Number(b.titleMatch) - Number(a.titleMatch) || (a.position < 0 ? 1e9 : a.position) - (b.position < 0 ? 1e9 : b.position));
 }
 
 const mark = (text: string, q: string) => {
@@ -108,19 +108,25 @@ export function mountSearch() {
     const q = input.value.trim();
     const run = ++serial;
     if (!q || !source) {
+      list.inert = false;
       chips.innerHTML = '';
       list.innerHTML = recent.length ? `<h5>最近查看</h5>${recent.map((item) => hitHtml(item.title, item.group, item.href, '')).join('')}`
         : '<div class="search-empty">输入人物、事件或原文里的字词</div>';
       return select(0);
     }
-    const texts = await source.texts();
-    if (run !== serial || !source) return;
+    list.innerHTML = '<div class="search-empty">搜索中…</div>';
+    let texts;
+    try { texts = await source.texts(); }
+    catch { if (run === serial) { list.inert = false; list.innerHTML = '<button type="button" data-retry>搜索失败，点击重试</button>'; } return; }
+    if (run !== serial || !source || binding.composing()) return;
+    list.inert = false;
     if (!texts) { list.innerHTML = `<div class="search-empty">${texts === null ? '全文检索尚未同步' : ''}</div>`; return; }
     const all = find(source, texts, q);
     const count = (group: string) => (group === '全部' ? all.length : all.filter((hit) => hit.group === group).length);
     chips.innerHTML = ['全部', ...groups].map((group) =>
       `<button type="button" class="chip" aria-pressed="${group === filter}" data-s="${group}">${group}<span class="n">${count(group)}</span></button>`).join('');
-    const shown = all.filter((hit) => filter === '全部' || hit.group === filter);
+    const filtered = all.filter((hit) => filter === '全部' || hit.group === filter);
+    const shown = filtered.slice(0, LIMIT).sort((a, b) => groups.indexOf(a.group) - groups.indexOf(b.group));
     if (!shown.length) { list.innerHTML = `<div class="search-empty">没有找到“${esc(q)}”</div>`; return; }
     let html = '';
     let last = '';
@@ -128,17 +134,21 @@ export function mountSearch() {
       if (hit.group !== last) html += `<h5>${(last = hit.group)}</h5>`;
       html += hitHtml(hit.title, hit.excerpt, hit.href, q);
     }
-    if (all.length === LIMIT) html += `<div class="search-empty">最多显示 ${LIMIT} 条，请换个更具体的词</div>`;
+    if (filtered.length > LIMIT) html += `<div class="search-empty">最多显示 ${LIMIT} 条，请换个更具体的词</div>`;
     list.innerHTML = html;
     select(0);
   };
 
   const close = () => {
-    if (box.hidden) return;
-    box.hidden = true;
-    (opener as HTMLElement | null)?.focus?.();
+    if (!isShown(box)) return;
+    if (box.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
+    hide(box);
+    (opener as HTMLElement | null)?.focus?.({ preventScroll: true });
   };
-  input.addEventListener('input', () => void run());
+  const binding = searchInput(input, () => void run(), () => {
+    serial++; list.inert = true;
+    if (!binding.composing()) list.innerHTML = '<div class="search-empty">搜索中…</div>';
+  });
   chips.addEventListener('click', (event) => {
     const chip = (event.target as Element).closest<HTMLElement>('[data-s]');
     if (!chip) return;
@@ -149,19 +159,21 @@ export function mountSearch() {
   // Hits are ordinary book links: the shell's click handler navigates, the overlay closes.
   box.addEventListener('click', (event) => {
     const target = event.target as Element;
+    if (target.closest('[data-retry]')) void run();
     if (target === box || target.closest('[data-close]') || target.closest('.hit')) close();
   });
   input.addEventListener('keydown', (event) => {
+    if (event.isComposing || binding.composing()) return;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); select(sel + (event.key === 'ArrowDown' ? 1 : -1)); }
     else if (event.key === 'Enter') { event.preventDefault(); links()[sel]?.click(); }
   });
-  box.addEventListener('keydown', (event) => { if (event.key === 'Escape') { event.preventDefault(); close(); } });
+  box.addEventListener('keydown', (event) => { if (!event.isComposing && !binding.composing() && event.key === 'Escape') { event.preventDefault(); close(); } });
 
   return {
     open(query = '') {
       if (!source) return;
       opener = document.activeElement;
-      box.hidden = false;
+      show(box);
       if (query) input.value = query;
       void run();
       input.focus();
@@ -172,10 +184,12 @@ export function mountSearch() {
     use(next: SearchSource | null) {
       if (next === source) return;
       source = next;
+      serial++;
       recent = [];
       input.value = '';
       filter = '全部';
       close();
+      if (!next) { hideNow(box); list.replaceChildren(); }
     },
     remember(entry: PageEntry, href: string) {
       recent = [{ title: hitTitle(entry), group: groupOf(entry.path), href }, ...recent.filter((item) => item.href !== href)].slice(0, 6);

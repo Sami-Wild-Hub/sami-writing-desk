@@ -13,8 +13,23 @@
   --read-size: calc(var(--read-base) * var(--read-scale));
   --bar-h: 3.625rem; --side-w: 17.5rem; --rail-w: 15.5rem;
   --shadow-pop: 0 12px 32px rgb(30 28 25 / .16);
+  /* motion: every view uses only these (lib/archive/motion.ts reads them in JS) */
+  --dur-press: 80ms;   /* :active press */
+  --dur-1: 120ms;      /* hover, selected colour, chevron, release */
+  --dur-2: 200ms;      /* popover/toast/dialog entry, view fade-in, selection slide, drop */
+  --dur-3: 280ms;      /* drawer + scrim */
+  --dur-exit: 150ms;   /* every exit */
+  --dur-flash: 1200ms; /* jump highlight: held for the first 20%, then fades */
+  --dur-pulse: 1600ms; /* 校稿「处理中」, stops when done */
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-in-out: cubic-bezier(.4, 0, .2, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
   color-scheme: light;
   font-size: 16px;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-press: 0ms; --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; --dur-exit: 0ms; }
+  html { scroll-behavior: auto; }
 }
 @media (min-width: 1800px) { :root { font-size: 17px; --side-w: 19rem; --rail-w: 18rem; } }
 @media (min-width: 2200px) { :root { font-size: 18px; --side-w: 20rem; --rail-w: 20rem; } }
@@ -42,6 +57,12 @@ svg.i { width: 1.2rem; height: 1.2rem; flex: none; fill: none; stroke: currentCo
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.primary:hover { background: var(--accent-ink); }
 .btn.dark { background: var(--axis); border-color: var(--axis); color: #fff; }
+.btn.quiet { border-color: transparent; background: none; }
+.btn.quiet:hover { background: var(--hover); }
+.btn.danger { color: #9b3022; }
+.btn.danger:hover { border-color: #e2b5ab; color: #7d2418; }
+.btn.small { height: 1.875rem; padding: 0 .6rem; border-radius: 8px; font-size: .8125rem; }
+.btn.tiny { height: 1.6rem; padding: 0 .45rem; border-radius: 7px; font-size: .75rem; }
 .btn:disabled { opacity: .4; cursor: default; }
 .iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 2.6rem; height: 2.6rem; flex: none;
   border: 0; border-radius: 9px; background: none; color: var(--ink-2); }
@@ -51,7 +72,7 @@ svg.i { width: 1.2rem; height: 1.2rem; flex: none; fill: none; stroke: currentCo
 .seg { display: inline-flex; padding: 2px; border-radius: 9px; background: var(--sunk); }
 .seg button { height: 2rem; min-width: 2.6rem; padding: 0 .65rem; border: 0; border-radius: 7px; background: none;
   color: var(--ink-2); font-size: .875rem; white-space: nowrap; }
-.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
+.seg button[aria-pressed="true"] { color: var(--ink); font-weight: 600; }
 .chip { flex: none; height: 2rem; padding: 0 .8rem; border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
   color: var(--ink-2); font-size: .875rem; }
 .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
@@ -78,8 +99,24 @@ a.pill:hover { background: var(--accent-soft); color: var(--accent-ink); }
 .tabs a, .tabs button { display: inline-flex; align-items: center; gap: 6px; flex: none; height: 2.25rem; padding: 0 .95rem; border: 0; border-radius: 8px;
   background: none; color: var(--ink-2); font-size: .9375rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
 .tabs a:hover, .tabs button:hover { color: var(--ink); }
-.tabs [aria-current="page"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
+.tabs [aria-current="page"] { color: var(--ink); }
 .tabs .soon { color: var(--ink-3); }
+/* The selected background is a ::before that motion.ts slides from the previous item. */
+.seg button, .tabs a, .tabs button { position: relative; isolation: isolate; }
+.seg button[aria-pressed="true"]::before, .tabs [aria-current="page"]::before { content: ""; position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / .08); transform-origin: left center; }
+.slide::before { animation: slide var(--dur-2) var(--ease-out); }
+@keyframes slide { from { transform: translateX(var(--from-x, 0)) scaleX(var(--from-s, 1)); } }
+/* A fading hover tint avoids animating paint properties; press and release use separate tokens. */
+.btn, .iconbtn, .chip, .seg button, .tabs a, .tabs button, .menu a, .menu button, .side .navlink, .searchbtn, .bookcard .acts a, .bookcard .acts button,
+.bar .shelf-link, .bar .book, a.pill { position: relative; isolation: isolate; transition: transform var(--dur-1) var(--ease-out); }
+:is(.btn, .iconbtn, .chip, .seg button, .tabs a, .tabs button, .menu a, .menu button, .side .navlink, .searchbtn, .bookcard .acts a, .bookcard .acts button, .bar .shelf-link, .bar .book, a.pill)::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: currentColor; opacity: 0; pointer-events: none;
+  transition: opacity var(--dur-1) var(--ease-out); }
+@media (hover: hover) {
+  :is(.btn, .iconbtn, .chip, .seg button, .tabs a, .tabs button, .menu a, .menu button, .side .navlink, .searchbtn, .bookcard .acts a, .bookcard .acts button, .bar .shelf-link, .bar .book, a.pill):hover::after { opacity: .06; }
+}
+.btn:active:not(:disabled), .iconbtn:active:not(:disabled), .chip:active:not(:disabled) { transform: scale(.98); transition-duration: var(--dur-press); }
 .searchbtn { display: inline-flex; align-items: center; gap: 8px; width: clamp(14rem, 18vw, 22rem); height: 2.5rem; padding: 0 .7rem;
   border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink-3); font-size: .9375rem; text-align: left; }
 .searchbtn:hover { border-color: var(--line-2); }
@@ -97,8 +134,9 @@ a.pill:hover { background: var(--accent-soft); color: var(--accent-ink); }
 /* ---------- popover menus (account, book switcher) ---------- */
 .menu-wrap { position: relative; }
 .menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 70; min-width: 15rem; padding: .5rem; border: 1px solid var(--line);
-  border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-pop); font-size: .9375rem; }
-.menu.left { left: 0; right: auto; }
+  border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-pop); font-size: .9375rem;
+  transform-origin: top right; animation: pop-in var(--dur-2) var(--ease-out); }
+.menu.left { left: 0; right: auto; transform-origin: top left; }
 .menu .who { padding: .4rem .6rem .6rem; border-bottom: 1px solid var(--line); margin-bottom: .35rem; overflow-wrap: anywhere; }
 .menu .who small { display: block; color: var(--ink-3); font-size: .8125rem; }
 .menu a, .menu button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 2.5rem; padding: 0 .6rem; border: 0; border-radius: 8px;
@@ -121,28 +159,77 @@ a.pill:hover { background: var(--accent-soft); color: var(--accent-ink); }
 .side .navlink .n { margin-left: auto; color: var(--ink-3); font-size: .8125rem; font-weight: 400; }
 .scrim { display: none; }
 .toast { position: fixed; left: 50%; top: calc(var(--bar-h) + 14px); z-index: 95; max-width: calc(100vw - 32px); padding: .55rem 1rem;
-  border-radius: 9px; background: var(--ink); color: #fff; font-size: .875rem; transform: translateX(-50%); }
+  border-radius: 9px; background: var(--ink); color: #fff; font-size: .875rem; transform: translateX(-50%);
+  animation: toast-in var(--dur-2) var(--ease-out); }
+.toast button { margin-left:.8rem; color:inherit; border:1px solid currentColor; border-radius:5px; background:transparent; cursor:pointer; }
+.view-progress { position:fixed; inset:var(--bar-h) 0 0; z-index:60; padding:2rem max(1rem, calc((100vw - 60rem) / 2)); background:var(--bg); animation:fade-in var(--dur-2) var(--ease-out); }
+.skeleton { display:grid; gap:1rem; margin-top:1.5rem; }
+.skeleton i { display:block; height:1.2rem; border-radius:5px; background:var(--line); }
+.skeleton i:last-child { width:65%; }
 
 @media (max-width: 860px) {
   .bar { gap: .25rem; padding: 0 .375rem; }
-  .bar.in .shelf-link, .bar.in .searchbtn { display: none; }
+  .bar.in.ready .shelf-link, .bar.in .searchbtn { display: none; }
   .bar.in .book { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
-  .only-phone { display: inline-flex !important; }
+  .only-phone:not([hidden]) { display: inline-flex !important; }
   .bar .tabs { flex: 1 1 auto; }
   .bar .sp { display: none; }
   .tabs a, .tabs button { flex: 1 0 auto; justify-content: center; padding: 0 .7rem; }
   .frame { display: block; }
+  /* Drawer and scrim share one rhythm; a closed drawer is invisible, so it cannot take focus. */
   .side { position: fixed; z-index: 80; inset: 0 auto 0 0; width: min(86vw, 22rem); height: auto; padding-top: .75rem;
-    transform: translateX(-102%); transition: transform .2s; box-shadow: 0 0 30px rgb(0 0 0 / .2); }
-  .side.show { transform: none; }
+    transform: translateX(-102%); visibility: hidden; box-shadow: 0 0 30px rgb(0 0 0 / .2);
+    transition: transform var(--dur-exit) var(--ease-in), visibility 0s linear var(--dur-exit); }
+  .side.show { transform: none; visibility: visible; transition: transform var(--dur-3) var(--ease-out), visibility 0s; }
   .side-head { display: block; margin: 0 0 .75rem; padding: 0 .25rem .75rem; border-bottom: 1px solid var(--line); }
   .side-head a { display: inline-flex; align-items: center; min-height: 2.5rem; color: var(--ink-2); font-size: .9375rem; text-decoration: none; }
   .side-head b { display: block; font-size: 1.0625rem; }
   .side-head small { color: var(--ink-3); font-size: .8125rem; }
   .side .navlink, .side summary { min-height: 2.75rem; }
-  .scrim.show { display: block; position: fixed; inset: 0; z-index: 75; background: rgb(0 0 0 / .28); }
+  .scrim { display: block; position: fixed; inset: 0; z-index: 75; background: rgb(0 0 0 / .28); opacity: 0; visibility: hidden;
+    transition: opacity var(--dur-exit) var(--ease-in), visibility 0s linear var(--dur-exit); }
+  .scrim.show { opacity: 1; visibility: visible; transition: opacity var(--dur-3) var(--ease-out), visibility 0s; }
 }
-@media (prefers-reduced-motion: reduce) { .side { transition: none; } }
+
+/* ---------- shared motion: entries, exits, view switch, chevron, jump highlight ---------- */
+@keyframes pop-in { from { opacity: 0; translate: 0 -4px; scale: .98; } }
+@keyframes pop-out { from { opacity: var(--exit-opacity, 1); translate: var(--exit-translate, none); scale: var(--exit-scale, none); } to { opacity: 0; translate: 0 -4px; scale: .98; } }
+@keyframes toast-in { from { opacity: 0; translate: 0 -6px; } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { from { opacity: var(--exit-opacity, 1); } to { opacity: 0; } }
+@keyframes reveal { from { opacity: 0; translate: 0 -4px; } }
+.leaving { animation: pop-out var(--dur-exit) var(--ease-in) forwards !important; pointer-events: none; }
+.toast.leaving { animation-name: fade-out !important; }
+details.leaving { animation: none !important; pointer-events: auto; }
+details.leaving > :not(summary) { animation: pop-out var(--dur-exit) var(--ease-in) forwards; }
+.view-enter { animation: fade-in var(--dur-2) var(--ease-out); }
+.enter { animation: pop-in var(--dur-2) var(--ease-out); } /* a popover or dialog that was not there before */
+.modal-back.enter { animation-name: fade-in; }
+.modal-back.enter > .modal { animation: pop-in var(--dur-2) var(--ease-out); }
+.modal-back.leaving { animation-name: fade-out !important; }
+.search.leaving > .search-box, .modal-back.leaving > .modal { animation: pop-out var(--dur-exit) var(--ease-in) forwards; }
+details.opening:is(.card-menu, .file-recovery) > :not(summary) { transform-origin: top left; animation: pop-in var(--dur-2) var(--ease-out); }
+.late { animation: fade-in var(--dur-2) var(--ease-out); } /* content that arrives after the page */
+details.opening > :not(summary), .reveal { animation: reveal var(--dur-2) var(--ease-out); }
+.disclosure { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--dur-3) var(--ease-in-out); }
+.disclosure > div { min-height: 0; overflow: hidden; }
+details[data-fold-closed] > .disclosure { grid-template-rows: 0fr; }
+/* One chevron for every disclosure (summaries, and .chev in toggle buttons): a border corner
+   pointing right, turning down when open. */
+summary { cursor: pointer; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before, .chev { content: ""; display: inline-block; flex: none; width: .4em; height: .4em; margin: 0 .5em .15em .1em;
+  border: solid var(--ink-3); border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform var(--dur-1) var(--ease-out); }
+details[open] > summary::before, [aria-expanded="true"] > .chev { transform: rotate(45deg); }
+details[data-fold-closed] > summary::before { transform: rotate(-45deg); }
+.flash { position: relative; isolation: isolate; }
+.flash::after { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 4px; pointer-events: none;
+  background: var(--mark); box-shadow: 0 0 0 4px var(--mark); animation: flash var(--dur-flash) var(--ease-out) forwards; }
+@keyframes flash { 0%, 20% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  /* a static mark that motion.ts clears after --dur-flash */
+  .flash::after { animation: none; }
+}
 
 /* ---------- home and the sign-in gate ---------- */
 .site { display: flex; align-items: center; gap: .75rem; max-width: 92rem; height: 4rem; margin: 0 auto; padding: 0 1.5rem; }

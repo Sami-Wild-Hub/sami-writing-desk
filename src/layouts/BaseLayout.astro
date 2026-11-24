@@ -15,5 +15,9 @@ const { title, description, pageClass = '' } = Astro.props;
   <body class={pageClass}>
     <a class="skip-link" href="#main-content">跳到主要内容</a>
     <slot />
+    <script>
+      import { installMotion } from '../lib/archive/motion.ts';
+      installMotion();
+    </script>
   </body>
 </html>

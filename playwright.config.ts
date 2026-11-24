@@ -6,7 +6,8 @@ const environment = (globalThis as typeof globalThis & {
 const repository = (environment.GITHUB_REPOSITORY ?? '').split('/')[1];
 const projectSite = repository && !repository.endsWith('.github.io');
 const basePath = environment.GITHUB_ACTIONS === 'true' && projectSite ? `/${repository}/` : '/';
-const previewUrl = `http://127.0.0.1:4322${basePath}`;
+const port = environment.NOVEL_TEST_PORT ?? '4322';
+const previewUrl = `http://127.0.0.1:${port}${basePath}`;
 
 // The browser tests sign in against a stubbed Firebase (tests/book-views.spec.ts), so they
 // run on a separate build in dist-stub that carries the stub config; dist stays untouched.
@@ -32,7 +33,7 @@ export default defineConfig({
     colorScheme: 'light',
   },
   webServer: {
-    command: 'node ./node_modules/astro/astro.js build --outDir dist-stub && node ./node_modules/astro/astro.js preview --outDir dist-stub --host 127.0.0.1 --port 4322',
+    command: `node ./node_modules/astro/astro.js build --outDir dist-stub && node ./node_modules/astro/astro.js preview --outDir dist-stub --host 127.0.0.1 --port ${port}`,
     env: stubFirebaseEnv,
     url: previewUrl,
     reuseExistingServer: false,

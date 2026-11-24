@@ -13,14 +13,16 @@ test('outline web reads canonical maritime-story data and exposes repository con
   await page.goto('book/?book=maritime-story&view=outline');
   const root = page.locator('[data-view="outline"]');
   await expect(root.locator('#overall')).toHaveText(/\d+ 张 · \d+ 已排/);
-  await expect(root.locator('#sync-state')).toContainText('已入库');
+  await expect(root.locator('#sync-state')).toHaveText('已保存');
   expect(reads.some(path => path.includes('/novelArchive/books/maritime-story/outline'))).toBe(false);
   expect(reads.some(path => path.includes('/outlineSync/maritime-story/head'))).toBe(true);
 
   const base = 'households/novel-stub-house/outlineSync/maritime-story';
   const live = reads.at(`${base}/live`) as { plot: string; plan: string };
   reads.server(`${base}/incoming`, { tree: 'remote-tree', commit: 'remote-commit', plot: live.plot, plan: live.plan });
-  await expect(root.locator('.draft-notice')).toContainText('仓库有新版');
+  await expect(root.locator('.draft-notice')).toContainText('有新版可载入');
+  await expect(root.locator('.draft-notice button')).toHaveCount(1);
+  await root.locator('.file-recovery > summary').click();
   await expect(root.getByRole('button', { name: '保留网页版' })).toBeVisible();
 });
 
@@ -33,7 +35,8 @@ test('an unusable default-storyline config does not block cloud data', async ({ 
   const path = 'households/novel-stub-house/outlineSync/maritime-story';
   const head = reads.at(`${path}/head`) as { repo: object };
   reads.server(`${path}/head`, { ...head, config: '{', repo: { ...head.repo, configError: 'bad JSON' } });
-  await expect(root.locator('#sync-state')).toContainText('config.json 无效');
+  await expect(root.locator('#sync-state')).toHaveAttribute('title', /config.json 无效/);
+  await expect(root.locator('#sync-state')).toHaveText('已保存');
   await page.reload(); await expect(root.locator('#overall')).toHaveText(overallText());
 });
 

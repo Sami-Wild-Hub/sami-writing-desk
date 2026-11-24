@@ -1,4 +1,6 @@
 // 阅读设置 (the Aa menu): text size and 黑体／宋体, kept in this browser. 黑体 is the default.
+import { leave } from '../../archive/motion.ts';
+
 const KEY = 'swd.reading';
 const sizes = { s: ['小', 0.9], m: ['中', 1], l: ['大', 1.12] } as const;
 const fonts = { sans: ['黑体', 'var(--sans)'], serif: ['宋体', 'var(--serif)'] } as const;
@@ -27,7 +29,8 @@ const seg = (name: keyof Settings, options: Record<string, readonly [string, unk
 export function mountReadingMenu(scope: HTMLElement) {
   let pop: HTMLElement | null = null;
   const close = () => {
-    pop?.remove();
+    const node = pop;
+    if (node) leave(node, () => node.remove());
     pop = null;
     scope.querySelector('[data-aa]')?.setAttribute('aria-expanded', 'false');
   };
@@ -47,8 +50,12 @@ export function mountReadingMenu(scope: HTMLElement) {
     const choice = target.closest<HTMLElement>('[data-set] button');
     if (choice) {
       const s = { ...load(), [choice.parentElement!.dataset.set!]: choice.dataset.v };
+      const top = document.querySelector<HTMLElement>('#novel-bar')?.offsetHeight ?? 0;
+      const anchor = [...scope.querySelectorAll<HTMLElement>('.prose p, .prose li, .prose h2, .prose h3')].find(el => el.getBoundingClientRect().bottom >= top);
+      const offset = anchor?.getBoundingClientRect().top ?? 0;
       localStorage.setItem(KEY, JSON.stringify(s));
       applyReading(s);
+      if (anchor) window.scrollBy({ top: anchor.getBoundingClientRect().top - offset, behavior: 'instant' });
       for (const b of choice.parentElement!.children) b.setAttribute('aria-pressed', String(b === choice));
     }
   });

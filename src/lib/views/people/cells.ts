@@ -61,7 +61,7 @@ const markTag = (mark: string, rich: (t: string) => string) =>
   mark ? `<i class="mk" title="${esc(MARK_TITLE[mark] ?? '明确阶段')}">${rich(mark)}</i>` : '';
 
 export function rowHtml(p: Person, open: boolean, q: string, links: PeopleLinks, asOf: string) {
-  const { ref, chip, rich, profile } = links;
+  const { ref, chip, rich } = links;
   const names = p.names.map((n) => `<span class="nm">${highlight(n.name, q)}<span class="who">（${esc([...new Set(n.users.map(strip))].join('、'))}）</span>` +
     `${n.refs.map(chip).join('')}</span>`).join('');
   const hooks = HOOK_CATEGORIES.map((cat) => {
@@ -74,14 +74,13 @@ export function rowHtml(p: Person, open: boolean, q: string, links: PeopleLinks,
   const dash = '<span class="muted">—</span>';
   return `<tr class="person${open ? ' open' : ''}" data-id="${esc(p.id)}">` +
     `<th scope="row" data-label="姓名"><button type="button" class="who-btn" aria-expanded="${open}" data-toggle="${esc(p.id)}">` +
-    `<span class="caret" aria-hidden="true">▸</span>${highlight(p.name, q)}</button>${p.kind === 'record' ? '<span class="kind">简档</span>' : ''}</th>` +
+    `<span class="chev" aria-hidden="true"></span>${highlight(p.name, q)}</button>${p.kind === 'record' ? '<span class="kind">简档</span>' : ''}</th>` +
     `<td data-label="称呼/别名">${names || dash}</td>` +
     `<td data-label="所属">${p.group.map((g) => ref(g)).join('、') || dash}</td>` +
     `<td data-label="一句话身份">${rich(p.basic) || dash}</td>` +
     `<td data-label="首次出现">${p.first ? chip(p.first) : dash}</td>` +
     `<td data-label="当前状态">${current ? `<div class="cur" title="${esc(current)}">${late}${esc(current)}</div>` : dash}</td>` +
-    `<td data-label="记忆钩子">${hooks || dash}</td>` +
-    `<td data-label="主要关系"><span class="muted">暂未生成</span> ${profile(p)}</td></tr>`;
+    `<td data-label="记忆钩子">${hooks || dash}</td></tr>`;
 }
 
 function evidenceTable(title: string, columns: string[], data: string[][], links: PeopleLinks) {
@@ -98,11 +97,10 @@ export function detailHtml(p: Person, data: NovelPeopleData, links: PeopleLinks)
   const evidence = hasEntries(p)
     ? evidenceTable('称呼', NAME_COLUMNS, p.evidence.names, links) + evidenceTable('外在与言行', LOOK_COLUMNS, p.evidence.looks, links)
     : `<p class="muted">称呼、外在与言行：${data.extracted ? `已抽 ${esc(data.extracted)}，这一段里没有这个人的条目。` : '尚未抽取。'}</p>`;
-  return `<tr class="detail" data-detail="${esc(p.id)}"><td colspan="8"><div class="pd">` +
+  return `<tr class="detail" data-detail="${esc(p.id)}"><td colspan="7"><div class="pd">` +
     `<div class="pd-head"><h3>${esc(p.name)}</h3><span class="muted">${p.kind === 'owner' ? '人物档案' : '简档'}</span><span class="sp"></span>${profile(p, '打开 KB 档案')}</div>` +
     `<dl><dt>一句话身份</dt><dd>${rich(p.basic) || '—'}</dd>` +
     `<dt>所属</dt><dd>${p.group.map((g) => ref(g)).join('、') || '—'}</dd>` +
-    `<dt>首次出现</dt><dd>${p.first ? ref(p.first) : '—'}</dd>${current}` +
-    `<dt>主要关系</dt><dd>暂未生成，先看 ${profile(p, 'KB 档案')}</dd></dl>` +
+    `<dt>首次出现</dt><dd>${p.first ? ref(p.first) : '—'}</dd>${current}</dl>` +
     `${evidence}<div class="acts"><span class="sp"></span><button type="button" class="btn" data-toggle="${esc(p.id)}">收起</button></div></div></td></tr>`;
 }
