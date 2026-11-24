@@ -12,7 +12,7 @@
 - **时间线**：`src/lib/views/timeline/`（主轴与线路、总览/紧凑/标准三档密度、查找、卡片）+ `src/lib/novelTimelineModel.ts` + `src/styles/timeline.css`。卡片里「打开事件页」进阅读器的事件页，出处跳到 `source/C#.md#p#`，线路名跳到该 Owner 的时间索引页。时间线数据是 `books/<slug>/timeline`，由 Novel 仓库 `site/sync_familyhub.py` 写成**一个 JSON 字符串**（RTDB 会丢掉空列表与空对象），页面登录后读取并 `JSON.parse`。
 - **校稿台**：`src/lib/views/proof/` + `src/styles/proof.css`，用法、存储与任务全文见 [proofdesk.md](proofdesk.md)。它是唯一会写数据库的视图（`households/<householdId>/proofdesk`）。
 - **样式**：`src/styles/global.css` 是共用的颜色、字号与布局（手机 / 1280 / 2560 同一套，宽屏放大字号、正文保持行长）；各视图样式单独一个文件。
-- **伏笔表**：`src/lib/views/foreshadow/`，在大纲之后；读取 `outlineSync/<slug>/live/foreshadow` 的压缩 JSON，和大纲共享修订、权限与保存通道。按导入列顺序显示作者原文，支持状态/章节筛选、编辑/加行/删行、手动修改埋设与回收链接；本机草稿按账号/书隔离。没有伏笔文件时显示未同步。同步与上线步骤见 [outline sync README](../sync/outline/README.md#foreshadow-table)。
+- **伏笔表**：`src/lib/views/foreshadow/`，在大纲之后；读取 `outlineSync/<slug>/live/foreshadow` 的压缩 JSON，和大纲共享修订、权限与保存通道。按导入列顺序显示作者原文，埋设章节直接显示为 `C1P10-11` 等链接，支持状态/章节筛选、编辑/加行/删行、手动修改回收链接；手机按卡片显示，默认隐藏已收，筛选记在本机，本机草稿按账号/书隔离。没有伏笔文件时显示未同步。同步与上线步骤见 [outline sync README](../sync/outline/README.md#foreshadow-table)。
 
 ## 权威与数据流
 

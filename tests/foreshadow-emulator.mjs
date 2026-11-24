@@ -37,16 +37,6 @@ async function stop(child) {
   else child.kill();
   await Promise.race([new Promise(resolve => child.once('close', resolve)), new Promise(resolve => setTimeout(resolve, 2_000))]);
 }
-function patchedRules(original, patch) {
-  const rules = structuredClone(original);
-  for (const op of patch) {
-    const keys = op.path.slice(1).split('/'), key = keys.pop();
-    const parent = keys.reduce((node, name) => node[name], rules);
-    assert.ok(parent && ['add', 'replace'].includes(op.op)); parent[key] = op.value;
-  }
-  return rules;
-}
-
 async function prepare(root, ports) {
   const writer = join(root, 'writer'), remote = join(root, 'remote.git'), bare = join(root, 'data.git');
   await runGit(root, ['init', '--bare', '-b', 'main', remote]); await runGit(root, ['clone', remote, writer]);
@@ -58,15 +48,14 @@ async function prepare(root, ports) {
   await runGit(writer, ['add', 'outline']); await runGit(writer, ['commit', '-qm', 'Synthetic foreshadow fixture']);
   await runGit(writer, ['push', 'origin', 'HEAD:main']); await runGit(root, ['clone', '--bare', remote, bare]);
   await runGit(bare, ['config', 'user.name', 'Test']); await runGit(bare, ['config', 'user.email', 'test@example.invalid']);
-  const original = JSON.parse(await runGit(resolve('../FamilyHub'), ['show', 'origin/main:database.rules.json']));
-  const patch = JSON.parse(await readFile('sync/outline/foreshadow-rules.patch.json', 'utf8'));
-  await writeFile(join(root, 'rules.json'), JSON.stringify(original));
+  const rules = JSON.parse(await runGit(resolve('../FamilyHub'), ['show', 'origin/main:database.rules.json']));
+  await writeFile(join(root, 'rules.json'), JSON.stringify(rules));
   await writeFile(join(root, 'firebase.json'), JSON.stringify({ database: { rules: 'rules.json' }, emulators: {
     database: { host: '127.0.0.1', port: ports.db }, hub: { host: '127.0.0.1', port: ports.hub }, logging: { host: '127.0.0.1', port: ports.log }, ui: { enabled: false } } }));
-  return { original, patched: patchedRules(original, patch), git: new GitRepo(bare), writer };
+  return { git: new GitRepo(bare), writer };
 }
 
-async function scenario(h, db, git, patched, port) {
+async function scenario(h, db, git) {
   const panel = await h.open(), page = panel.page;
   await page.goto(`${h.baseURL}/book/?book=${slug}&view=foreshadow`);
   const root = page.locator('[data-view="foreshadow"]');
@@ -74,14 +63,6 @@ async function scenario(h, db, git, patched, port) {
   await root.getByRole('button', { name: '编辑', exact: true }).first().click();
   await root.getByLabel('备注', { exact: true }).fill('Browser to Git');
   await root.getByRole('button', { name: '保存修改' }).click();
-  await eventually('published rules reject the extra field visibly', async () => (await root.locator('.fsh-status').textContent()).includes('云端保存失败'));
-  assert.equal(JSON.parse(await unpack((await db.read(slug)).live.foreshadow)).rows[0].author['备注'], '');
-  assert.ok(await page.evaluate(() => Object.keys(localStorage).some(k => k.endsWith(':foreshadow') && localStorage.getItem(k).includes('Browser to Git'))));
-  const response = await fetch(`http://127.0.0.1:${port}/.settings/rules.json?ns=demo-outline-default-rtdb`, {
-    method: 'PUT', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify(patched) });
-  assert.ok(response.ok, await response.text());
-  const useLocal = root.getByRole('button', { name: '用本机版覆盖', exact: true });
-  if (await useLocal.count()) await useLocal.click(); else await root.getByRole('button', { name: '重试保存', exact: true }).click();
   await eventually('real rules accept the third document', async () => JSON.parse(await unpack((await db.read(slug)).live.foreshadow)).rows[0].author['备注'] === 'Browser to Git');
   await eventually('browser edit publishes through existing lease/CAS', async () => {
     await once({}, { git, rtdb: db });
@@ -105,7 +86,7 @@ async function scenario(h, db, git, patched, port) {
     return current.kept?.foreshadow === state.live.foreshadow && JSON.parse(await unpack(current.live.foreshadow)).rows[0].author['备注'] === 'Incoming';
   });
   assert.deepEqual(panel.errors, []);
-  console.log('PASS: published-rule rejection retains draft; patched-rule browser → RTDB → Git → browser and kept replacement');
+  console.log('PASS: FamilyHub origin/main rules browser → RTDB → Git → browser and kept replacement');
 }
 
 const root = await mkdtemp(join(tmpdir(), 'swd-foreshadow-emulator-'));
@@ -127,7 +108,7 @@ try {
   db = createRtdb({ credentials: { project_id: 'demo-outline', client_email: 'test@demo-outline.iam.gserviceaccount.com', private_key: privateKey }, databaseURL: `http://127.0.0.1:${ports.db}?ns=demo-outline-default-rtdb`, household: 'h' });
   await once({}, { git: prepared.git, rtdb: db });
   h = await harness({ root, dataRepo: data, siteRepo: site, baseURL, width: 1440, port: ports.db });
-  await scenario(h, db, prepared.git, prepared.patched, ports.db);
+  await scenario(h, db, prepared.git);
 } catch (error) {
   console.error(error.stack ?? error); console.error(emulator?.log.slice(-1500)); process.exitCode = 1;
 } finally {

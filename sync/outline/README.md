@@ -29,36 +29,13 @@ No table is created for a book without the file. File-level merges, conflicts,
 `Outline-Sync` trailers, the coordinator lease and RTDB CAS cover all three files.
 The RTDB adapter and watcher need no separate storage or scheduling path.
 
-Router rollout (do not run against production during development):
-
-The published FamilyHub rules currently reject both `live/foreshadow` and
-`kept/foreshadow` through `$other`. **Deployment is blocked until the router
-applies and deploys the reviewable RFC 6902 patch in
-`foreshadow-rules.patch.json` to FamilyHub's `database.rules.json`.** It permits
-an optional packed string with the existing size limit and requires kept
-foreshadow content to equal the replaced live content. Membership, revision CAS
-and all other write rules stay the same. This task does not modify FamilyHub.
-
-1. Apply/test/deploy the FamilyHub rules patch first. Reconcile pending edits
-   with the existing worker, stop its scheduled task and
-   let its lease expire. Merge/deploy the website/worker branch first and wait
-   for Pages, then merge the `foreshadow-import` data branch into data `main`.
-2. Update the dedicated watcher clone to the new website `main`, keeping its
-   existing private config/service account and bare data clone. Run the existing
-   `node sync/outline/sync.mjs once --config <watcher-config>` path. A newly added
-   optional file is installed by normal reconciliation under the lease/CAS;
-   no format migration or separate installer is needed. If pending live edits
-   touch another file they merge; resolve any reported same-file conflict first.
-3. Read back the foreshadow table/count and the synchronized revision in the
-   website, restart the existing scheduled task, verify a successful round and
-   dispatch the data repository's existing Outline sync workflow. Do not create
-   a second task. Existing starter snapshots remain the original book snapshot.
-
 The 伏笔表 tab follows 大纲. It supports status/chapter filters, row editing,
 addition/deletion, scoped local drafts, and the existing repository/cloud conflict
-choices. Editing quotes or chapter cells never rematches links: edit 埋设链接
-(`C1#P2-P3`) and 回收章节链接 (`C2, C3`) explicitly. Source-row numbers are internal;
-the author’s 伏笔ID cell is freely editable. Tables scroll horizontally on phones.
+choices. Planting chapter cells are direct links such as `C1P10-11`; there is no
+separate 埋设链接 field. Recovery chapter links remain explicitly editable.
+Source-row numbers are internal; the author’s 伏笔ID cell is freely editable.
+Phones show each row as a card. The default view hides recovered rows, and filter
+selection is stored locally per account and book.
 
 Private visual verification uses `tests/foreshadow.spec.ts` with
 `FORESHADOW_SHOTS_DIR`, `FORESHADOW_DATA_REPO` and `FORESHADOW_SOURCE_ROOT`
@@ -69,13 +46,12 @@ Use `GITHUB_ACTIONS=true GITHUB_REPOSITORY=Sami-Wild-Hub/sami-writing-desk`
 to exercise the production `/sami-writing-desk/` base path. Never commit private
 fixtures or screenshots to the public website repository.
 
-`node tests/foreshadow-emulator.mjs` checks the new path using disposable local
-Git/RTDB/browser services and the production base path. It first proves the
-published rules reject a save while retaining its draft, then installs the
-proposed rules **only in that emulator** and checks browser → Git → browser and
-kept-version replacement. It requires the local sibling data and FamilyHub CLI
-checkouts already used by `npm run test:e2e:real`. It cleans up its temporary
-services/data and does not deploy rules or read real credentials.
+`node tests/foreshadow-emulator.mjs` checks the new path using FamilyHub
+`origin/main` rules, disposable local Git/RTDB/browser services and the
+production base path. It checks browser → Git → browser and kept-version
+replacement. It requires the local sibling data and FamilyHub CLI checkouts
+already used by `npm run test:e2e:real`. It cleans up its temporary services/data
+and does not deploy rules or read real credentials.
 
 Code-size exception: the existing `reconcileOnce` function in `reconcile.mjs`
 exceeds 80 lines because it retains the single ordered reconciliation decision
