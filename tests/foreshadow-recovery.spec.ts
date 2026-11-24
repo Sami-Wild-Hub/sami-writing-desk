@@ -1,18 +1,9 @@
 // Regression coverage for repository replacement, recovery downloads and literal form values.
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { stubFirebase } from './stub.ts';
+import { path, setup } from './foreshadow-browser.ts';
 import { foreshadowFixture } from './foreshadow-fixture.mjs';
 import { pack, unpack } from '../src/lib/views/outline/codec.js';
 
-const path = 'households/novel-stub-house/outlineSync/maritime-story';
-async function setup(page: Page, data = foreshadowFixture()) {
-  const db = await stubFirebase(page);
-  db.server(`${path}/live/foreshadow`, await pack(data));
-  await page.goto('book/?book=maritime-story&view=foreshadow');
-  const root = page.locator('[data-view="foreshadow"]');
-  await expect(root.locator('tbody tr')).toHaveCount(2);
-  return { db, root };
-}
 async function editNote(root: Locator, note: string) {
   await root.getByRole('button', { name: '编辑', exact: true }).first().click();
   await root.getByLabel('备注', { exact: true }).fill(note);

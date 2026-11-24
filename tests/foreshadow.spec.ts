@@ -1,21 +1,12 @@
 // Browser edits, shared-revision conflicts and optional private design screenshots.
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { readFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { env, stubFirebase, watchErrors } from './stub.ts';
 import { foreshadowFixture } from './foreshadow-fixture.mjs';
+import { path, setup } from './foreshadow-browser.ts';
 import { pack, unpack } from '../src/lib/views/outline/codec.js';
 import type { ForeshadowData } from '../src/lib/views/foreshadow/schema.ts';
-
-const path = 'households/novel-stub-house/outlineSync/maritime-story';
-async function setup(page: Page, data = foreshadowFixture()) {
-  const db = await stubFirebase(page);
-  db.server(`${path}/live/foreshadow`, await pack(data));
-  await page.goto('book/?book=maritime-story&view=foreshadow');
-  const root = page.locator('[data-view="foreshadow"]');
-  await expect(root.locator('tbody tr')).toHaveCount(data.rows.length);
-  return { db, root };
-}
 
 test('signed-out access reads no private data, and an absent table shows its empty state', async ({ page }) => {
   const db = await stubFirebase(page, { signedIn: false });
@@ -115,10 +106,8 @@ test('remote changes to another row cannot redirect an open editor to the wrong 
 test('已收 is hidden until the remembered filter changes; phone cards edit, add and delete', async ({ page }) => {
   const data = foreshadowFixture(); data.rows[1].author['是否已收'] = '已收';
   await page.setViewportSize({ width: 390, height: 844 });
-  const db = await stubFirebase(page);
-  db.server(`${path}/live/foreshadow`, await pack(data));
-  await page.goto('book/?book=maritime-story&view=foreshadow');
-  const root = page.locator('[data-view="foreshadow"]'), status = root.getByLabel('是否已收', { exact: true });
+  const { db, root } = await setup(page, data);
+  const status = root.getByLabel('是否已收', { exact: true });
   await expect(root.locator('tbody tr')).toHaveCount(1);
   await expect(status).toHaveValue('!已收');
   const card = root.locator('tbody tr').first();
