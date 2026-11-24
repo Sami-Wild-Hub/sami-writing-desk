@@ -1,27 +1,28 @@
+// Reconcile the book's versioned documents through Git, RTDB CAS and sync trailers.
+// Reads: outline/<slug>, outlineSync/<slug> (Git/RTDB); Writes: outline/<slug>, outlineSync/<slug> (Git/RTDB)
 import crypto from 'node:crypto';
 import { createOutlineModel } from '../../src/lib/views/outline/model.js';
 import { outlineConfig } from '../../src/lib/views/outline/config.js';
-import { pack, unpack } from '../../src/lib/views/outline/codec.js';
+import { documentNames, sameDocuments, packedDocuments, decodedDocuments, validateOptionalForeshadow } from './files.mjs';
 
 const newRev = () => crypto.randomBytes(8).toString('hex').slice(0, 12);
-const same = (a, b) => a === b;
 const configObject = text => text ? JSON.parse(text) : {};
 const forcePublishMs = 2 * 60_000;
 
 async function liveTexts(live) {
-  if (!live?.plot || !live?.plan) return null;
-  return { plot: await unpack(live.plot), plan: await unpack(live.plan) };
+  return decodedDocuments(live);
 }
 
 function validateTexts(snapshot, texts) {
   const plot = JSON.parse(texts.plot), plan = JSON.parse(texts.plan);
   createOutlineModel(plot, plan);
   outlineConfig(plot, configObject(snapshot.config));
+  validateOptionalForeshadow(texts.foreshadow);
   return { plot, plan };
 }
 
 const validRepo = snapshot => {
-  try { validateTexts(snapshot, { plot: snapshot.plot, plan: snapshot.plan }); return null; }
+  try { validateTexts(snapshot, snapshot); return null; }
   catch (error) { return error instanceof Error ? error.message : String(error); }
 };
 
@@ -49,7 +50,7 @@ function withUsableConfig(snapshot, accepted) {
 async function initialStarter(git, slug, current) {
   const commit = await git.introduced(current.commit, slug);
   const added = commit === current.commit ? current : await git.snapshot(commit, slug);
-  return { commit, plot: await pack(added.plot), plan: await pack(added.plan) };
+  return { commit, ...await packedDocuments(added) };
 }
 
 function repoInfo(snapshot, error) {
@@ -60,7 +61,7 @@ function repoInfo(snapshot, error) {
 }
 
 async function packedSnapshot(snapshot) {
-  return { tree: snapshot.tree, commit: snapshot.commit, plot: await pack(snapshot.plot), plan: await pack(snapshot.plan) };
+  return { tree: snapshot.tree, commit: snapshot.commit, ...await packedDocuments(snapshot) };
 }
 
 export async function reconcileBook(options = {}) {
@@ -109,12 +110,12 @@ async function reconcileOnce({ git, rtdb, slug, state: suppliedState, now = Date
   }
 
   const baseline = synced?.commit ? await git.snapshot(synced.commit, slug) : null;
-  const changed = !baseline || !same(current.plot, baseline.plot) || !same(current.plan, baseline.plan);
+  const changed = !baseline || !sameDocuments(current, baseline);
   const repoError = validRepo(current);
   const liveDecoded = await liveTexts(live);
   const liveValid = liveDecoded ? (() => { try { validateTexts(current, liveDecoded); return true; } catch { return false; } })() : false;
   const liveChanged = Boolean(live && synced && live.rev !== synced.rev);
-  const baseLive = baseline ? { plot: baseline.plot, plan: baseline.plan } : null;
+  const baseLive = baseline;
 
   if (!changed) {
     const nextSynced = synced ? { ...synced, tree: current.tree, commit: tip } : null;
@@ -124,7 +125,7 @@ async function reconcileOnce({ git, rtdb, slug, state: suppliedState, now = Date
     const nextHead = { ...head, synced: nextSynced ?? (live ? { rev: live.rev, tree: current.tree, commit: tip } : null), repo: repoInfo(current), config: current.config ?? '' };
     if (nextHead.synced && !live) {
       nextHead.synced = { rev: newRevision(), tree: current.tree, commit: tip };
-      const first = { rev: nextHead.synced.rev, base: '', at: now, by: 'repo', plot: await pack(current.plot), plan: await pack(current.plan) };
+      const first = { rev: nextHead.synced.rev, base: '', at: now, by: 'repo', ...await packedDocuments(current) };
       await write(store, slug, { headRepoCommit: oldCommit, liveRev: null }, { head: nextHead, live: first, starter: await initialStarter(git, slug, current), incoming: null });
       return { status: 'initialized', rev: first.rev };
     }
@@ -132,7 +133,7 @@ async function reconcileOnce({ git, rtdb, slug, state: suppliedState, now = Date
     return { status: 'unchanged' };
   }
 
-  const repoVersion = { tree: current.tree, commit: tip, plot: await pack(current.plot), plan: await pack(current.plan) };
+  const repoVersion = await packedSnapshot(current);
   if (repoError) {
     const repo = repoInfo(current, repoError);
     const nextHead = { ...head, repo, config: current.config ?? '' };
@@ -144,7 +145,7 @@ async function reconcileOnce({ git, rtdb, slug, state: suppliedState, now = Date
 
   if (!live && !synced) {
     const rev = newRevision();
-    const first = { rev, base: '', at: now, by: 'repo', plot: repoVersion.plot, plan: repoVersion.plan };
+    const first = { rev, base: '', at: now, by: 'repo', ...await packedDocuments(current) };
     const nextHead = { ...head, synced: { rev, tree: current.tree, commit: tip }, repo: repoInfo(current), config: current.config ?? '' };
     await write(store, slug, { headRepoCommit: oldCommit, liveRev: null }, { head: nextHead, live: first, starter: await initialStarter(git, slug, current), incoming: null });
     return { status: 'initialized', rev };
@@ -152,7 +153,7 @@ async function reconcileOnce({ git, rtdb, slug, state: suppliedState, now = Date
 
   if (!live || !synced || !liveChanged) {
     const rev = newRevision();
-    const nextLive = { rev, base: live?.rev ?? '', at: now, by: 'repo', plot: repoVersion.plot, plan: repoVersion.plan };
+    const nextLive = { rev, base: live?.rev ?? '', at: now, by: 'repo', ...await packedDocuments(current) };
     const nextHead = { ...head, synced: { rev, tree: current.tree, commit: tip }, repo: repoInfo(current), config: current.config ?? '' };
     await write(store, slug, { headRepoCommit: oldCommit, liveRev: live?.rev ?? null }, { head: nextHead, live: nextLive, incoming: null });
     return { status: 'repo-to-live', rev };
@@ -162,21 +163,21 @@ async function reconcileOnce({ git, rtdb, slug, state: suppliedState, now = Date
     return enter({ git, rtdb: store, slug, head, live, current, now, stableMs, expected: { headRepoCommit: oldCommit, liveRev: live.rev }, dryRun });
   }
 
-  if (liveDecoded && liveValid && liveDecoded.plot === current.plot && liveDecoded.plan === current.plan) {
+  if (liveDecoded && liveValid && sameDocuments(liveDecoded, current)) {
     const nextHead = { ...head, synced: { rev: live.rev, tree: current.tree, commit: tip }, repo: repoInfo(current), config: current.config ?? '' };
     await write(store, slug, { headRepoCommit: oldCommit, liveRev: live.rev }, { head: nextHead, incoming: null });
     return { status: 'same-content' };
   }
 
   if (liveDecoded && baseLive) {
-    const files = ['plot', 'plan'];
-    const repoChanged = files.map(name => current[name] !== baseline[name]);
-    const liveChangedFiles = files.map(name => liveDecoded[name] !== baseLive[name]);
+    const files = documentNames;
+    const repoChanged = files.map(name => (current[name] ?? null) !== (baseline[name] ?? null));
+    const liveChangedFiles = files.map(name => (liveDecoded[name] ?? null) !== (baseLive[name] ?? null));
     if (repoChanged.every((changedFile, i) => !(changedFile && liveChangedFiles[i]))) {
       const merged = Object.fromEntries(files.map((name, i) => [name, repoChanged[i] ? current[name] : liveDecoded[name]]));
       try { validateTexts(current, merged); } catch { /* falls through to conflict */ }
-      if (!validRepo({ ...current, plot: merged.plot, plan: merged.plan })) {
-        const nextLive = { ...live, rev: newRevision(), base: live.rev, at: now, by: 'repo', plot: await pack(merged.plot), plan: await pack(merged.plan) };
+      if (!validRepo({ ...current, ...merged })) {
+        const nextLive = { ...live, rev: newRevision(), base: live.rev, at: now, by: 'repo', ...await packedDocuments(merged) };
         const nextHead = { ...head, synced: { rev: live.rev, tree: current.tree, commit: tip }, repo: repoInfo(current), config: current.config ?? '' };
         await write(store, slug, { headRepoCommit: oldCommit, liveRev: live.rev }, { head: nextHead, live: nextLive, incoming: null });
         return { status: 'merged', rev: nextLive.rev };
@@ -201,12 +202,12 @@ async function enter({ git, rtdb, slug, head, live, current, now, stableMs, expe
   try { validateTexts(current, texts); } catch (error) { return { status: 'invalid-live', error: error.message }; }
   if (dryRun) return { status: 'would-publish', actionable: true, age };
   const parent = current.commit;
-  if (current.plot === texts.plot && current.plan === texts.plan) {
+  if (sameDocuments(current, texts)) {
     await write(rtdb, slug, expected, { head: { ...head, synced: { rev: live.rev, tree: current.tree, commit: parent }, repo: repoInfo(current), config: current.config ?? '' }, incoming: null });
     return { status: 'already-current' };
   }
   try {
-    const commit = await git.commitFiles(parent, slug, { 'plot-data.json': texts.plot, 'placements.json': texts.plan }, `Sync outline ${slug}\n\nOutline-Sync: ${live.rev}\n`);
+    const commit = await git.commitFiles(parent, slug, { 'plot-data.json': texts.plot, 'placements.json': texts.plan, 'foreshadow.json': texts.foreshadow }, `Sync outline ${slug}\n\nOutline-Sync: ${live.rev}\n`);
     await git.push(commit);
     const pushed = withUsableConfig(await git.snapshot(commit, slug), head.config);
     await write(rtdb, slug, expected, { head: { ...head, synced: { rev: live.rev, tree: pushed.tree, commit }, repo: repoInfo(pushed), config: pushed.config ?? '' }, incoming: null });

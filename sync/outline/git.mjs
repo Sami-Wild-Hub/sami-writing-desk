@@ -1,3 +1,5 @@
+// Read versioned outline documents and publish them through the existing Git tree path.
+// Reads: outline/<slug> (Git blobs); Writes: outline/<slug> (Git trees and sync commits)
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -61,11 +63,11 @@ export class GitRepo {
     catch { return null; }
   }
   async snapshot(commit, slug) {
-    const [plot, plan, config, tree] = await Promise.all([
+    const [plot, plan, config, tree, foreshadow] = await Promise.all([
       this.file(commit, slug, 'plot-data.json'), this.file(commit, slug, 'placements.json'),
-      this.file(commit, slug, 'config.json'), this.tree(commit, slug),
+      this.file(commit, slug, 'config.json'), this.tree(commit, slug), this.file(commit, slug, 'foreshadow.json'),
     ]);
-    return { commit, tree, plot, plan, config };
+    return { commit, tree, plot, plan, config, foreshadow };
   }
   async introduced(tip, slug) {
     const paths = ['plot-data.json', 'placements.json'].map(name => pathFor(slug, name));
@@ -87,6 +89,10 @@ export class GitRepo {
     try {
       await runGit(this.root, ['read-tree', parent], { env });
       for (const [name, text] of Object.entries(files)) {
+        if (text == null) {
+          await runGit(this.root, ['update-index', '--index-info'], { env, input: `0 ${'0'.repeat(40)}\t${pathFor(slug, name)}\n` });
+          continue;
+        }
         const blob = (await runGit(this.root, ['hash-object', '-w', '--stdin'], { input: text })).trim();
         await runGit(this.root, ['update-index', '--add', '--cacheinfo', `100644,${blob},${pathFor(slug, name)}`], { env });
       }

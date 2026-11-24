@@ -1,0 +1,17 @@
+[
+  {
+    "op": "add",
+    "path": "/rules/households/$householdId/outlineSync/$slug/live/foreshadow",
+    "value": { ".validate": "newData.isString() && newData.val().length <= 2000000" }
+  },
+  {
+    "op": "add",
+    "path": "/rules/households/$householdId/outlineSync/$slug/kept/foreshadow",
+    "value": { ".validate": "newData.isString() && newData.val().length <= 2000000" }
+  },
+  {
+    "op": "replace",
+    "path": "/rules/households/$householdId/outlineSync/$slug/kept/.validate",
+    "value": "newData.hasChildren(['rev', 'at', 'uid', 'plot', 'plan']) && newData.child('rev').val() == data.parent().child('live/rev').val() && newData.child('plot').val() == data.parent().child('live/plot').val() && newData.child('plan').val() == data.parent().child('live/plan').val() && newData.child('foreshadow').val() == data.parent().child('live/foreshadow').val()"
+  }
+]

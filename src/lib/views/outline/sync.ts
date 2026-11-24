@@ -4,18 +4,21 @@ import { onValue, update, type DatabaseReference } from 'firebase/database';
 import { outlineConfig } from './config.js';
 import { jsonText, pack, unpack } from './codec.js';
 import type { OutlinePayload, OutlineData, OutlinePlan } from './schema.ts';
+import type { ForeshadowData } from '../foreshadow/schema.ts';
+import { validateForeshadow } from '../foreshadow/model.js';
 
 export interface OutlineSyncState {
   head?: { synced?: { rev: string; tree?: string; commit?: string }; repo?: { tree?: string; commit?: string; error?: string; configError?: string; at?: number }; config?: string } | null;
-  live?: { rev: string; base: string; at: number; by: 'web' | 'repo'; uid?: string; over?: string; plot: string; plan: string } | null;
-  incoming?: { tree: string; commit: string; plot: string; plan: string } | null;
-  starter?: { commit: string; plot: string; plan: string } | null;
-  kept?: { rev: string; at: number; uid: string; plot: string; plan: string } | null;
+  live?: ({ rev: string; base: string; at: number; by: 'web' | 'repo'; uid?: string; over?: string } & PackedFiles) | null;
+  incoming?: ({ tree: string; commit: string } & PackedFiles) | null;
+  starter?: ({ commit: string } & PackedFiles) | null;
+  kept?: ({ rev: string; at: number; uid: string } & PackedFiles) | null;
   _coordinator?: { holder?: string; host?: string; until?: number; at?: number } | null;
 }
 
-export interface PackedFiles { plot: string; plan: string; }
-export interface DecodedFiles { plot: string; plan: string; plot_data: OutlineData; plan_data: OutlinePlan; }
+export interface PackedFiles { plot: string; plan: string; foreshadow?: string | null; }
+export interface DecodedFiles { plot: string; plan: string; plot_data: OutlineData; plan_data: OutlinePlan; foreshadow: ForeshadowData | null; }
+interface Workspace { plot_data: unknown; plan: unknown; foreshadow?: ForeshadowData | null; }
 
 const bookRef = (householdRef: (path: string) => DatabaseReference, slug: string) => householdRef(`outlineSync/${slug}`);
 export const newRevision = () => globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 12);
@@ -39,7 +42,8 @@ export function subscribe(
 async function decodePacked(source: PackedFiles | null | undefined): Promise<DecodedFiles | null> {
   if (!source?.plot || !source.plan) return null;
   const [plot, plan] = await Promise.all([unpack(source.plot), unpack(source.plan)]);
-  return { plot, plan, plot_data: JSON.parse(plot) as OutlineData, plan_data: JSON.parse(plan) as OutlinePlan };
+  const foreshadow = source.foreshadow ? validateForeshadow(JSON.parse(await unpack(source.foreshadow))) as ForeshadowData : null;
+  return { plot, plan, plot_data: JSON.parse(plot) as OutlineData, plan_data: JSON.parse(plan) as OutlinePlan, foreshadow };
 }
 
 function configObject(raw: string | undefined) {
@@ -78,13 +82,13 @@ export function filesEqual(left: { plot: string; plan: string }, right: { plot: 
 
 function keptValue(live: OutlineSyncState['live'], uid: string, at: number) {
   if (!live) return null;
-  return { rev: live.rev, at, uid, plot: live.plot, plan: live.plan };
+  return { rev: live.rev, at, uid, plot: live.plot, plan: live.plan, ...(live.foreshadow ? { foreshadow: live.foreshadow } : {}) };
 }
 
 export async function save(
   householdRef: (path: string) => DatabaseReference,
   slug: string,
-  workspace: { plot_data: unknown; plan: unknown },
+  workspace: Workspace,
   options: { base: string; uid: string; over?: string; previous?: OutlineSyncState['live']; current?: OutlineSyncState['live']; at?: number; revision?: () => string },
 ) {
   const files = workspaceFiles(workspace);
@@ -92,15 +96,20 @@ export async function save(
     rev: (options.revision ?? newRevision)(), base: options.base, at: options.at ?? Date.now(), by: 'web' as const,
     uid: options.uid, over: options.over ?? '', plot: await pack(files.plot), plan: await pack(files.plan),
   };
+  // Outline-only edits keep the latest third document; explicit null removes it.
+  const foreshadow = workspace.foreshadow === undefined ? options.current?.foreshadow ?? null
+    : workspace.foreshadow === null ? null : await pack(validateForeshadow(workspace.foreshadow));
+  const completeLive = { ...live, foreshadow };
   const values: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(live)) {
     if ((key === 'plot' || key === 'plan') && options.current && normalized(files[key]) === normalized(await unpack(options.current[key]))) continue;
     values[`live/${key}`] = value;
   }
+  if (workspace.foreshadow !== undefined) values['live/foreshadow'] = foreshadow;
   const kept = keptValue(options.previous, options.uid, live.at);
   if (kept) values.kept = kept;
   await update(bookRef(householdRef, slug), values);
-  return live;
+  return completeLive;
 }
 
 export async function resolve(
@@ -108,7 +117,7 @@ export async function resolve(
   slug: string,
   action: 'keep-web' | 'use-repo' | 'use-local' | 'fix-repo',
   state: OutlineSyncState,
-  workspace: { plot_data: unknown; plan: unknown },
+  workspace: Workspace,
   options: { uid: string; at?: number; revision?: () => string },
 ) {
   const live = state.live;
@@ -116,7 +125,7 @@ export async function resolve(
   if (action === 'use-repo') {
     const incoming = await decodePacked(state.incoming);
     if (!incoming || !state.incoming) throw new Error('仓库版本不可用');
-    return save(householdRef, slug, { plot_data: incoming.plot_data, plan: incoming.plan_data }, {
+    return save(householdRef, slug, { plot_data: incoming.plot_data, plan: incoming.plan_data, foreshadow: incoming.foreshadow }, {
       base: live.rev, uid: options.uid, over: state.incoming.tree, previous: live, current: live, at: options.at, revision: options.revision,
     });
   }
