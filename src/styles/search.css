@@ -1,7 +1,9 @@
 /* Search overlay of the book page (/ or Ctrl/⌘K): grouped hits, filter chips, keyboard selection. */
-.search { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-start; justify-content: center; padding: 9vh 1rem 1rem; background: rgb(30 28 25 / .32); }
+.search { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-start; justify-content: center; padding: 9vh 1rem 1rem; background: rgb(30 28 25 / .32);
+  animation: fade-in var(--dur-2) var(--ease-out); }
+.search.leaving { animation-name: fade-out !important; }
 .search-box { display: flex; flex-direction: column; width: min(46rem, 100%); max-height: 80vh; overflow: hidden; border-radius: 14px; background: var(--surface);
-  box-shadow: 0 24px 60px rgb(0 0 0 / .25); }
+  box-shadow: 0 24px 60px rgb(0 0 0 / .25); transform-origin: top center; animation: pop-in var(--dur-2) var(--ease-out); }
 .search-top { display: flex; align-items: center; gap: 8px; padding: 0 .5rem 0 .9rem; border-bottom: 1px solid var(--line); color: var(--ink-3); }
 .search-top input { flex: 1; min-width: 0; height: 3.6rem; border: 0; outline: 0; background: none; color: var(--ink); font-size: 1.125rem; }
 .search-chips { flex: none; display: flex; gap: 6px; padding: .6rem .9rem; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }

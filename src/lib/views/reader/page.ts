@@ -130,9 +130,11 @@ export function buildPage(host: NovelViewHost, path: string, html: string): Read
   if (paragraphs) meta.push(`<span class="pill">${paragraphs} 段</span>`);
   const inner = document.createElement('div');
   inner.className = 'doc-inner';
+  // Lines and events get timeline pills later; their row keeps its height meanwhile.
+  const waits = info.kind === 'owner' || info.kind === 'record' || Boolean(info.event);
   inner.innerHTML = crumb(host, path, info) +
     `<div class="doc-head"><h1>${esc(title)}</h1><div class="aa"><button class="iconbtn" type="button" data-aa aria-label="阅读设置" aria-expanded="false"><b>Aa</b></button></div></div>` +
-    `<div class="doc-meta">${meta.join('')}</div>${subtabs(host, path, info)}`;
+    `<div class="doc-meta${waits ? ' waits' : ''}">${meta.join('')}</div>${subtabs(host, path, info)}`;
   inner.append(prose);
   inner.insertAdjacentHTML('beforeend', pager(host, path, info));
   return { path, inner, title, info };
@@ -147,14 +149,14 @@ export function addTimelineBits(page: ReaderPage, rail: HTMLElement, data: Novel
   if (info.kind === 'owner' || info.kind === 'record') {
     const line = data.owners.find((owner) => owner.id === info.owner);
     if (line) {
-      meta.insertAdjacentHTML('beforeend', `<span class="pill">${line.pts.length} 个事件</span>` +
-        `<a class="pill accent" href="${timeline(`#line-${line.id}`)}" data-novel-view="timeline">在时间线中看这条线 →</a>`);
+      meta.insertAdjacentHTML('beforeend', `<span class="pill late">${line.pts.length} 个事件</span>` +
+        `<a class="pill accent late" href="${timeline(`#line-${line.id}`)}" data-novel-view="timeline">在时间线中看这条线 →</a>`);
     }
   } else if (info.event) {
     const pid = Object.keys(data.points).find((id) => id.split('@')[0] === info.event);
     if (pid) {
-      meta.insertAdjacentHTML('beforeend', `<span class="pill">${esc(data.bands[data.points[pid].b] ?? '')}</span>` +
-        `<a class="pill accent" href="${timeline(`#p-${pid}`)}" data-novel-view="timeline">在时间线中定位 →</a>`);
+      meta.insertAdjacentHTML('beforeend', `<span class="pill late">${esc(data.bands[data.points[pid].b] ?? '')}</span>` +
+        `<a class="pill accent late" href="${timeline(`#p-${pid}`)}" data-novel-view="timeline">在时间线中定位 →</a>`);
     }
   } else if (info.kind === 'chapter') {
     const prefix = `C${info.chapter}#`;
@@ -165,6 +167,6 @@ export function addTimelineBits(page: ReaderPage, rail: HTMLElement, data: Novel
       const where = p.locs.filter((loc) => loc.startsWith(prefix)).map((loc) => parseLoc(loc)?.label.split('·')[1]).filter(Boolean).join('、');
       return target ? `<a href="${esc(target)}" data-doc-path="events/${esc(eid)}.md" data-doc-hash="${at ? `#at-${esc(at)}` : ''}">${esc(pointLabel(pid))} ${esc(p.title)}<small>${esc(where)}</small></a>` : '';
     }).join('');
-    if (links) rail.insertAdjacentHTML('beforeend', `<div class="box"><h4>本章写到的事件</h4>${links}</div>`);
+    if (links) rail.insertAdjacentHTML('beforeend', `<div class="box late"><h4>本章写到的事件</h4>${links}</div>`);
   }
 }

@@ -3,6 +3,7 @@
 // links arrive as #p-<point> (locate) and #line-<owner> (show that line).
 import { buildModel, layoutTimeline, type NovelTimelineData, type TimelineLayout, type TimelineModel } from '../../novelTimelineModel.ts';
 import { esc, icon } from '../../archive/ui.ts';
+import { enter, flash, scrollToY } from '../../archive/motion.ts';
 import type { NovelRoute } from '../../novelArchiveRoute.ts';
 import type { CreateNovelView, NovelViewHost, ShowContext } from '../types.ts';
 import { cardHtml, cardLinks, swatch, type CardLinks } from './card.ts';
@@ -173,10 +174,14 @@ class TimelinePanel {
     const closing = this.st.open.has(pid);
     if (closing) this.st.open.delete(pid); else this.st.open.add(pid);
     this.renderAnchored(pid, closing);
+    // only the card this toggle opened is revealed; other re-renders stay still
+    const card = closing ? null : this.el.rows.querySelector<HTMLElement>(`.card[data-card="${CSS.escape(pid)}"]`);
+    if (card) enter(card, 'reveal');
   }
 
-  /** Shows a point, adding a line that has it when it is off the current selection. */
-  private jump(pid: string, { open = true, from }: { open?: boolean; from?: string } = {}) {
+  /** Shows a point, adding a line that has it when it is off the current selection. `land`
+   *  (arriving from another view) places it at once; moves within the view use scrollToY. */
+  private jump(pid: string, { open = true, from, land = false }: { open?: boolean; from?: string; land?: boolean } = {}) {
     const { model, st } = this;
     let changed = false;
     if (!model.data.points[pid]) return;
@@ -189,10 +194,10 @@ class TimelinePanel {
     if (changed) this.render();
     const r = this.rowEl(pid);
     if (!r) return;
-    window.scrollTo({ top: r.getBoundingClientRect().top + window.scrollY - this.stickyH() - 24, behavior: 'instant' });
-    r.classList.remove('cur', 'flash');
-    void r.offsetWidth;
-    r.classList.add('cur', 'flash');
+    const top = r.getBoundingClientRect().top + window.scrollY - this.stickyH() - 24;
+    if (land) window.scrollTo({ top, behavior: 'instant' }); else scrollToY(top);
+    r.classList.add('cur');
+    flash(r);
   }
 
   private step(d: number) {
@@ -249,12 +254,12 @@ class TimelinePanel {
     let h = hash.slice(1);
     try { h = decodeURIComponent(h); } catch { /* keep as is */ }
     const point = /^p-(.+)$/.exec(h)?.[1];
-    if (point) return void this.jump(point);
+    if (point) return void this.jump(point, { land: true });
     const o = this.model.lines[/^line-(.+)$/.exec(h)?.[1] ?? ''];
     if (!o) return;
     if (!o.axis) { this.st.sel.add(o.id); this.render(); }
     const first = [...o.pts].sort((a, b) => this.model.data.points[a[0]].r - this.model.data.points[b[0]].r)[0]?.[0];
-    if (first) this.jump(first, { open: false });
+    if (first) this.jump(first, { open: false, land: true });
     this.host.toast(o.axis ? `${o.name}在主轴上` : `已显示线路：${o.name}`);
   }
 

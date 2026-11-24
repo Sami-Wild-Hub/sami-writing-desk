@@ -7,6 +7,7 @@ import { createStore } from './archive/store.ts';
 import type { LoadedBook } from './archive/data.ts';
 import { accessMessage } from './archive/access.ts';
 import { searchInput } from './archive/input.ts';
+import { hide, isShown, show } from './archive/motion.ts';
 
 const greeting = () => {
   const hour = new Date().getHours();
@@ -43,8 +44,11 @@ export function mountHome(config: Partial<FirebaseConfig>) {
   const account = $<HTMLButtonElement>('home-account');
   const menu = $('home-account-menu');
   const signIn = $<HTMLButtonElement>('home-sign-in');
-  const toggle = (open: boolean) => { menu.hidden = !open; account.setAttribute('aria-expanded', String(open)); };
-  account.addEventListener('click', () => toggle(menu.hidden));
+  const toggle = (open: boolean) => {
+    if (open) show(menu); else hide(menu);
+    account.setAttribute('aria-expanded', String(open));
+  };
+  account.addEventListener('click', () => toggle(!isShown(menu)));
   document.addEventListener('click', (event) => { if (!(event.target as Element).closest('.menu-wrap')) toggle(false); });
   $('home-sign-out').addEventListener('click', () => { toggle(false); void session.signOut(); });
   signIn.addEventListener('click', () => void (session.getStatus().email ? session.refreshAccess() : session.signInWithGoogle()).catch((error) => toast(String(error))));
@@ -68,6 +72,7 @@ export function mountHome(config: Partial<FirebaseConfig>) {
     url.searchParams.set('view', 'outline');
     link.href = url.href;
     link.textContent = '大纲';
+    link.className = 'late';
     link.dataset.outlineLink = '';
     const actions = card.querySelector('.acts')!;
     actions.insertBefore(link, actions.lastElementChild);

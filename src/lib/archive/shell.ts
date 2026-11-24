@@ -10,6 +10,7 @@ import type { NovelViewHost, NovelViewInstance, ShowContext } from '../views/typ
 import { mountBar } from './bar.ts';
 import type { LoadedBook } from './data.ts';
 import { mountGate } from './gate.ts';
+import { enter } from './motion.ts';
 import { mountSearch } from './search.ts';
 import { createStore } from './store.ts';
 import { esc, icon, plainClick, toast } from './ui.ts';
@@ -71,12 +72,30 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
   let shown: MountedView | null = null;
   const connected = () => session.getStatus().connection === 'connected';
 
+  // One drawer state drives the panel, scrim, openers' aria-expanded and focus: opening on a
+  // phone moves focus in, closing brings it back to the opener; Esc closes.
+  const phone = window.matchMedia('(max-width: 860px)');
+  let drawerOpener: HTMLElement | null = null;
   function setDrawer(open: boolean) {
     const side = shown?.root.querySelector<HTMLElement>('.side');
-    side?.classList.toggle('show', open);
-    scrim.classList.toggle('show', open && Boolean(side));
+    const was = Boolean(side?.classList.contains('show'));
+    const now = open && Boolean(side);
+    const focusInside = Boolean(side?.contains(document.activeElement)) || document.activeElement === document.body;
+    side?.classList.toggle('show', now);
+    scrim.classList.toggle('show', now);
+    for (const opener of document.querySelectorAll('[data-drawer]')) opener.setAttribute('aria-expanded', String(now));
+    if (now && !was && phone.matches) {
+      drawerOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      side!.querySelector<HTMLElement>('[aria-current="page"], a[href], button, summary, input')?.focus();
+    } else if (!now && was) {
+      if (focusInside && drawerOpener?.isConnected) drawerOpener.focus();
+      drawerOpener = null;
+    }
   }
   scrim.addEventListener('click', () => setDrawer(false));
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && shown?.root.querySelector('.side.show')) setDrawer(false);
+  });
 
   const dropBook = () => {
     for (const mounted of current?.views.values() ?? []) mounted.view.dispose();
@@ -212,6 +231,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       const view = await viewFor(opened, route.view);
       if (!view || !latest()) return;
       const backLabel = shown?.view.label() ?? '';
+      const switched = shown !== view;
       if (shown && shown !== view) {
         shown.view.hide();
         shown.root.hidden = true;
@@ -234,6 +254,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       if (!back.hidden) back.innerHTML = `${icon('back')}<span>返回 ${esc(backLabel)}</span>`;
       const key = route.view === 'reader' ? opened.book.pathToKey.get(route.doc) : undefined;
       if (key) search.remember(opened.book.manifest.entries[key], normal);
+      if (switched) enter(view.root, 'view-enter');
       message('');
     } catch (error) {
       if (mine === serial) failure(error instanceof Error ? error.message : '知识库加载失败', () => void render(via));

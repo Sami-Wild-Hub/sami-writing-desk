@@ -1,4 +1,6 @@
 // Replace changed proof results while retaining the visible paragraph and open raw output.
+import { enter } from '../../archive/motion.ts';
+
 export function updateResult(root: HTMLElement, html: string) {
   if (root.dataset.html === html) return;
   const top = (document.querySelector<HTMLElement>('#novel-bar')?.offsetHeight ?? 0) + 8;
@@ -8,7 +10,9 @@ export function updateResult(root: HTMLElement, html: string) {
   const offset = anchor?.getBoundingClientRect().top ?? 0;
   const open = [...root.querySelectorAll<HTMLDetailsElement>('details')].map(d => d.open);
   const focus = [...root.querySelectorAll<HTMLElement>('button, .pitem')].indexOf(document.activeElement as HTMLElement);
+  const first = !root.dataset.html && html;
   root.innerHTML = html; root.dataset.html = html;
+  if (first) enter(root, 'late'); // the report arriving fades in; later updates replace it quietly
   root.querySelectorAll<HTMLDetailsElement>('details').forEach((d, i) => { d.open = open[i] ?? false; });
   if (focus >= 0) root.querySelectorAll<HTMLElement>('button, .pitem')[focus]?.focus({ preventScroll: true });
   const next = selector && root.querySelector<HTMLElement>(selector);

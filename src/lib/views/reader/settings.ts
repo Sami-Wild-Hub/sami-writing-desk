@@ -1,4 +1,6 @@
 // 阅读设置 (the Aa menu): text size and 黑体／宋体, kept in this browser. 黑体 is the default.
+import { leave } from '../../archive/motion.ts';
+
 const KEY = 'swd.reading';
 const sizes = { s: ['小', 0.9], m: ['中', 1], l: ['大', 1.12] } as const;
 const fonts = { sans: ['黑体', 'var(--sans)'], serif: ['宋体', 'var(--serif)'] } as const;
@@ -27,7 +29,8 @@ const seg = (name: keyof Settings, options: Record<string, readonly [string, unk
 export function mountReadingMenu(scope: HTMLElement) {
   let pop: HTMLElement | null = null;
   const close = () => {
-    pop?.remove();
+    const node = pop;
+    if (node) leave(node, () => node.remove());
     pop = null;
     scope.querySelector('[data-aa]')?.setAttribute('aria-expanded', 'false');
   };

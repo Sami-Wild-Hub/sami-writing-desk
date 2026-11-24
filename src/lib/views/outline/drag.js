@@ -1,4 +1,6 @@
 // Pointer dragging, insertion targets and edge scrolling, scoped to one mounted workbench.
+// The ghost follows the pointer with no easing; only the drop settles (ghost glides in, moved cards slide).
+import { ms, reduced } from '../../archive/motion.ts';
 const FIXED = 'button, input, textarea, select, summary, a, label, details';
 export const mountDrag = root => new OutlineDrag(root);
 class OutlineDrag {
@@ -29,6 +31,8 @@ class OutlineDrag {
     this.state.src.classList.add('dragging');
     this.state.mark = document.createElement('div');
     this.state.mark.className = 'drop-mark';
+    this.state.mark.hidden = true;
+    this.root.append(this.state.mark);
     this.root.classList.add('is-dragging');
     this.state.on = true;
     this.state.raf = requestAnimationFrame(this.scrollLoop);
@@ -52,14 +56,25 @@ class OutlineDrag {
     const zone = el && (el.closest(accept) || el.closest('[data-zone-area]')?.querySelector(accept));
     this.root.querySelectorAll('.drop-on').forEach(z => z !== zone && z.classList.remove('drop-on'));
     this.state.zone = zone;
-    if (!zone) return this.state.mark.remove();
+    if (!zone) return this.placeMark(null);
     zone.classList.add('drop-on');
-    if (zone.hasAttribute('data-nomark')) return this.state.mark.remove();
+    if (zone.hasAttribute('data-nomark')) return this.placeMark(null);
     const items = [...zone.querySelectorAll(':scope > [data-drag]')].filter(x => x !== this.state.src);
     this.state.index = items.filter(x => { const r = x.getBoundingClientRect(); return r.top + r.height / 2 < this.state.y; }).length;
-    const next = items[this.state.index];
-    if (next) zone.insertBefore(this.state.mark, next);
-    else zone.append(this.state.mark);
+    const next = items[this.state.index], prev = items[this.state.index - 1], z = zone.getBoundingClientRect();
+    const y = next ? next.getBoundingClientRect().top - 4 : prev ? prev.getBoundingClientRect().bottom + 2 : z.top + 4;
+    this.placeMark(`${z.left + 2},${y},${z.width - 4}`);
+  };
+  // The insertion line floats over the zone instead of entering it, so nothing below it reflows.
+  placeMark = (at) => {
+    const mark = this.state.mark;
+    if (at === mark.dataset.at) return;
+    mark.dataset.at = at ?? '';
+    mark.hidden = !at;
+    if (!at) return;
+    const [x, y, w] = at.split(',');
+    mark.style.transform = `translate(${x}px, ${y}px)`;
+    mark.style.width = `${w}px`;
   };
   // Resting a dragged card on a [data-drag-open] element for a moment opens it; leaving closes it again.
   hover = (el) => {
@@ -79,9 +94,11 @@ class OutlineDrag {
     this.state = null;
     if (st.src.hasPointerCapture(st.pointer)) st.src.releasePointerCapture(st.pointer);
     if (!st.on) return;
-    this.finish(st);
+    const before = st.zone && !reduced() ? this.positions() : null;
+    this.finish(st, true);
     this.swallowClick();
     if (st.zone) this.onDrop({ kind: st.kind, id: st.id, zone: { ...st.zone.dataset }, index: st.index });
+    this.settle(st, before);
   };
   cancel = e => {
     if (!this.state || (e.pointerId !== undefined && e.pointerId !== this.state.pointer)) return;
@@ -89,14 +106,57 @@ class OutlineDrag {
     if (st.on) this.finish(st);
     if (st.src.hasPointerCapture(st.pointer)) st.src.releasePointerCapture(st.pointer);
   };
-  finish = (st) => {
+  finish = (st, keepGhost = false) => {
     cancelAnimationFrame(st.raf);
-    st.ghost.remove();
+    if (!keepGhost) st.ghost.remove();
     st.mark.remove();
     st.src.classList.remove('dragging');
     this.closeOpener(st);
     this.root.querySelectorAll('.drop-on').forEach(z => z.classList.remove('drop-on'));
     this.root.classList.remove('is-dragging');
+  };
+  positions = () => {
+    const seen = new Map(), out = new Map(), h = innerHeight;
+    for (const el of this.root.querySelectorAll('[data-drag][data-id]')) {
+      const key = `${el.dataset.drag}:${el.dataset.id}`, n = seen.get(key) ?? 0, r = el.getBoundingClientRect();
+      seen.set(key, n + 1);
+      if (r.bottom > 0 && r.top < h && r.width) out.set(`${key}:${n}`, r);
+    }
+    return out;
+  };
+  // The ghost glides into the dropped card's new place (or fades if it left this view); cards that moved slide from where they were.
+  settle = (st, before) => {
+    const { ghost } = st, d = ms('--dur-2');
+    const z = st.zone?.dataset ?? {}, sel = ['zone', 'cat', 'beat', 'line'].filter(k => z[k] != null).map(k => `[data-${k}="${CSS.escape(z[k])}"]`).join('');
+    const zone = before && sel ? this.root.querySelector(sel) : null;
+    const target = zone?.querySelector(`[data-drag="${st.kind}"][data-id="${CSS.escape(st.id)}"]`);
+    if (!before || !d) return ghost.remove();
+    this.slide(before, `${st.kind}:${st.id}`);
+    ghost.style.transition = 'transform var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out)';
+    if (target) {
+      const r = target.getBoundingClientRect();
+      target.style.opacity = '0';
+      ghost.style.transform = `translate(${r.left}px, ${r.top}px)`;
+    } else ghost.style.opacity = '0';
+    setTimeout(() => { ghost.remove(); if (target) target.style.opacity = ''; }, d + 20);
+  };
+  slide = (before, dropped) => {
+    const seen = new Map(), moved = [];
+    for (const el of this.root.querySelectorAll('[data-drag][data-id]')) {
+      const key = `${el.dataset.drag}:${el.dataset.id}`, n = seen.get(key) ?? 0, was = before.get(`${key}:${n}`);
+      seen.set(key, n + 1);
+      if (!was || key === dropped) continue;
+      const r = el.getBoundingClientRect(), dx = was.left - r.left, dy = was.top - r.top;
+      if (Math.abs(dx) + Math.abs(dy) < 1 || Math.abs(dy) > innerHeight) continue;
+      el.style.transition = 'none';
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      moved.push(el);
+    }
+    if (!moved.length) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      for (const el of moved) { el.style.transition = 'transform var(--dur-2) var(--ease-out)'; el.style.transform = ''; }
+      setTimeout(() => moved.forEach(el => { el.style.transition = ''; }), ms('--dur-2') + 20);
+    }));
   };
   swallowClick = () => {
     const stop = ev => { ev.stopPropagation(); ev.preventDefault(); };

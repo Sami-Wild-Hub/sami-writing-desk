@@ -6,6 +6,7 @@ import { filterPeople, groupsOf, hasEntries, parsePeopleData, type NovelPeopleDa
 import type { CreateNovelView, NovelViewHost, ShowContext } from '../types.ts';
 import { detailHtml, peopleLinks, rowHtml, type PeopleLinks } from './cells.ts';
 import { searchInput } from '../../archive/input.ts';
+import { enter } from '../../archive/motion.ts';
 
 export { parsePeopleData };
 
@@ -102,11 +103,20 @@ class PeoplePanel {
 
   /** Opens or closes a person's detail; closing from the detail's own button brings the row back into view. */
   private toggle(id: string, fromDetail: boolean) {
-    if (this.st.open.has(id)) this.st.open.delete(id); else this.st.open.add(id);
-    const before = this.rowEl(id)?.getBoundingClientRect().top;
-    this.render();
     const row = this.rowEl(id);
-    if (!row) return;
+    const person = this.data.people.find((p) => p.id === id);
+    if (!row || !person) return;
+    const open = !this.st.open.has(id);
+    if (open) this.st.open.add(id); else this.st.open.delete(id);
+    const before = row.getBoundingClientRect().top;
+    // Only this row changes: the detail row is added or removed beside it, the rest stays put.
+    row.classList.toggle('open', open);
+    row.querySelector('.who-btn')?.setAttribute('aria-expanded', String(open));
+    if (open) {
+      row.insertAdjacentHTML('afterend', detailHtml(person, this.data, this.links));
+      const pd = row.nextElementSibling?.querySelector<HTMLElement>('.pd');
+      if (pd) enter(pd, 'reveal');
+    } else if (row.nextElementSibling?.matches('tr.detail')) row.nextElementSibling.remove();
     const top = row.getBoundingClientRect().top;
     if (fromDetail && top < this.stickyH()) window.scrollTo({ top: top + window.scrollY - this.stickyH() - 8, behavior: 'instant' });
     else if (before !== undefined) window.scrollBy({ top: top - before, behavior: 'instant' });

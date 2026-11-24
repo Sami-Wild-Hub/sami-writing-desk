@@ -1,6 +1,7 @@
 // Hover or touch-hold preview for person/setting links: name, domain and the page's
 // 「Basic」 line, read from the linked page itself.
 import { domainLabels, ownerName, pathInfo } from '../../labels.ts';
+import { hide as hidePop, show as showPop } from '../../archive/motion.ts';
 import { esc } from '../../archive/ui.ts';
 import type { NovelViewHost } from '../types.ts';
 import { touchPeek } from './touch-peek.ts';
@@ -36,14 +37,14 @@ export function mountPeek(scope: HTMLElement, host: NovelViewHost) {
     if (over !== anchor) return;
     peek.innerHTML = `<b>${esc(ownerName(info.owner ?? ''))}</b><span class="k">${esc(domainLabels[info.domain ?? ''] ?? info.domain ?? '')}</span>` +
       (text ? `<p>${esc(text)}</p>` : '');
-    peek.hidden = false;
+    showPop(peek);
     place(anchor);
   };
   const hide = () => {
     cancelHold();
     over = null;
     clearTimeout(timer);
-    peek.hidden = true;
+    hidePop(peek);
   };
   const hover = (event: MouseEvent) => {
     if (!window.matchMedia('(hover: hover)').matches) return;

@@ -4,6 +4,7 @@
 // it live: each step's status, links and reasons, resend buttons, then the items of both
 // checks beside the draft. The unsent form is kept per book while signed in.
 import { esc } from '../../archive/ui.ts';
+import { flash, jumpTo, scrollToY } from '../../archive/motion.ts';
 import type { NovelRoute } from '../../novelArchiveRoute.ts';
 import type { CreateNovelView, NovelViewHost, ShowContext } from '../types.ts';
 import { splitParagraphs } from './paragraphs.ts';
@@ -284,13 +285,11 @@ class ProofPanel {
     if (card.closest('.plist')) {
       this.returnItem = i ?? '';
       const bar = document.querySelector<HTMLElement>('.bar')?.offsetHeight ?? 0;
-      window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - bar - 24, behavior: 'instant' });
+      scrollToY(target.getBoundingClientRect().top + window.scrollY - bar - 24);
       let back = this.main.querySelector<HTMLButtonElement>('[data-back-note]');
       if (!back) { back = Object.assign(document.createElement('button'), { type: 'button', className: 'btn proof-back', textContent: '返回刚才的意见' }); back.dataset.backNote = ''; this.main.append(back); }
     }
-    target.classList.remove('flash');
-    void target.offsetWidth;
-    target.classList.add('flash');
+    flash(target);
   }
 
   private onClick(event: MouseEvent) {
@@ -324,7 +323,7 @@ class ProofPanel {
     const mark = target.closest<HTMLElement>('.pv mark[data-i]');
     const i = mark?.dataset.i ?? (button?.matches('[data-back-note]') ? this.returnItem : '');
     const note = i && [...this.main.querySelectorAll<HTMLElement>(`.pitem[data-i="${i}"]`)].find(el => el.getClientRects().length);
-    if (note) { note.scrollIntoView({ block: 'center' }); note.focus({ preventScroll: true }); note.classList.remove('flash'); void note.offsetWidth; note.classList.add('flash'); }
+    if (note) { jumpTo(note, 'center'); note.focus({ preventScroll: true }); flash(note); }
   }
 
   hide() {

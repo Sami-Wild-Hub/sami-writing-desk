@@ -36,8 +36,6 @@
 .ppl tr.person th { font-weight: 400; }
 .ppl .who-btn { display: inline-flex; align-items: baseline; gap: 4px; padding: 0; border: 0; background: none; color: var(--ink); font-size: .9375rem; font-weight: 700; text-align: left; }
 .ppl .who-btn:hover { color: var(--accent-ink); }
-.ppl .caret { display: inline-block; width: .8em; color: var(--ink-3); font-size: .75rem; transition: transform .15s; }
-.ppl .who-btn[aria-expanded="true"] .caret { transform: rotate(90deg); }
 .ppl .kind { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 4px; background: var(--line); color: var(--ink-2); font-size: .6875rem; vertical-align: 1px; }
 .ppl .nm { display: inline; }
 .ppl .nm + .nm::before { content: "；"; color: var(--ink-3); }
@@ -106,4 +104,3 @@
   .ppl table.evt td::before { content: attr(data-label); position: absolute; left: 0; width: 5.2em; color: var(--ink-3); }
   .ppl .acts .btn { height: 2.6rem; }
 }
-@media (prefers-reduced-motion: reduce) { .ppl .caret { transition: none; } }

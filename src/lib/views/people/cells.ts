@@ -74,7 +74,7 @@ export function rowHtml(p: Person, open: boolean, q: string, links: PeopleLinks,
   const dash = '<span class="muted">—</span>';
   return `<tr class="person${open ? ' open' : ''}" data-id="${esc(p.id)}">` +
     `<th scope="row" data-label="姓名"><button type="button" class="who-btn" aria-expanded="${open}" data-toggle="${esc(p.id)}">` +
-    `<span class="caret" aria-hidden="true">▸</span>${highlight(p.name, q)}</button>${p.kind === 'record' ? '<span class="kind">简档</span>' : ''}</th>` +
+    `<span class="chev" aria-hidden="true"></span>${highlight(p.name, q)}</button>${p.kind === 'record' ? '<span class="kind">简档</span>' : ''}</th>` +
     `<td data-label="称呼/别名">${names || dash}</td>` +
     `<td data-label="所属">${p.group.map((g) => ref(g)).join('、') || dash}</td>` +
     `<td data-label="一句话身份">${rich(p.basic) || dash}</td>` +

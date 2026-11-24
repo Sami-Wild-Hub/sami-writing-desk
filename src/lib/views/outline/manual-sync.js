@@ -1,6 +1,7 @@
 // Dispatch the data repository's sync workflow directly from this browser.
 // Reads: localStorage sami-outline-sync-token:Sami-Wild-Hub/sami-writing-desk-data (token string)
 // Writes: localStorage sami-outline-sync-token:Sami-Wild-Hub/sami-writing-desk-data (token string)
+import { enter, leave } from '../../archive/motion.ts';
 const key = 'sami-outline-sync-token:Sami-Wild-Hub/sami-writing-desk-data';
 const endpoint = 'https://api.github.com/repos/Sami-Wild-Hub/sami-writing-desk-data/actions/workflows/outline-sync.yml/dispatches';
 export function mountManualSync(root) {
@@ -14,15 +15,15 @@ export function mountManualSync(root) {
     dialog.innerHTML = `<form class="modal" aria-label="同步授权"><h3>同步授权</h3>
       <p>填写 GitHub token：仅需 sami-writing-desk-data 仓库的 Actions 写权限。授权保存在此浏览器。</p>
       <label class="field">GitHub token<input name="token" type="password" autocomplete="off" required></label>
-      <div class="form-actions"><button class="primary" type="submit">保存并同步</button><button type="button" data-cancel>取消</button></div></form>`;
-    const close = () => { dialog.remove(); dialog = null; button.focus(); };
+      <div class="form-actions"><button class="btn small primary" type="submit">保存并同步</button><button class="btn small" type="button" data-cancel>取消</button></div></form>`;
+    const close = () => { const node = dialog; leave(node, () => node.remove()); dialog = null; button.focus(); };
     dialog.querySelector('[data-cancel]').onclick = close;
     dialog.onkeydown = event => { if (event.key === 'Escape') { event.stopPropagation(); close(); } };
     dialog.querySelector('form').onsubmit = event => {
       event.preventDefault(); const token = dialog.querySelector('input').value.trim();
       if (token) { close(); void dispatch(token); }
     };
-    root.append(dialog); dialog.querySelector('input').focus();
+    root.append(dialog); enter(dialog); dialog.querySelector('input').focus();
   };
   const dispatch = async token => {
     button.disabled = true; report('正在触发同步…');

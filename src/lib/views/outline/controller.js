@@ -12,6 +12,7 @@ import { fullTimeIndex } from './ordering.js';
 import { viewStore } from './view-state.js';
 import { editorDrafts } from './editor-drafts.js';
 import { searchInput } from '../../archive/input.ts';
+import { enter } from '../../archive/motion.ts';
 export const mountOutline = (root, payload, draftKey, host) => new OutlinePanel(root, payload, draftKey, host);
 class OutlinePanel extends OutlineCloud {
   constructor(root, payload, draftKey, host) {
@@ -95,7 +96,11 @@ class OutlinePanel extends OutlineCloud {
       this.searchBinding?.dispose();
       this.searchBinding = searchInput(nextSearch, this.renderSearch);
     }
-    root.querySelector('[data-layer]').innerHTML = (u.rank ? v.rankPanel() : '') + (u.dialog ? v.lineDialog() : '');
+    const layer = root.querySelector('[data-layer]'), had = { pop: !!layer.querySelector('.pop'), dialog: !!layer.querySelector('.modal-back') };
+    layer.innerHTML = (u.rank ? v.rankPanel() : '') + (u.dialog ? v.lineDialog() : '');
+    // Only a layer that was not there before plays its entry; re-renders replace it silently.
+    if (u.rank && !had.pop) enter(layer.querySelector('.pop'));
+    if (u.dialog && !had.dialog) enter(layer.querySelector('.modal-back'));
     for (const [key, top] of scroll) root.querySelector(`[data-keep="${key}"]`)?.scrollTo(0, top);
     if (this.scroll && !this.viewShown) { this.viewShown = true; for (const [key, top] of Object.entries(this.scroll)) root.querySelector(`[data-keep="${CSS.escape(key)}"]`)?.scrollTo(0, top); }
     const field = draft ? root.querySelector(`[data-draft="${CSS.escape(draft)}"] [name="${name}"]`) : focused === search ? search : null;

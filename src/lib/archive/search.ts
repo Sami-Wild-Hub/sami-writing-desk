@@ -4,6 +4,7 @@ import { cleanTitle, ownerName, ownerPages, pageLabel, pathInfo } from '../label
 import type { PageEntry } from '../views/types.ts';
 import { esc, icon } from './ui.ts';
 import { searchInput } from './input.ts';
+import { hide, isShown, show } from './motion.ts';
 
 export interface SearchSource {
   entries: Record<string, PageEntry>;
@@ -139,8 +140,8 @@ export function mountSearch() {
   };
 
   const close = () => {
-    if (box.hidden) return;
-    box.hidden = true;
+    if (!isShown(box)) return;
+    hide(box);
     (opener as HTMLElement | null)?.focus?.();
   };
   const binding = searchInput(input, () => void run(), () => {
@@ -171,7 +172,7 @@ export function mountSearch() {
     open(query = '') {
       if (!source) return;
       opener = document.activeElement;
-      box.hidden = false;
+      show(box);
       if (query) input.value = query;
       void run();
       input.focus();

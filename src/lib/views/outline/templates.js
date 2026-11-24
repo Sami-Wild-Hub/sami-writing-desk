@@ -63,7 +63,7 @@ export function cardEditor(v, c) {
   return `<form class="card editor ${c.cat}" data-form="card" data-draft="${key}" data-drag="card" data-id="${c.id}" data-locked>
     <label class="field">内容<textarea name="text" rows="4">${esc(draft?.text ?? c.text)}</textarea></label>
     <label class="field">细节（每行一条）<textarea name="details" rows="3">${esc(draft?.details ?? (c.details || []).join('\n'))}</textarea></label>
-    <div class="form-actions"><button class="primary" type="submit">保存</button><button type="button" data-act="cancel-edit">取消</button></div></form>`;
+    <div class="form-actions"><button class="btn small primary" type="submit">保存</button><button class="btn small" type="button" data-act="cancel-edit">取消</button></div></form>`;
 }
 
 export function composer(v, cat) {
@@ -71,7 +71,7 @@ export function composer(v, cat) {
   return `<form class="card editor composer ${cat}" data-form="new" data-draft="${key}" data-cat="${cat}">
     <div class="composer-caption">新增到 ${CAT_LABEL[cat]} 末尾</div>
     <label class="field">内容<textarea name="text" rows="3" placeholder="发生了什么">${esc(UI.drafts?.[key]?.text || '')}</textarea></label>
-    <div class="form-actions"><button class="primary" type="submit">添加</button><button type="button" data-act="cancel-compose">取消</button></div></form>`;
+    <div class="form-actions"><button class="btn small primary" type="submit">添加</button><button class="btn small" type="button" data-act="cancel-compose">取消</button></div></form>`;
 }
 
 export function rankPanel(v) {
@@ -80,7 +80,7 @@ export function rankPanel(v) {
   const item = (n, i) => `<li class="rank-item" data-drag="rank" data-id="${esc(n)}"><span class="grip" aria-hidden="true">⋮⋮</span><span class="rk">${i + 1}</span>
     <span class="rn">${esc(n)}</span><span class="rt">${esc(KB_TYPE[n] || '手填')}</span><small>${used(n)} 条</small></li>`;
   return `<div class="pop rank-pop" role="dialog" aria-label="参与者排序"><div class="pop-head"><b>参与者排序</b>
-    <button class="quiet" data-act="toggle-rank" aria-label="关闭">×</button></div>
+    <button class="btn small quiet" data-act="toggle-rank" aria-label="关闭">×</button></div>
     <p class="hint">拖动调整 section 先后和名字前缀次序。每条故事线列在它的标志性参与者下。</p>
     <ol class="rank-list" data-zone="rank" data-accept="rank">${S.ranking.map(item).join('')}</ol></div>`;
 }
@@ -101,9 +101,9 @@ export function lineDialog(v) {
     <label class="field">标题<input name="title" value="${esc(d.title)}" data-input="line-title" autocomplete="off"></label>
     <div class="field">参与者（至少一个，名字前半按参与者排序自动生成）<div class="parts">${parts.map(chip).join('') || '<span class="muted">还没有参与者</span>'}</div>
       <div class="add-part"><input name="part" list="kb-names" placeholder="从资料库选人物、组织、地点、物件，或直接填写" autocomplete="off">
-      <button type="button" data-act="add-part">添加</button></div>
+      <button class="btn small" type="button" data-act="add-part">添加</button></div>
       <datalist id="kb-names">${DATA.kb.map(k => `<option value="${esc(k.name)}">${esc(k.type)}</option>`).join('')}</datalist></div>
     <label class="field">标志性参与者<select name="lead" ${parts.length ? '' : 'disabled'}>${parts.map(p => `<option value="${esc(p)}" ${p === d.lead ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></label>
-    <div class="form-actions"><button class="primary" type="submit" id="line-save" ${d.parts.length && d.title.trim() ? '' : 'disabled'}>保存</button>
-      <button type="button" data-act="close-dialog">取消</button>${d.id ? `<button type="button" class="danger" data-act="delete-line" data-id="${d.id}">删除故事线</button>` : ''}</div></form></div>`;
+    <div class="form-actions"><button class="btn small primary" type="submit" id="line-save" ${d.parts.length && d.title.trim() ? '' : 'disabled'}>保存</button>
+      <button class="btn small" type="button" data-act="close-dialog">取消</button>${d.id ? `<button type="button" class="btn small danger" data-act="delete-line" data-id="${d.id}">删除故事线</button>` : ''}</div></form></div>`;
 }
