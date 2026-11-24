@@ -1,3 +1,5 @@
+// Write a private preview payload from repository documents without accessing RTDB.
+// Reads: outline/<slug> (Git JSON); Writes: operator-supplied private preview path (JSON)
 import { writeFile } from 'node:fs/promises';
 import { outlineConfig } from '../../src/lib/views/outline/config.js';
 import { GitRepo } from './git.mjs';
@@ -12,7 +14,8 @@ export async function preview(config, { slug, out, git = new GitRepo(config.data
   const plotData = JSON.parse(snapshot.plot);
   const plan = JSON.parse(snapshot.plan);
   const configured = snapshot.config ? JSON.parse(snapshot.config) : {};
-  const payload = { revision: commit, config: outlineConfig(plotData, configured), plot_data: plotData, plan };
+  const payload = { revision: commit, config: outlineConfig(plotData, configured), plot_data: plotData, plan,
+    ...(snapshot.foreshadow ? { foreshadow: JSON.parse(snapshot.foreshadow) } : {}) };
   await writeFile(out, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   return { status: 'preview', commit, out };
 }

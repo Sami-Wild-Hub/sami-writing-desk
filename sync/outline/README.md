@@ -17,6 +17,46 @@ Git uses the machine's existing credentials and RTDB uses the configured key pat
 reading RTDB. The installer writes `sync.log` beside the script; a manually
 created config without `log` reports errors to stderr.
 
+## Foreshadow table
+
+`outline/<slug>/foreshadow.json` is an optional third document in the same book
+revision as `plot-data.json` and `placements.json`. Its schema-1 columns define
+the table headers/order; author cells, newlines, source metadata and derived link
+metadata survive saves. Rows use the existing `(sheet, source_row)` identity;
+new rows get the next source row. The data file needs no schema change.
+The browser validates this document with the same validator as the worker.
+No table is created for a book without the file. File-level merges, conflicts,
+`Outline-Sync` trailers, the coordinator lease and RTDB CAS cover all three files.
+The RTDB adapter and watcher need no separate storage or scheduling path.
+
+The 伏笔表 tab follows 大纲. It supports status/chapter filters, row editing,
+addition/deletion, scoped local drafts, and the existing repository/cloud conflict
+choices. Planting chapter cells are direct links such as `C1P10-11`; there is no
+separate 埋设链接 field. Recovery chapter links remain explicitly editable.
+Source-row numbers are internal; the author’s 伏笔ID cell is freely editable.
+Phones show each row as a card. The default view hides recovered rows, and filter
+selection is stored locally per account and book.
+
+Private visual verification uses `tests/foreshadow.spec.ts` with
+`FORESHADOW_SHOTS_DIR`, `FORESHADOW_DATA_REPO` and `FORESHADOW_SOURCE_ROOT`
+(the novel directory containing `compiled/source/C*.md`). It builds the local
+Firebase stub, loads private data only in memory, captures desktop/phone at scale
+2 and checks three planting destinations and one recovery chapter per viewport.
+Use `GITHUB_ACTIONS=true GITHUB_REPOSITORY=Sami-Wild-Hub/sami-writing-desk`
+to exercise the production `/sami-writing-desk/` base path. Never commit private
+fixtures or screenshots to the public website repository.
+
+`node tests/foreshadow-emulator.mjs` checks the new path using FamilyHub
+`origin/main` rules, disposable local Git/RTDB/browser services and the
+production base path. It checks browser → Git → browser and kept-version
+replacement. It requires the local sibling data and FamilyHub CLI checkouts
+already used by `npm run test:e2e:real`. It cleans up its temporary services/data
+and does not deploy rules or read real credentials.
+
+Code-size exception: the existing `reconcileOnce` function in `reconcile.mjs`
+exceeds 80 lines because it retains the single ordered reconciliation decision
+flow; this change adds the third document through shared document operations.
+
 ## Combined category cutover
 
 The watcher imports the same v7 validator as the browser. The RTDB envelope and

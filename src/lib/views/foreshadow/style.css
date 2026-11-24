@@ -1,0 +1,56 @@
+/* Foreshadow table and editor styles, scoped to the view; at phone widths each row becomes a card. */
+.fsh { padding: 24px; max-width: 100%; color: var(--ink); }
+.fsh header { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; margin-bottom: 18px; }
+.fsh h2, .fsh h3 { margin: 0; }
+.fsh .fsh-status { color: var(--muted); font-size: .85em; }
+.fsh-tools { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 14px 0; }
+.fsh label { display: flex; align-items: center; gap: 8px; }
+.fsh select, .fsh input, .fsh textarea { font: inherit; color: inherit; background: var(--surface, #fff); border: 1px solid var(--line, #ddd); border-radius: 6px; padding: 7px; }
+.fsh button { font: inherit; cursor: pointer; padding: 6px 10px; border: 1px solid var(--line, #ddd); border-radius: 6px; background: var(--surface, #fff); color: inherit; }
+.fsh button:hover { background: var(--wash, #f4f1ea); }
+.fsh-scroll { overflow: auto; max-height: 72vh; border: 1px solid var(--line, #ddd); border-radius: 8px; }
+.fsh table { border-collapse: separate; border-spacing: 0; min-width: 1520px; width: 100%; font-size: .9em; }
+.fsh th { position: sticky; top: 0; z-index: 1; text-align: left; background: var(--paper, #faf8f2); white-space: nowrap; }
+.fsh th, .fsh td { padding: 14px; border-bottom: 1px solid var(--line, #ddd); vertical-align: top; min-width: 90px; }
+.fsh td:last-child { min-width: 140px; }
+.fsh th.fsh-id, .fsh td.fsh-id { min-width: 0; width: 2.5em; padding-right: 4px; color: var(--ink-3); font-size: .8125rem; }
+.fsh td.fsh-content { min-width: 380px; max-width: 520px; }
+.fsh-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.fsh-link { display: inline-block; margin-top: 8px; font-size: .85em; }
+.fsh-text .fsh-link { display: inline; margin: 0; font-size: inherit; }
+.fsh-unavailable { color: var(--muted); font-size: .8em; }
+.fsh-notice { background: var(--wash, #f4f1ea); padding: 12px; border-radius: 8px; }
+.fsh-notice:empty, .fsh-editor-slot:empty { display: none; }
+.fsh-notice button { margin: 6px; }
+.fsh-editor { scroll-margin-top: calc(var(--bar-h) + 12px); margin: 18px 0; padding: 20px; background: var(--paper, #faf8f2); border: 1px solid var(--line, #ddd); border-radius: 8px; }
+.fsh-editor label { display: grid; margin: 12px 0; }
+.fsh-editor textarea { resize: vertical; min-width: 0; width: 100%; box-sizing: border-box; }
+.fsh-editor-error { color: #a63726; }
+
+@media (max-width: 860px) {
+  .fsh { padding: 16px 12px; }
+  .fsh-tools { gap: 10px; }
+  .fsh label { flex-wrap: wrap; }
+  .fsh-is-editing .fsh-tools, .fsh-is-editing .fsh-scroll { display: none; }
+  .fsh-editor { margin: 8px 0; padding: 14px; }
+  .fsh-scroll { overflow: visible; max-height: none; border: 0; border-radius: 0; }
+  .fsh table, .fsh tbody { display: block; min-width: 0; font-size: 1rem; }
+  .fsh thead { display: none; }
+  .fsh tbody tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 0 0 10px; padding: 10px 12px 12px;
+    border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgb(30 28 25 / .04); }
+  .fsh tbody td, .fsh tbody td:last-child, .fsh td.fsh-content { display: block; min-width: 0; max-width: none; padding: 0; border: 0; }
+  .fsh tbody td.fsh-empty { display: none; }
+  .fsh td.fsh-id { order: 0; width: auto; color: var(--ink-3); font-size: .75rem; }
+  .fsh td.fsh-id::before { content: "#"; }
+  .fsh td.fsh-id .fsh-text { display: inline; }
+  .fsh td.fsh-actions { order: 1; display: flex; gap: 6px; margin-left: auto; }
+  .fsh td.fsh-actions button { padding: 2px 10px; border-color: transparent; background: none; color: var(--ink-3); font-size: .8125rem; }
+  .fsh td.fsh-actions button:hover { border-color: var(--line); color: var(--ink); }
+  .fsh td.fsh-content { order: 2; flex-basis: 100%; line-height: 1.65; }
+  .fsh td.fsh-meta, .fsh td.fsh-state { order: 3; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; color: var(--ink-2); font-size: .8125rem; }
+  .fsh td.fsh-meta::before { content: attr(data-label); color: var(--ink-3); }
+  .fsh td.fsh-meta .fsh-link { margin: 0; font-size: inherit; }
+  .fsh td.fsh-state .fsh-text { padding: 0 6px; border-radius: 5px; background: var(--accent-soft); color: var(--accent-ink); }
+  .fsh td.fsh-long { order: 4; flex-basis: 100%; display: grid; grid-template-columns: auto 1fr; gap: 10px; color: var(--ink-2); font-size: .875rem; }
+  .fsh td.fsh-long::before { content: attr(data-label); color: var(--ink-3); font-size: .8125rem; white-space: nowrap; }
+}

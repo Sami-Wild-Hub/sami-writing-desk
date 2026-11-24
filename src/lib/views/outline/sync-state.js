@@ -1,4 +1,5 @@
 // Classify the shared outline sync state for the web status panel.
+/** @param {import('./sync.ts').OutlineSyncState & {now?: number, coordinator?: import('./sync.ts').OutlineSyncState['_coordinator']}} options */
 export function classify({ head = null, live = null, incoming = null, now = Date.now(), coordinator = null } = {}) {
   const synced = head?.synced ?? null;
   const repo = head?.repo ?? null;

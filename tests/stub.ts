@@ -143,6 +143,8 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
   let heldRead = '';
   const readReceipts: (() => void)[] = [];
   const listens = new Map<{ send(data: unknown): void }, Set<string>>();
+  let holdWrite = false;
+  let acknowledge: (() => void) | undefined;
   const at = (path: string) => path.split('/').filter(Boolean).reduce<unknown>((node, key) => (node as Tree | null)?.[key] ?? null, db);
   const put = (path: string, value: unknown) => {
     const keys = path.split('/').filter(Boolean);
@@ -189,10 +191,11 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
       if (a === 'm') { Object.entries(b.d as Tree).forEach(([key, value]) => put(`${b.p}/${key}`, value)); server(b.p!, at(b.p!)); }
       if (a === 'q') { paths.add(b.p!); send({ a: 'd', b: { p: b.p, d: at(b.p!) } }); }
       if (a === 'n') paths.delete(b.p!);
-      const acknowledge = () => send({ r, b: { s: 'ok', d: a === 'g' ? at(b.p!) : {} } });
-      if (hold && (a === 'p' || a === 'm')) receipts.push(acknowledge);
-      else if (a === 'g' && heldRead && b.p?.includes(heldRead)) readReceipts.push(acknowledge);
-      else acknowledge();
+      const ack = () => send({ r, b: { s: 'ok', d: a === 'g' ? at(b.p!) : {} } });
+      if (holdWrite && (a === 'p' || a === 'm')) { holdWrite = false; acknowledge = ack; }
+      else if (hold && (a === 'p' || a === 'm')) receipts.push(ack);
+      else if (a === 'g' && heldRead && b.p?.includes(heldRead)) readReceipts.push(ack);
+      else ack();
     });
   });
   const server = (path: string, value: unknown) => {
@@ -205,6 +208,8 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
   return Object.assign(reads, {
     server, at, holdWrites: () => { hold = true; }, releaseWrites: () => { hold = false; receipts.splice(0).forEach(send => send()); },
     holdReads: (part: string) => { heldRead = part; }, releaseReads: () => { heldRead = ''; readReceipts.splice(0).forEach(send => send()); },
+    holdNextWrite: () => { holdWrite = true; },
+    releaseWrite: () => { if (!acknowledge) throw Error('No write awaiting confirmation'); acknowledge(); acknowledge = undefined; },
   });
 }
 
