@@ -45,6 +45,6 @@ export function wireSide(side: HTMLElement, model: TimelineModel, st: TimelineSt
     const on = (b.dataset.all ?? b.dataset.v) === '1';
     model.ordered.filter((o) => !o.axis && (b.dataset.all !== undefined || o.domain === b.dataset.dom))
       .forEach((o) => { if (on) st.sel.add(o.id); else st.sel.delete(o.id); });
-    changed(undefined, previous);
+    if (previous.size !== st.sel.size || [...previous].some(id => !st.sel.has(id))) changed(undefined, previous);
   });
 }

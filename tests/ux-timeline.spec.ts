@@ -46,9 +46,31 @@ test('filtering retains the visible event, clear has undo, and closing a long ca
   await row.scrollIntoViewIfNeeded(); const before = await row.evaluate(el => el.getBoundingClientRect().top);
   await root.locator('.side [data-o="CH-Cy"]').evaluate((el: HTMLInputElement) => el.click());
   expect(Math.abs(await row.evaluate(el => el.getBoundingClientRect().top) - before)).toBeLessThan(3);
+  const other = root.locator('.side input[data-o]:not(:disabled):not([data-o="CH-Cy"])').first();
+  const otherId = await other.getAttribute('data-o');
+  await other.evaluate((el: HTMLInputElement) => el.click());
   await root.locator('.side [data-all="0"]').evaluate((el: HTMLElement) => el.click());
   await page.locator('.toast').getByRole('button', { name: '撤销' }).click();
   await expect(root.locator('.side [data-o="CH-Cy"]')).not.toBeChecked();
+  await expect(root.locator(`.side [data-o="${otherId}"]`)).toBeChecked();
   await row.click(); const card = root.locator('[data-card="E-10035"]');
   await card.locator('[data-close]').click(); await expect(card).toHaveCount(0); await expect(row).toBeInViewport();
+});
+
+test('a later individual checkbox invalidates bulk undo; unchanged bulk actions offer no undo', async ({ page }) => {
+  const root = await open(page);
+  await root.locator('.side [data-all="0"]').click();
+  await expect(page.locator('.toast button')).toBeVisible();
+  await root.locator('.side [data-o="CH-Cy"]').check();
+  await expect(page.locator('.toast button')).toHaveCount(0);
+  await expect(root.locator('.side [data-o="CH-Cy"]')).toBeChecked();
+  await root.locator('.side [data-all="1"]').click();
+  await page.locator('.toast button').click();
+  await expect(root.locator('.side [data-o="CH-Cy"]')).toBeChecked();
+  await expect(page.locator('.toast')).toHaveCount(0);
+  await root.locator('.side [data-all="0"]').click();
+  await page.locator('.toast button').focus();
+  await page.locator('.toast').evaluate(el => { (window as any).bulkToast = el; });
+  await root.locator('.side [data-all="0"]').click();
+  expect(await page.locator('.toast').evaluate(el => el === (window as any).bulkToast)).toBe(true);
 });

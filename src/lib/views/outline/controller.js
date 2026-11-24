@@ -13,6 +13,7 @@ import { viewStore } from './view-state.js';
 import { editorDrafts } from './editor-drafts.js';
 import { searchInput } from '../../archive/input.ts';
 import { updateLayers } from './layers.ts';
+import { invalidateToastAction } from '../../archive/ui.ts';
 export const mountOutline = (root, payload, draftKey, host) => new OutlinePanel(root, payload, draftKey, host);
 class OutlinePanel extends OutlineCloud {
   constructor(root, payload, draftKey, host) {
@@ -28,7 +29,7 @@ class OutlinePanel extends OutlineCloud {
     this.report = (text, error = false) => { if (error) { this.$('status').textContent = text; this.$('status').classList.add('error'); } else host.toast(text); };
     this.editors = editorDrafts(draftKey + ':editors', error => this.report('草稿未能保存在此浏览器：' + error.message, true));
     this.UI.drafts = this.editors.values;
-    this.model = createOutlineModel(payload.plot_data, payload.plan, { render: this.render, save: this.saveWorkspace, warning: this.localSaveFailed });
+    this.model = createOutlineModel(payload.plot_data, payload.plan, { render: this.render, save: this.saveWorkspace, warning: this.localSaveFailed, changed: this.modelChanged });
     this.drag = mountDrag(root.querySelector('.outline-view'));
     this.drag.onDrop = ({ kind, id, zone, index }) => this.attempt(() => {
       if (kind === 'rank') this.model.moveRank(id, index);
@@ -62,19 +63,26 @@ class OutlinePanel extends OutlineCloud {
   attempt = fn => { try { fn(); } catch (error) { this.report(error.message, true); } };
   moveToLine = (id, line) => {
     if (this.model.unitMap[id].storyline_group_id === line) return;
-    this.UI.picker = false; this.model.moveToLine(id, line); this.undoToast(`已转到「${this.model.storyMap[line].title}」`);
+    this.UI.picker = false; this.undoToast(`已转到「${this.model.storyMap[line].title}」`, () => this.model.moveToLine(id, line));
   };
   deleteLine = id => {
     const title = this.model.storyMap[id].title;
-    this.model.deleteLine(id); this.UI.dialog = null; this.render(); this.undoToast(`已删除故事线「${title}」`);
+    this.undoToast(`已删除故事线「${title}」`, () => this.model.deleteLine(id)); this.UI.dialog = null; this.render();
   };
-  undoToast = text => {
+  modelChanged = () => {
+    invalidateToastAction();
+    for (const key of Object.keys(this.editors.values)) {
+      if (key.startsWith('card:') && !this.model.unitMap[key.slice(5)]) this.editors.drop(key);
+    }
+  };
+  undoToast = (text, operation) => {
+    const before = this.model.undoHistory.at(-1);
+    operation();
     const prior = this.model.undoHistory.at(-1);
+    if (!prior || before === prior) return;
     this.host.toast(text, { label: '撤销', action: () => {
-      if (this.disposed || !prior) return;
-      const index = this.model.undoHistory.indexOf(prior);
-      if (index < 0) return;
-      this.model.undoHistory.splice(index + 1); this.model.undo();
+      if (this.disposed || this.model.undoHistory.at(-1) !== prior) return;
+      this.model.undo();
     } });
   };
   render = () => {
@@ -156,18 +164,18 @@ class OutlinePanel extends OutlineCloud {
         if (!u.dialog.parts.includes(u.dialog.lead)) u.dialog.lead = u.dialog.parts[0] || '';
         break;
       case 'edit-card': u.editing = id; break;
-      case 'delete-card': if (u.editing === id) u.editing = null; m.deleteCard(id); this.undoToast('已删除卡片'); return;
+      case 'delete-card': if (u.editing === id) u.editing = null; this.undoToast('已删除卡片', () => m.deleteCard(id)); return;
       case 'delete-line': this.deleteLine(id); return;
       case 'cancel-edit': this.editors.drop('card:' + u.editing); u.editing = null; break;
       case 'compose': u.composing = t.dataset.cat; break;
       case 'cancel-compose': this.editors.drop(`new:${u.line}:${u.composing}`); u.composing = null; break;
       case 'choose-beat': m.activeBeat = id; break;
-      case 'unplace': u.filters.add(m.unitMap[id].status === 'WRITTEN' ? 'written' : 'unplaced'); u.open.add('lib:' + m.unitMap[id].storyline_group_id); m.removeUnit(id); this.undoToast('已移出本拍'); return;
-      case 'pick': m.placeInCell(id, m.activeBeat, m.unitMap[id].category); this.undoToast('已选入本拍'); return;
+      case 'unplace': u.filters.add(m.unitMap[id].status === 'WRITTEN' ? 'written' : 'unplaced'); u.open.add('lib:' + m.unitMap[id].storyline_group_id); this.undoToast('已移出本拍', () => m.removeUnit(id)); return;
+      case 'pick': this.undoToast('已选入本拍', () => m.placeInCell(id, m.activeBeat, m.unitMap[id].category)); return;
       case 'toggle-written': {
         const written = m.unitMap[id].status !== 'WRITTEN';
-        u.filters.add(written ? 'written' : m.used(id) ? 'placed' : 'unplaced'); m.setWritten(id, written);
-        this.undoToast(written ? '已标为已写' : '已改回未写'); return;
+        u.filters.add(written ? 'written' : m.used(id) ? 'placed' : 'unplaced');
+        this.undoToast(written ? '已标为已写' : '已改回未写', () => m.setWritten(id, written)); return;
       }
       case 'toggle-unplaced': u.onlyUnplaced = !u.onlyUnplaced; break;
       case 'filter': if (!u.filters.delete(t.dataset.filterState)) u.filters.add(t.dataset.filterState); break;
@@ -219,7 +227,7 @@ class OutlinePanel extends OutlineCloud {
         this.UI.dialog.title = t.value; this.$('line-preview').textContent = presentation(this.model, this.UI).linePreview(this.UI.dialog);
         this.$('line-save').disabled = !(t.value.trim() && this.UI.dialog.parts.length);
       }
-      if (t.dataset.input === 'beat-note') { this.model.state.beat_notes[this.activeBeat] = t.value; this.model.saveLocal(); }
+      if (t.dataset.input === 'beat-note') this.model.setBeatNote(t.value);
     });
     this.root.addEventListener('keydown', e => {
       if (e.isComposing || this.ime || e.keyCode === 229) return;
@@ -246,7 +254,7 @@ class OutlinePanel extends OutlineCloud {
           let raw = JSON.parse(await file.text()); if (this.disposed) return;
           if (kind === 'workspace') raw = completeWorkspace(raw, this.model.exportPlan());
           if (kind === 'plan') raw = completePlan(raw, this.model.exportPlan());
-          this.model['import' + kind[0].toUpperCase() + kind.slice(1)](raw); this.model.saveLocal(); this.render(); this.undoToast('已导入 ' + file.name);
+          this.undoToast('已导入 ' + file.name, () => this.model['import' + kind[0].toUpperCase() + kind.slice(1)](raw)); this.model.saveLocal(); this.render();
         } catch (error) { this.report('导入失败：' + error.message, true); } finally { e.target.value = ''; }
       });
     }
@@ -255,13 +263,12 @@ class OutlinePanel extends OutlineCloud {
     on('overwrite-local', () => void this.writeResolution('use-local'));
     on('keep-web', () => void this.writeResolution('keep-web'));
     on('download-kept', () => void this.downloadKept());
-    on('clear-beat', () => { this.model.clear(); this.undoToast('已清空本 Beat'); });
-    on('reset-all', () => { this.model.clear(true); this.undoToast('已清空编排'); });
+    on('clear-beat', () => this.undoToast('已清空本 Beat', () => this.model.clear()));
+    on('reset-all', () => this.undoToast('已清空编排', () => this.model.clear(true)));
     on('restore-starter', () => {
       const s = this.payload.starter; if (!s) return;
-      this.model.importWorkspace({ plot_data: s.plot_data, plan: s.plan }); this.keepPrevious = true;
+      this.undoToast('已恢复仓库预排', () => this.model.importWorkspace({ plot_data: s.plot_data, plan: s.plan })); this.keepPrevious = true;
       this.draft.acceptRevision(this.cloudRevision()); this.model.saveLocal(); this.render();
-      this.undoToast('已恢复仓库预排');
     });
   };
   download = (filename, body) => {

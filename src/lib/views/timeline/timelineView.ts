@@ -2,7 +2,7 @@
 // line strip) and the lanes. Lines, open cards and density are kept per book; reader
 // links arrive as #p-<point> (locate) and #line-<owner> (show that line).
 import { buildModel, layoutTimeline, type NovelTimelineData, type TimelineLayout, type TimelineModel } from '../../novelTimelineModel.ts';
-import { esc, icon } from '../../archive/ui.ts';
+import { esc, icon, invalidateToastAction } from '../../archive/ui.ts';
 import { enter, flash, scrollToY } from '../../archive/motion.ts';
 import type { NovelRoute } from '../../novelArchiveRoute.ts';
 import type { CreateNovelView, NovelViewHost, ShowContext } from '../types.ts';
@@ -61,6 +61,7 @@ class TimelinePanel {
 
   private wire() {
     wireSide(this.el.body, this.model, this.st, (focus, previous) => {
+      invalidateToastAction();
       this.renderAnchored();
       if (previous) this.host.toast('已更新线路选择', { label: '撤销', action: () => { this.st.sel = previous; this.renderAnchored(); } });
       if (focus) this.el.body.querySelector<HTMLElement>(`[data-o="${CSS.escape(focus)}"]`)?.focus();

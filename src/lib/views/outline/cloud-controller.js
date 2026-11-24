@@ -94,10 +94,10 @@ applyRemote = (payload, recover = false) => {
  if (!payload) return;
  if (this.cloudSaveTimer) clearTimeout(this.cloudSaveTimer); this.pendingSince = 0;
  this.remote = payload.sync; this.payload = payload; this.config = payload.config; this.draft.acceptRevision(this.cloudRevision()); this.draft.clear();
- this.model.importWorkspace({ plot_data: payload.plot_data, plan: payload.plan, active_beat: this.activeBeat });
+ const load = () => this.model.importWorkspace({ plot_data: payload.plot_data, plan: payload.plan, active_beat: this.activeBeat });
+ if (recover) this.undoToast('已载入新版，本机版可撤销恢复', load); else load();
  this.localSaveError = null; this.$('autosave-warning').hidden = true; this.$('status').textContent = '';
  this.localDirty = false; this.pendingWorkspace = null; this.noticeKind = ''; this.root.querySelector('.draft-notice')?.remove(); this.render();
- if (recover) this.undoToast('已载入新版，本机版可撤销恢复');
 };
 showRemoteConflict = (payload) => {
  this.payload = payload;

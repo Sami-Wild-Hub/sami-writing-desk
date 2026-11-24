@@ -13,6 +13,10 @@ const paths: Record<string, string> = {
 export const icon = (name: keyof typeof paths & string) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
 
 let toastTimer = 0;
+// A later edit removes the current undo action, including its captured callback.
+export function invalidateToastAction() {
+  document.querySelector('.toast button')?.remove();
+}
 export interface ToastAction { label: string; action(): void; }
 export function toast(text: string, action?: ToastAction) {
   document.querySelector('.toast')?.remove();

@@ -237,6 +237,7 @@ class ProofPanel {
     const idle = record.status === 'queued' || ENDED.includes(record.status);
     const tools = idle ? '<button type="button" class="btn" data-delete>删除</button>' : '';
     if (this.main.dataset.record !== record.id || !this.main.querySelector('.result')) {
+      this.returnItem = '';
       this.main.innerHTML = '<div data-record-head></div><div data-progress></div><section class="result" aria-label="校稿结果"></section>';
       this.main.dataset.record = record.id;
     }
@@ -245,6 +246,9 @@ class ProofPanel {
     if (head.dataset.html !== heading) { head.innerHTML = heading; head.dataset.html = heading; }
     if (progress.dataset.html !== status) { progress.innerHTML = status; progress.dataset.html = status; }
     updateResult(this.main.querySelector('.result')!, resultHtml(paras, record, this.st.report[record.id] ?? {}, this.st.filter[record.id] ?? 'all', this.st.kind[record.id] ?? 'all'));
+    if (this.returnItem && !this.main.querySelector(`.plist .pitem[data-key="${CSS.escape(this.returnItem)}"]`)) {
+      this.returnItem = ''; this.main.querySelector('[data-back-note]')?.remove();
+    }
     this.shown = JSON.stringify(record);
   }
 
@@ -277,13 +281,13 @@ class ProofPanel {
 
   /** Tapping an item (phone list or side note) shows its paragraph and flashes the quote. */
   private locate(card: HTMLElement) {
-    const i = card.dataset.i;
-    const mark = this.main.querySelector<HTMLElement>(`.pv mark[data-i="${i}"]`);
+    const key = card.dataset.key!;
+    const mark = this.main.querySelector<HTMLElement>(`.pv mark[data-key="${CSS.escape(key)}"]`);
     const row = card.dataset.at ? this.main.querySelector<HTMLElement>(`.pv .prow[data-at="${card.dataset.at}"]`) : null;
     const target = mark ?? row?.querySelector<HTMLElement>('.ptext');
     if (!target) return;
     if (card.closest('.plist')) {
-      this.returnItem = i ?? '';
+      this.returnItem = key;
       const bar = document.querySelector<HTMLElement>('.bar')?.offsetHeight ?? 0;
       scrollToY(target.getBoundingClientRect().top + window.scrollY - bar - 24);
       let back = this.main.querySelector<HTMLButtonElement>('[data-back-note]');
@@ -320,9 +324,9 @@ class ProofPanel {
     }
     const card = target.closest<HTMLElement>('.pitem');
     if (card) return this.locate(card);
-    const mark = target.closest<HTMLElement>('.pv mark[data-i]');
-    const i = mark?.dataset.i ?? (button?.matches('[data-back-note]') ? this.returnItem : '');
-    const note = i && [...this.main.querySelectorAll<HTMLElement>(`.pitem[data-i="${i}"]`)].find(el => el.getClientRects().length);
+    const mark = target.closest<HTMLElement>('.pv mark[data-key]');
+    const key = mark?.dataset.key ?? (button?.matches('[data-back-note]') ? this.returnItem : '');
+    const note = key && [...this.main.querySelectorAll<HTMLElement>(`.pitem[data-key="${CSS.escape(key)}"]`)].find(el => el.getClientRects().length);
     if (note) { jumpTo(note, 'center'); note.focus({ preventScroll: true }); flash(note); }
   }
 

@@ -115,3 +115,66 @@ test('phone outline has no horizontal overflow, a Beat selector and a working mo
   await expect(root.locator(`.self-pane [data-card="${id}"]`)).toHaveCount(0);
   await root.locator('#undo').click(); await expect(root.locator(`.self-pane [data-card="${id}"]`)).toHaveCount(1);
 });
+
+test('later saved edits and Beat notes invalidate old undo without losing history', async ({ page }) => {
+  const { root, stub } = await open(page);
+  const cards = root.locator('.self-pane [data-card]');
+  const a = await cards.first().getAttribute('data-card'), b = await cards.nth(1).getAttribute('data-card');
+  await root.locator(`[data-card="${a}"] .badge`).click();
+  await expect(page.locator('.toast button')).toBeVisible();
+  await root.locator(`[data-card="${b}"] [data-act="edit-card"]`).click();
+  await root.locator('[data-form="card"] [name="text"]').fill('后来保存的内容');
+  await root.locator('[data-form="card"] [type="submit"]').click();
+  await expect(page.locator('.toast button')).toHaveCount(0);
+  await expect(root.locator('#sync-state')).toHaveText('已保存', { timeout: 10000 });
+  const plot = JSON.parse(await unpack((stub.at(`${base}/live`) as any).plot));
+  expect(plot.plot_units.find((u: any) => u.unit_id === b).content).toBe('后来保存的内容');
+  expect(plot.plot_units.find((u: any) => u.unit_id === a).status).toBe('WRITTEN');
+  await root.locator('#undo').click();
+  await expect(root.locator(`[data-card="${b}"] .c-text`)).not.toHaveText('后来保存的内容');
+  await root.locator('#undo').click();
+  await expect(root.locator(`[data-card="${a}"]`)).toHaveCount(1);
+  await root.locator(`[data-card="${a}"] .badge`).click();
+  await root.locator('[data-tab="outline"]').click();
+  await root.locator('[data-input="beat-note"]').fill('后续备注');
+  await expect(page.locator('.toast button')).toHaveCount(0);
+});
+
+test('clearing an empty Beat offers no undo for an earlier operation', async ({ page }) => {
+  const { root } = await open(page);
+  await root.locator('.self-pane [data-card] .badge').first().click();
+  await root.locator('[data-tab="outline"]').click();
+  const emptyBeat = outlineFixture()!.plot_data.beats.at(-1).beat_id;
+  await root.locator(`[data-act="choose-beat"][data-id="${emptyBeat}"]`).click();
+  await root.locator('.file-recovery summary').click();
+  await page.locator('.toast button').focus();
+  await root.locator('#clear-beat').click();
+  await expect(page.locator('.toast')).not.toContainText('已清空本 Beat');
+});
+
+test('deleting a card discards its draft before its ID is reused', async ({ page }) => {
+  const { root, stub } = await open(page);
+  const add = async (text: string) => {
+    await root.locator('[data-act="compose"][data-cat="combined"]').click();
+    await root.locator('[data-form="new"] [name="text"]').fill(text);
+    await root.locator('[data-form="new"] [type="submit"]').click();
+  };
+  await add('旧卡');
+  const card = root.locator('.self-pane [data-card]').filter({ hasText: '旧卡' });
+  const id = await card.getAttribute('data-card');
+  await card.locator('[data-act="edit-card"]').click();
+  await root.locator('[data-form="card"] [name="text"]').fill('旧卡未提交草稿');
+  await root.locator('[data-form="card"] [name="details"]').fill('旧卡细节');
+  await root.locator('[data-form="card"] [name="text"]').press('Escape');
+  await card.locator('.card-menu summary').click();
+  await card.locator('[data-act="delete-card"]').click();
+  await add('新卡');
+  await page.reload(); await expect(root.locator('.self-head')).toBeVisible();
+  await root.locator(`[data-card="${id}"] [data-act="edit-card"]`).click();
+  await expect(root.locator('[data-form="card"] [name="text"]')).toHaveValue('新卡');
+  await expect(root.locator('[data-form="card"] [name="details"]')).toHaveValue('');
+  await root.locator('[data-form="card"] [type="submit"]').click();
+  await expect(root.locator('#sync-state')).toHaveText('已保存', { timeout: 10000 });
+  const plot = JSON.parse(await unpack((stub.at(`${base}/live`) as any).plot));
+  expect(plot.plot_units.find((u: any) => u.unit_id === id)).toMatchObject({ content: '新卡', details: [] });
+});

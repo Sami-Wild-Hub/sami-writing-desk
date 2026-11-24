@@ -50,12 +50,12 @@ export function statusHtml(record: ProofRecord) {
     `${record.error ? `<p class="perr" role="alert">${esc(record.error)}</p>` : ''}<ol>${steps.join('')}</ol></section>`;
 }
 
-type Tagged = ReportItem & { check: Check };
+type Tagged = ReportItem & { check: Check; key: string };
 
-function itemHtml({ item, at, range }: PlacedItem<Tagged>, i: number) {
+function itemHtml({ item, at, range }: PlacedItem<Tagged>) {
   const level = item.level && (LEVELS as readonly string[]).includes(item.level) ? item.level : '';
   const off = at < 0 ? '没有这一段' : range ? '' : '未对上原文';
-  return `<article class="pitem${level ? ` lv-${level}` : ''}${off ? ' off' : ''}" data-i="${i}" data-check="${item.check}"${at >= 0 ? ` data-at="${at}"` : ''} tabindex="0">` +
+  return `<article class="pitem${level ? ` lv-${level}` : ''}${off ? ' off' : ''}" data-key="${esc(item.key)}" data-check="${item.check}"${at >= 0 ? ` data-at="${at}"` : ''} tabindex="0">` +
     `<blockquote>${esc(item.quote || '（没有引文）')}</blockquote>` +
     `<div class="tags"><span class="src" title="${NAME[item.check]}">${MARK[item.check]} ${NAME[item.check]}</span>${level ? `<span class="lv">${esc(level)}</span>` : ''}` +
     `${item.kind ? `<span class="pill">${esc(item.kind)}</span>` : ''}${item.para ? `<span class="pill">${esc(item.para)}</span>` : ''}${off ? `<span class="pill warn">${off}</span>` : ''}</div>` +
@@ -67,12 +67,12 @@ function itemHtml({ item, at, range }: PlacedItem<Tagged>, i: number) {
 }
 
 /** Paragraph text with the placed quotes marked; overlapping quotes keep the first mark. */
-function markedText(text: string, marks: { range: [number, number]; i: number }[]) {
+function markedText(text: string, marks: { range: [number, number]; key: string }[]) {
   let out = '';
   let pos = 0;
-  for (const { range: [start, end], i } of [...marks].sort((a, b) => a.range[0] - b.range[0])) {
+  for (const { range: [start, end], key } of [...marks].sort((a, b) => a.range[0] - b.range[0])) {
     if (start < pos) continue;
-    out += `${esc(text.slice(pos, start))}<mark data-i="${i}">${esc(text.slice(start, end))}</mark>`;
+    out += `${esc(text.slice(pos, start))}<mark data-key="${esc(key)}">${esc(text.slice(start, end))}</mark>`;
     pos = end;
   }
   return out + esc(text.slice(pos));
@@ -81,10 +81,10 @@ function markedText(text: string, marks: { range: [number, number]; i: number }[
 /** The proof view for a draft and the placed items. */
 export function proofHtml(paras: Para[], placed: PlacedItem<Tagged>[]) {
   const byPara = new Map<number, string[]>();
-  const marks = new Map<number, { range: [number, number]; i: number }[]>();
-  placed.forEach((p, i) => {
-    byPara.set(p.at, [...byPara.get(p.at) ?? [], itemHtml(p, i)]);
-    if (p.range) marks.set(p.at, [...marks.get(p.at) ?? [], { range: p.range, i }]);
+  const marks = new Map<number, { range: [number, number]; key: string }[]>();
+  placed.forEach(p => {
+    byPara.set(p.at, [...byPara.get(p.at) ?? [], itemHtml(p)]);
+    if (p.range) marks.set(p.at, [...marks.get(p.at) ?? [], { range: p.range, key: p.item.key }]);
   });
   const rows = paras.map((para, at) => `<div class="prow${byPara.has(at) ? ' has' : ''}" id="pp-${para.n}" data-at="${at}">` +
     `<p class="ptext"><span class="pn">${para.label}</span>${markedText(para.text, marks.get(at) ?? [])}</p>` +
@@ -118,9 +118,9 @@ export function resultHtml(paras: Para[], record: ProofRecord, chosen: Record<st
     const report = shown[c] = reports.find((r) => r.id === chosen[c]) ?? reports.at(-1);
     if (!report) continue;
     const read = readReport(report);
-    if (read.ok) items.push(...read.report.items.map((item) => ({ ...item, check: c })));
+    if (read.ok) items.push(...read.report.items.map((item, index) => ({ ...item, check: c, key: JSON.stringify([c, report.id, index]) })));
     else errors.push(`<div class="perr" role="alert"><b>${MARK[c]} 第 ${report.attempt} 次的回复读不出来：</b>${esc(read.error)}</div>` +
-      `<details class="raw"><summary>${MARK[c]} 收到的原文</summary><pre>${esc(report.report)}</pre></details>`);
+      `<details class="raw" data-report="${esc(report.id)}"><summary>${MARK[c]} 收到的原文</summary><pre>${esc(report.report)}</pre></details>`);
   }
   if (!shown.manuscript && !shown.open) return `<p class="muted pnote">结果回来后会自动显示在这里。下面是分好段的原文。</p>${proofHtml(paras, [])}`;
   const count = (f: Filter) => items.filter((i) => f === 'all' || i.check === f).length;
