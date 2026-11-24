@@ -26,8 +26,18 @@ export function rowHtml(data: ForeshadowData, row: ForeshadowRow, host: NovelVie
 
 export function editorHtml(data: ForeshadowData, row: ForeshadowRow, index: number) {
   return `<form class="fsh-editor" data-index="${index}"><h3>编辑伏笔 ${esc(row.author['伏笔ID'] || '')}</h3>` +
-    data.columns.map(({ header }, i) => `<label>${esc(header)}<textarea aria-label="${esc(header)}" name="cell${i}" rows="${header === '伏笔／线索内容' ? 5 : 2}">${esc(row.author[header])}</textarea></label>`).join('') +
-    `<label>埋设链接<input aria-label="埋设链接" name="planting" value="${esc(row.derived.planting_location.link)}" placeholder="C章号#P起段-P末段"></label>` +
-    `<label>回收章节链接<input aria-label="回收章节链接" name="recovery" value="${esc(row.derived.recovery_chapters.join(', '))}" placeholder="C2, C3"></label>` +
+    data.columns.map(({ header }, i) => `<label>${esc(header)}<textarea aria-label="${esc(header)}" name="cell${i}" rows="${header === '伏笔／线索内容' ? 5 : 2}"></textarea></label>`).join('') +
+    '<label>埋设链接<input aria-label="埋设链接" name="planting" placeholder="C章号#P起段-P末段"></label>' +
+    '<label>回收章节链接<input aria-label="回收章节链接" name="recovery" placeholder="C2, C3"></label>' +
     '<p>修改原文或章节后，可在这里手动调整链接。</p><p class="fsh-editor-error" role="alert"></p><button type="submit">保存修改</button> <button type="button" data-cancel>取消</button></form>';
+}
+
+export function fillEditor(form: HTMLFormElement, data: ForeshadowData, row: ForeshadowRow) {
+  const set = (name: string, value: string) => {
+    const input = form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement;
+    input.value = value; input.dataset.initial = input.value;
+  };
+  data.columns.forEach(({ header }, i) => set(`cell${i}`, row.author[header]));
+  set('planting', row.derived.planting_location.link);
+  set('recovery', row.derived.recovery_chapters.join(', '));
 }

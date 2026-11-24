@@ -53,7 +53,8 @@ async function prepare(root, ports) {
   await runGit(writer, ['config', 'user.name', 'Test']); await runGit(writer, ['config', 'user.email', 'test@example.invalid']);
   const folder = join(writer, 'outline', slug); await mkdir(folder, { recursive: true });
   for (const name of ['plot-data.json', 'placements.json']) await writeFile(join(folder, name), await readFile(join(data, 'outline', slug, name)));
-  await writeFile(join(folder, 'foreshadow.json'), JSON.stringify(foreshadowFixture(), null, 2) + '\n');
+  const foreshadow = foreshadowFixture(); foreshadow.rows[0].author['伏笔／线索内容'] = '\nFirst\r\nSecond\n  ';
+  await writeFile(join(folder, 'foreshadow.json'), JSON.stringify(foreshadow, null, 2) + '\n');
   await runGit(writer, ['add', 'outline']); await runGit(writer, ['commit', '-qm', 'Synthetic foreshadow fixture']);
   await runGit(writer, ['push', 'origin', 'HEAD:main']); await runGit(root, ['clone', '--bare', remote, bare]);
   await runGit(bare, ['config', 'user.name', 'Test']); await runGit(bare, ['config', 'user.email', 'test@example.invalid']);
@@ -87,6 +88,7 @@ async function scenario(h, db, git, patched, port) {
     const state = await db.read(slug); return state.live.rev === state.head.synced.rev;
   });
   assert.equal(h.mainFile('foreshadow.json').rows[0].author['备注'], 'Browser to Git');
+  assert.equal(h.mainFile('foreshadow.json').rows[0].author['伏笔／线索内容'], '\nFirst\r\nSecond\n  ');
   assert.match(await runGit(h.remote, ['log', '-1', '--format=%B', 'main']), /Outline-Sync:/);
   await runGit(h.writer, ['pull', '--ff-only', 'origin', 'main']);
   const file = join(h.writer, 'outline', slug, 'foreshadow.json'), repo = h.mainFile('foreshadow.json');

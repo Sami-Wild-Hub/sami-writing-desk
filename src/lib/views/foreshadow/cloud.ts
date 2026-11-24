@@ -15,6 +15,7 @@ export class ForeshadowCloud {
   conflict = false;
   error = '';
   saving = false;
+  replacing = false;
   private baseline = '';
   private edits = 0;
   private own = '';
@@ -51,6 +52,7 @@ export class ForeshadowCloud {
     const data = state?.live?.foreshadow ? validateForeshadow(JSON.parse(await unpack(state.live.foreshadow))) as ForeshadowData : null;
     if (this.disposed) return;
     const text = JSON.stringify(data);
+    if (this.replacing) { this.remote = state ?? {}; this.changed(); return; }
     if (this.dirty && text !== this.baseline && state?.live?.rev !== this.own) this.conflict = true;
     else {
       this.baseline = text;
@@ -63,6 +65,7 @@ export class ForeshadowCloud {
   }
 
   edit(data: ForeshadowData) {
+    if (this.replacing) return;
     this.draft.save({ foreshadow: validateForeshadow(data) });
     this.data = data; this.dirty = true; this.edits += 1; this.error = '';
     this.queue(); this.changed();
@@ -82,6 +85,7 @@ export class ForeshadowCloud {
   }
 
   async loadCloud() {
+    if (this.replacing) return;
     this.dirty = false; this.conflict = false; this.error = ''; this.draft.clear();
     await this.receive(this.remote);
   }
@@ -91,6 +95,8 @@ export class ForeshadowCloud {
     if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
     const live = this.remote.live, version = this.edits;
+    const superseded = action === 'use-repo' && this.dirty && JSON.stringify(this.data) !== this.baseline;
+    this.replacing = action === 'use-repo';
     this.saving = true; this.own = newRevision(); this.error = ''; this.changed();
     try {
       const workspace = { plot_data: JSON.parse(await unpack(live.plot)), plan: JSON.parse(await unpack(live.plan)), foreshadow: structuredClone(this.data) };
@@ -100,13 +106,16 @@ export class ForeshadowCloud {
       await this.updates;
       if (this.disposed) return;
       if (this.remote.live?.rev !== result.rev) { this.conflict = true; return; }
+      if (superseded) {
+        this.conflict = true; this.draft.save({ foreshadow: this.data }); return;
+      }
       this.conflict = false;
       this.draft.acceptRevision(result.rev);
       if (this.edits === version) {
-        this.dirty = false; this.draft.clear(); await this.receive(this.remote);
+        this.dirty = false; this.draft.clear(); this.replacing = false; await this.receive(this.remote);
       } else { this.draft.save({ foreshadow: this.data }); this.queue(); }
     } catch (error) { this.error = `云端保存失败：${String(error)}`; }
-    finally { this.saving = false; this.own = ''; this.changed(); }
+    finally { this.saving = false; this.replacing = false; this.own = ''; this.changed(); }
   }
 
   dispose() {

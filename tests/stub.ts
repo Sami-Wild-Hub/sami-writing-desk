@@ -139,6 +139,8 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
   const db = await database({ canonical });
   const reads: string[] = [];
   const listens = new Map<{ send(data: unknown): void }, Set<string>>();
+  let holdWrite = false;
+  let acknowledge: (() => void) | undefined;
   const at = (path: string) => path.split('/').filter(Boolean).reduce<unknown>((node, key) => (node as Tree | null)?.[key] ?? null, db);
   const put = (path: string, value: unknown) => {
     const keys = path.split('/').filter(Boolean);
@@ -185,7 +187,9 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
       if (a === 'm') { Object.entries(b.d as Tree).forEach(([key, value]) => put(`${b.p}/${key}`, value)); server(b.p!, at(b.p!)); }
       if (a === 'q') { paths.add(b.p!); send({ a: 'd', b: { p: b.p, d: at(b.p!) } }); }
       if (a === 'n') paths.delete(b.p!);
-      send({ r, b: { s: 'ok', d: a === 'g' ? at(b.p!) : {} } });
+      const ack = () => send({ r, b: { s: 'ok', d: a === 'g' ? at(b.p!) : {} } });
+      if (holdWrite && (a === 'p' || a === 'm')) { holdWrite = false; acknowledge = ack; }
+      else ack();
     });
   });
   const server = (path: string, value: unknown) => {
@@ -195,7 +199,8 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
       for (const p of paths) if (norm(path).startsWith(norm(p)) || norm(p).startsWith(norm(path))) socket.send({ a: 'd', b: { p, d: at(p) } });
     }
   };
-  return Object.assign(reads, { server, at });
+  return Object.assign(reads, { server, at, holdNextWrite: () => { holdWrite = true; },
+    releaseWrite: () => { if (!acknowledge) throw Error('No write awaiting confirmation'); acknowledge(); acknowledge = undefined; } });
 }
 
 /** Collects uncaught page errors and console errors. */

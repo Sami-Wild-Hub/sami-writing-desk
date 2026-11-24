@@ -1,6 +1,6 @@
 // Cloud saves, local drafts, CAS conflicts and replacement recovery for the outline panel.
 import { classify } from './sync-state.js';
-import { decodeState, filesEqual, newRevision, resolve, save, workspaceFiles } from './sync.ts';
+import { decodeState, filesEqual, keptWorkspace, newRevision, resolve, save, workspaceFiles } from './sync.ts';
 export class OutlineCloud {
 cloudRevision = () => this.remote.live?.rev || this.remote.head?.synced?.rev || '';
 loadSavedDraft = (saved) => {
@@ -135,8 +135,7 @@ updateSyncStatus = () => {
  else if (this.remote.kept && !this.noticeKind) this.notice('最近被替换的版本仍可下载。', [{ label: '下载被替换的版本', action: () => void this.downloadKept() }]);
 };
 downloadKept = async () => {
- const kept = this.remote.kept; if (!kept) return;
- const payload = await decodeState({ ...this.remote, live: { ...kept, base: '', at: kept.at, by: 'repo' } });
- if (payload) this.download('outline-kept.json', { schema_version: '7.0', format: 'storylines-workspace', plot_data: payload.plot_data, plan: payload.plan });
+ const workspace = await keptWorkspace(this.remote);
+ if (workspace) this.download('outline-kept.json', workspace);
 };
 }

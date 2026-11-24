@@ -50,6 +50,12 @@ function configObject(raw: string | undefined) {
   return raw ? JSON.parse(raw) as Record<string, unknown> : {};
 }
 
+export async function keptWorkspace(state: OutlineSyncState) {
+  const kept = await decodePacked(state.kept);
+  return kept ? { schema_version: '7.0', format: 'storylines-workspace', plot_data: kept.plot_data,
+    plan: kept.plan_data, ...(kept.foreshadow ? { foreshadow: kept.foreshadow } : {}) } : null;
+}
+
 export async function decodeState(state: OutlineSyncState | null | undefined): Promise<OutlinePayload | null> {
   const live = await decodePacked(state?.live);
   if (!state || !live) return null;
