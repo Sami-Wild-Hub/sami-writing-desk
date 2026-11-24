@@ -52,12 +52,27 @@ export function enter(el: HTMLElement, cls = 'enter', token = '--dur-2') {
 
 interface Exit { timer: number; end(event: AnimationEvent): void; }
 const exits = new WeakMap<HTMLElement, Exit>();
+const surfaces = (el: HTMLElement) => [el, ...el.querySelectorAll<HTMLElement>(el instanceof HTMLDetailsElement ? ':scope > :not(summary)' : ':scope > .search-box, :scope > .modal')];
+const appearance = (el: HTMLElement) => {
+  const style = getComputedStyle(el);
+  return { opacity: style.opacity, translate: style.translate, scale: style.scale };
+};
+const cancelResume = (el: HTMLElement) => {
+  for (const animation of el.getAnimations()) if (!(animation instanceof CSSAnimation)) animation.cancel();
+};
+const exitInert = (el: HTMLElement, inert: boolean) => {
+  if (el instanceof HTMLDetailsElement) {
+    for (const child of el.children) if (child instanceof HTMLElement && child.tagName !== 'SUMMARY') child.inert = inert;
+  } else el.inert = inert;
+};
 const stopExit = (el: HTMLElement) => {
   const exit = exits.get(el);
   if (!exit) return;
   clearTimeout(exit.timer);
   el.removeEventListener('animationend', exit.end);
   el.classList.remove('leaving');
+  exitInert(el, false);
+  for (const node of surfaces(el)) for (const name of ['opacity', 'translate', 'scale']) node.style.removeProperty(`--exit-${name}`);
   exits.delete(el);
 };
 
@@ -67,7 +82,13 @@ export function leave(el: HTMLElement, done: () => void) {
   if (reduced() || el.hidden || !el.isConnected) return done();
   const finish = () => { stopExit(el); done(); };
   const end = (event: AnimationEvent) => { if (/-out$/.test(event.animationName)) finish(); };
+  // Take over the visible frame when an entry or a reopened exit is interrupted.
+  for (const node of surfaces(el)) {
+    const state = appearance(node); cancelResume(node);
+    for (const [name, value] of Object.entries(state)) node.style.setProperty(`--exit-${name}`, value);
+  }
   el.classList.add('leaving');
+  exitInert(el, true);
   el.addEventListener('animationend', end);
   exits.set(el, { timer: window.setTimeout(finish, ms('--dur-exit') + 60), end });
 }
@@ -75,13 +96,23 @@ export function leave(el: HTMLElement, done: () => void) {
 export const hide = (el: HTMLElement) => leave(el, () => { el.hidden = true; });
 /** Hides at once, also cutting short a running exit. */
 export function hideNow(el: HTMLElement) {
+  for (const node of surfaces(el)) cancelResume(node);
   stopExit(el);
   el.hidden = true;
+  el.inert = true;
 }
 /** Shows a popover (its CSS entry animation plays), cancelling an exit still running. */
 export function show(el: HTMLElement) {
+  const frames = exits.has(el) ? surfaces(el).map(node => ({ node, state: appearance(node) })) : [];
   stopExit(el);
   el.hidden = false;
+  el.inert = false;
+  for (const { node, state } of frames) {
+    cancelResume(node);
+    node.animate([state, { opacity: '1', translate: '0px', scale: '1' }], {
+      duration: ms('--dur-2'), easing: getComputedStyle(document.documentElement).getPropertyValue('--ease-out').trim(),
+    });
+  }
 }
 /** Open and not on its way out. */
 export const isShown = (el: HTMLElement) => !el.hidden && !exits.has(el);
@@ -112,12 +143,49 @@ function slideSelection(event: Event) {
 }
 
 const POP_DETAILS = '.card-menu, .file-recovery';
+const folds = new WeakMap<HTMLDetailsElement, number>();
+/** Programmatic navigation or a breakpoint change takes over a pending disclosure close. */
+export function setDetailsOpen(box: HTMLDetailsElement, open: boolean) {
+  clearTimeout(folds.get(box)); folds.delete(box);
+  box.open = open; box.removeAttribute('data-fold-closed');
+  const body = box.querySelector<HTMLElement>(':scope > .disclosure');
+  if (body) body.inert = false;
+}
+/** Small disclosures use a grid; long contents change layout once and only fade on entry. */
+function toggleFold(box: HTMLDetailsElement, summary: HTMLElement) {
+  let body = box.querySelector<HTMLElement>(':scope > .disclosure');
+  if (!body) {
+    body = document.createElement('div'); body.className = 'disclosure';
+    const inner = document.createElement('div');
+    while (summary.nextSibling) inner.append(summary.nextSibling);
+    body.append(inner); box.append(body);
+  }
+  const open = !box.open || box.hasAttribute('data-fold-closed');
+  clearTimeout(folds.get(box));
+  const wasOpen = box.open;
+  box.open = true;
+  const small = body.firstElementChild!.scrollHeight <= 320 && !reduced();
+  body.inert = !open;
+  if (!small) {
+    setDetailsOpen(box, open);
+    if (open) enter(body, 'reveal');
+  } else {
+    if (!wasOpen) { box.setAttribute('data-fold-closed', ''); void body.offsetWidth; }
+    box.toggleAttribute('data-fold-closed', !open);
+    if (!open) folds.set(box, window.setTimeout(() => setDetailsOpen(box, false), ms('--dur-3')));
+  }
+  box.dispatchEvent(new CustomEvent('disclosure-toggle', { bubbles: true, detail: open }));
+}
 // Opening a <details> by its summary reveals the content once (re-renders that keep it open
 // do not); the popover-like ones also play the exit before closing.
 function revealDetails(event: MouseEvent) {
   const summary = (event.target as Element).closest?.('summary');
   const box = summary?.parentElement;
   if (event.defaultPrevented || !(box instanceof HTMLDetailsElement) || box.firstElementChild !== summary) return;
+  if (box.matches('.fold, .rail-fold, .toc details')) {
+    event.preventDefault(); toggleFold(box, summary as HTMLElement); return;
+  }
+  if (exits.has(box)) { event.preventDefault(); show(box); return; }
   if (!box.open) {
     if (!reduced()) enter(box as HTMLElement, 'opening');
     return;

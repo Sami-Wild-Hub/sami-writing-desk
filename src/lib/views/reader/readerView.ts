@@ -2,7 +2,7 @@
 // (INDEX.md when none), jumps to and flashes the route's fragment, and keeps each
 // page's scroll position while switching views.
 import type { CreateNovelView } from '../types.ts';
-import { flash, jumpTo } from '../../archive/motion.ts';
+import { flash, jumpTo, setDetailsOpen } from '../../archive/motion.ts';
 import { esc } from '../../archive/ui.ts';
 import { addTimelineBits, buildPage, type ReaderPage } from './page.ts';
 import { mountPeek } from './peek.ts';
@@ -31,7 +31,7 @@ const createReader: CreateNovelView = (host) => {
   let visible = false;
   let observer: IntersectionObserver | null = null;
   const placeRail = () => {
-    railFold.open = !compact.matches;
+    setDetailsOpen(railFold, !compact.matches);
     if (compact.matches && page) page.inner.querySelector('.prose')!.before(rail);
     else frame.append(rail);
   };
@@ -87,7 +87,8 @@ const createReader: CreateNovelView = (host) => {
       route.doc = next;
       if (next !== path || !page) {
         if (path) scrolls[path] = window.scrollY;
-        const html = await host.read(next);
+        // Assemble metadata and rail links before exposing the new page, avoiding late reflow.
+        const [html, timeline] = await Promise.all([host.read(next), host.timeline().catch(() => undefined)]);
         if (html === undefined || !ctx.latest()) return false;
         reading.close();
         peek.hide();
@@ -96,10 +97,7 @@ const createReader: CreateNovelView = (host) => {
         doc.replaceChildren(page.inner);
         railBody.innerHTML = outline(); placeRail(); observeHeads();
         markToc(toc, next);
-        const shownPage = page;
-        void host.timeline().then((data) => {
-          if (data && page === shownPage) addTimelineBits(shownPage, railBody, data, host);
-        }, () => {});
+        if (timeline) addTimelineBits(page, railBody, timeline, host);
         document.title = `${page.title} · ${host.bookTitle} · 小离总周报`;
         if (route.hash && jump(route.hash, true)) return true;
         window.scrollTo(0, ctx.restore ?? (ctx.via === 'pop' ? scrolls[next] ?? 0 : 0));

@@ -1,6 +1,7 @@
 // Pointer dragging, insertion targets and edge scrolling, scoped to one mounted workbench.
 // The ghost follows the pointer with no easing; only the drop settles (ghost glides in, moved cards slide).
 import { ms, reduced } from '../../archive/motion.ts';
+import { toast } from '../../archive/ui.ts';
 const FIXED = 'button, input, textarea, select, summary, a, label, details';
 export const mountDrag = root => new OutlineDrag(root);
 class OutlineDrag {
@@ -26,6 +27,8 @@ class OutlineDrag {
     this.state.dy = this.state.y0 - r.top;
     this.state.ghost = this.state.src.cloneNode(true);
     this.state.ghost.classList.add('drag-ghost');
+    this.state.ghost.setAttribute('aria-hidden', 'true');
+    this.state.ghost.inert = true;
     this.state.ghost.style.width = r.width + 'px';
     this.root.append(this.state.ghost);
     this.state.src.classList.add('dragging');
@@ -68,7 +71,7 @@ class OutlineDrag {
   // The insertion line floats over the zone instead of entering it, so nothing below it reflows.
   placeMark = (at) => {
     const mark = this.state.mark;
-    if (at === mark.dataset.at) return;
+    if (at === (mark.dataset.at || null)) return;
     mark.dataset.at = at ?? '';
     mark.hidden = !at;
     if (!at) return;
@@ -117,7 +120,7 @@ class OutlineDrag {
   };
   positions = () => {
     const seen = new Map(), out = new Map(), h = innerHeight;
-    for (const el of this.root.querySelectorAll('[data-drag][data-id]')) {
+    for (const el of this.root.querySelectorAll('[data-drag][data-id]:not(.drag-ghost)')) {
       const key = `${el.dataset.drag}:${el.dataset.id}`, n = seen.get(key) ?? 0, r = el.getBoundingClientRect();
       seen.set(key, n + 1);
       if (r.bottom > 0 && r.top < h && r.width) out.set(`${key}:${n}`, r);
@@ -129,7 +132,10 @@ class OutlineDrag {
     const { ghost } = st, d = ms('--dur-2');
     const z = st.zone?.dataset ?? {}, sel = ['zone', 'cat', 'beat', 'line'].filter(k => z[k] != null).map(k => `[data-${k}="${CSS.escape(z[k])}"]`).join('');
     const zone = before && sel ? this.root.querySelector(sel) : null;
-    const target = zone?.querySelector(`[data-drag="${st.kind}"][data-id="${CSS.escape(st.id)}"]`);
+    const candidate = zone?.querySelector(`[data-drag="${st.kind}"][data-id="${CSS.escape(st.id)}"]`);
+    const rect = candidate?.getBoundingClientRect();
+    const target = rect && rect.bottom > 0 && rect.top < innerHeight && rect.right > 0 && rect.left < innerWidth ? candidate : null;
+    if (st.zone && !target && st.kind === 'card' && z.zone !== 'line') toast('卡片已移动');
     if (!before || !d) return ghost.remove();
     this.slide(before, `${st.kind}:${st.id}`);
     ghost.style.transition = 'transform var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out)';
@@ -142,7 +148,7 @@ class OutlineDrag {
   };
   slide = (before, dropped) => {
     const seen = new Map(), moved = [];
-    for (const el of this.root.querySelectorAll('[data-drag][data-id]')) {
+    for (const el of this.root.querySelectorAll('[data-drag][data-id]:not(.drag-ghost)')) {
       const key = `${el.dataset.drag}:${el.dataset.id}`, n = seen.get(key) ?? 0, was = before.get(`${key}:${n}`);
       seen.set(key, n + 1);
       if (!was || key === dropped) continue;

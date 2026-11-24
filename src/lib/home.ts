@@ -7,7 +7,7 @@ import { createStore } from './archive/store.ts';
 import type { LoadedBook } from './archive/data.ts';
 import { accessMessage } from './archive/access.ts';
 import { searchInput } from './archive/input.ts';
-import { hide, isShown, show } from './archive/motion.ts';
+import { hide, hideNow, isShown, show } from './archive/motion.ts';
 
 const greeting = () => {
   const hour = new Date().getHours();
@@ -108,6 +108,7 @@ export function mountHome(config: Partial<FirebaseConfig>) {
     $('home-greet').textContent = status.connection === 'connected' ? `${greeting()}${status.displayName ? `，${status.displayName}` : ''}` : '小离总周报';
     $('home-lead').hidden = status.connection === 'connected';
     if (status.connection !== 'connected') {
+      hideNow(menu); account.setAttribute('aria-expanded', 'false');
       if (uid) { uid = ''; unwatch(); store.clear(); reset(); }
       return;
     }

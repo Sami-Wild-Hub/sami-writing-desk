@@ -81,7 +81,8 @@ test('move cards by dropdown and by dragging onto the picker; drop into blank co
     await expect(text).toHaveText(long);
     expect(await text.evaluate(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight + 1 && el.clientHeight > 60)).toBe(true);
   }
-  await expect(root.locator('.badge')).toHaveText(Array(await root.locator('.badge').count()).fill(/^(已写|已排|未排)$/));
+  const badges = root.locator('[data-workbench] .badge');
+  await expect(badges).toHaveText(Array(await badges.count()).fill(/^(已写|已排|未排)$/));
   await expect(root.locator('.self-col.combined .era')).toHaveText('Combined');
   await expect(root.locator(`.bg-mine [data-card="${free}"]`)).toBeVisible();
   await root.locator('[data-act="toggle-picker"]').click();

@@ -4,7 +4,7 @@ import { cleanTitle, ownerName, ownerPages, pageLabel, pathInfo } from '../label
 import type { PageEntry } from '../views/types.ts';
 import { esc, icon } from './ui.ts';
 import { searchInput } from './input.ts';
-import { hide, isShown, show } from './motion.ts';
+import { hide, hideNow, isShown, show } from './motion.ts';
 
 export interface SearchSource {
   entries: Record<string, PageEntry>;
@@ -141,8 +141,9 @@ export function mountSearch() {
 
   const close = () => {
     if (!isShown(box)) return;
+    if (box.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
     hide(box);
-    (opener as HTMLElement | null)?.focus?.();
+    (opener as HTMLElement | null)?.focus?.({ preventScroll: true });
   };
   const binding = searchInput(input, () => void run(), () => {
     serial++; list.inert = true;
@@ -188,6 +189,7 @@ export function mountSearch() {
       input.value = '';
       filter = '全部';
       close();
+      if (!next) { hideNow(box); list.replaceChildren(); }
     },
     remember(entry: PageEntry, href: string) {
       recent = [{ title: hitTitle(entry), group: groupOf(entry.path), href }, ...recent.filter((item) => item.href !== href)].slice(0, 6);

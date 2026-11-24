@@ -2,6 +2,7 @@
 // and the 正文 chapter grid. Built once per book from the manifest.
 import { domainLabels, domainOrder, overviewPages, ownerName, pathInfo } from '../../labels.ts';
 import { esc } from '../../archive/ui.ts';
+import { setDetailsOpen } from '../../archive/motion.ts';
 import type { NovelViewHost } from '../types.ts';
 
 export function buildToc(host: NovelViewHost) {
@@ -48,7 +49,7 @@ export function buildToc(host: NovelViewHost) {
         if (!a.hidden) hits += 1;
       }
       group.hidden = !hits;
-      if (q) group.open = true;
+      if (q) setDetailsOpen(group, true);
     }
   });
   return side;
@@ -62,6 +63,7 @@ export function markToc(side: HTMLElement, path: string) {
     const on = own === path || Boolean(ownerRoot && own.startsWith(ownerRoot));
     if (on) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
-    if (on) a.closest('details')?.setAttribute('open', '');
+    const group = a.closest('details');
+    if (on && group) setDetailsOpen(group, true);
   }
 }

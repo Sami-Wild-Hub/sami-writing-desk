@@ -12,7 +12,7 @@ import { fullTimeIndex } from './ordering.js';
 import { viewStore } from './view-state.js';
 import { editorDrafts } from './editor-drafts.js';
 import { searchInput } from '../../archive/input.ts';
-import { enter } from '../../archive/motion.ts';
+import { updateLayers } from './layers.ts';
 export const mountOutline = (root, payload, draftKey, host) => new OutlinePanel(root, payload, draftKey, host);
 class OutlinePanel extends OutlineCloud {
   constructor(root, payload, draftKey, host) {
@@ -85,22 +85,25 @@ class OutlinePanel extends OutlineCloud {
     u.beat = this.model.activeBeat;
     const scroll = [...root.querySelectorAll('[data-keep]')].map(el => [el.dataset.keep, el.scrollTop]);
     const focused = document.activeElement, search = root.querySelector('[data-input="search"]');
+    const picker = root.querySelector('.picker-strip');
     const draft = focused?.closest('[data-draft]')?.dataset.draft, name = focused?.name;
     const selection = focused?.selectionStart, end = focused?.selectionEnd;
     const v = presentation(this.model, u);
     root.querySelector('[data-bar]').innerHTML = v.renderBar();
     root.querySelector('[data-workbench]').innerHTML = u.tab === 'story' ? v.renderStory() : v.renderOutline();
+    const nextPicker = root.querySelector('.picker-strip');
+    if (picker && nextPicker) {
+      picker.setAttribute('aria-expanded', String(u.picker));
+      picker.querySelector('.strip-name').textContent = nextPicker.querySelector('.strip-name').textContent;
+      nextPicker.replaceWith(picker);
+    }
     const nextSearch = root.querySelector('[data-input="search"]');
     if (search && nextSearch) nextSearch.replaceWith(search);
     else if (nextSearch) {
       this.searchBinding?.dispose();
       this.searchBinding = searchInput(nextSearch, this.renderSearch);
     }
-    const layer = root.querySelector('[data-layer]'), had = { pop: !!layer.querySelector('.pop'), dialog: !!layer.querySelector('.modal-back') };
-    layer.innerHTML = (u.rank ? v.rankPanel() : '') + (u.dialog ? v.lineDialog() : '');
-    // Only a layer that was not there before plays its entry; re-renders replace it silently.
-    if (u.rank && !had.pop) enter(layer.querySelector('.pop'));
-    if (u.dialog && !had.dialog) enter(layer.querySelector('.modal-back'));
+    updateLayers(root.querySelector('[data-layer]'), (u.rank ? v.rankPanel() : '') + (u.dialog ? v.lineDialog() : ''));
     for (const [key, top] of scroll) root.querySelector(`[data-keep="${key}"]`)?.scrollTo(0, top);
     if (this.scroll && !this.viewShown) { this.viewShown = true; for (const [key, top] of Object.entries(this.scroll)) root.querySelector(`[data-keep="${CSS.escape(key)}"]`)?.scrollTo(0, top); }
     const field = draft ? root.querySelector(`[data-draft="${CSS.escape(draft)}"] [name="${name}"]`) : focused === search ? search : null;
@@ -229,7 +232,8 @@ class OutlinePanel extends OutlineCloud {
         e.preventDefault(); this.render();
       }
     });
-    this.root.addEventListener('toggle', e => { const key = e.target.dataset?.key; if (key) { e.target.open ? this.UI.open.add(key) : this.UI.open.delete(key); this.queueView(); } }, true);
+    this.root.addEventListener('toggle', e => { const key = e.target.dataset?.key; if (key) { e.target.open && !e.target.hasAttribute('data-fold-closed') ? this.UI.open.add(key) : this.UI.open.delete(key); this.queueView(); } }, true);
+    this.root.addEventListener('disclosure-toggle', e => { const key = e.target.dataset.key; if (key) { e.detail ? this.UI.open.add(key) : this.UI.open.delete(key); this.queueView(); } });
   };
   wireFiles = () => {
     const on = (id, fn) => this.$(id).addEventListener('click', () => this.attempt(fn));
@@ -268,7 +272,7 @@ class OutlinePanel extends OutlineCloud {
     this.root.querySelector('.draft-notice')?.remove();
     const node = document.createElement('div'); node.className = 'draft-notice'; node.setAttribute('role', 'status'); node.textContent = text;
     if (!actions.length) actions = [{ label: '导出原始草稿', action: () => this.download('outline-local-draft.json', this.draft.raw()) }];
-    for (const item of actions) { const b = document.createElement('button'); b.textContent = item.label; b.onclick = item.action; node.append(b); }
+    for (const item of actions) { const b = document.createElement('button'); b.className = 'btn small'; b.textContent = item.label; b.onclick = item.action; node.append(b); }
     this.root.prepend(node);
   };
   dispose = () => {

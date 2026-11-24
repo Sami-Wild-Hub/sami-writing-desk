@@ -62,6 +62,7 @@ svg.i { width: 1.2rem; height: 1.2rem; flex: none; fill: none; stroke: currentCo
 .btn.danger { color: #9b3022; }
 .btn.danger:hover { border-color: #e2b5ab; color: #7d2418; }
 .btn.small { height: 1.875rem; padding: 0 .6rem; border-radius: 8px; font-size: .8125rem; }
+.btn.tiny { height: 1.6rem; padding: 0 .45rem; border-radius: 7px; font-size: .75rem; }
 .btn:disabled { opacity: .4; cursor: default; }
 .iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 2.6rem; height: 2.6rem; flex: none;
   border: 0; border-radius: 9px; background: none; color: var(--ink-2); }
@@ -106,11 +107,16 @@ a.pill:hover { background: var(--accent-soft); color: var(--accent-ink); }
   border-radius: inherit; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / .08); transform-origin: left center; }
 .slide::before { animation: slide var(--dur-2) var(--ease-out); }
 @keyframes slide { from { transform: translateX(var(--from-x, 0)) scaleX(var(--from-s, 1)); } }
-/* Hover and selection colours ease; the controls that need it shrink a little while pressed. */
-.btn, .iconbtn, .chip, .seg button, .tabs a, .tabs button, .menu a, .menu button, .side .navlink, .searchbtn,
-.bar .shelf-link, .bar .book, a.pill { transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out),
-  border-color var(--dur-1) var(--ease-out), transform var(--dur-press) var(--ease-out); }
-.btn:active:not(:disabled), .iconbtn:active:not(:disabled), .chip:active:not(:disabled) { transform: scale(.98); }
+/* A fading hover tint avoids animating paint properties; press and release use separate tokens. */
+.btn, .iconbtn, .chip, .seg button, .tabs a, .tabs button, .menu a, .menu button, .side .navlink, .searchbtn, .bookcard .acts a, .bookcard .acts button,
+.bar .shelf-link, .bar .book, a.pill { position: relative; isolation: isolate; transition: transform var(--dur-1) var(--ease-out); }
+:is(.btn, .iconbtn, .chip, .seg button, .tabs a, .tabs button, .menu a, .menu button, .side .navlink, .searchbtn, .bookcard .acts a, .bookcard .acts button, .bar .shelf-link, .bar .book, a.pill)::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: currentColor; opacity: 0; pointer-events: none;
+  transition: opacity var(--dur-1) var(--ease-out); }
+@media (hover: hover) {
+  :is(.btn, .iconbtn, .chip, .seg button, .tabs a, .tabs button, .menu a, .menu button, .side .navlink, .searchbtn, .bookcard .acts a, .bookcard .acts button, .bar .shelf-link, .bar .book, a.pill):hover::after { opacity: .06; }
+}
+.btn:active:not(:disabled), .iconbtn:active:not(:disabled), .chip:active:not(:disabled) { transform: scale(.98); transition-duration: var(--dur-press); }
 .searchbtn { display: inline-flex; align-items: center; gap: 8px; width: clamp(14rem, 18vw, 22rem); height: 2.5rem; padding: 0 .7rem;
   border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink-3); font-size: .9375rem; text-align: left; }
 .searchbtn:hover { border-color: var(--line-2); }
@@ -187,23 +193,27 @@ a.pill:hover { background: var(--accent-soft); color: var(--accent-ink); }
 
 /* ---------- shared motion: entries, exits, view switch, chevron, jump highlight ---------- */
 @keyframes pop-in { from { opacity: 0; translate: 0 -4px; scale: .98; } }
-@keyframes pop-out { to { opacity: 0; translate: 0 -4px; scale: .98; } }
+@keyframes pop-out { from { opacity: var(--exit-opacity, 1); translate: var(--exit-translate, none); scale: var(--exit-scale, none); } to { opacity: 0; translate: 0 -4px; scale: .98; } }
 @keyframes toast-in { from { opacity: 0; translate: 0 -6px; } }
 @keyframes fade-in { from { opacity: 0; } }
-@keyframes fade-out { to { opacity: 0; } }
-@keyframes rise-in { from { opacity: 0; translate: 0 4px; } }
+@keyframes fade-out { from { opacity: var(--exit-opacity, 1); } to { opacity: 0; } }
 @keyframes reveal { from { opacity: 0; translate: 0 -4px; } }
 .leaving { animation: pop-out var(--dur-exit) var(--ease-in) forwards !important; pointer-events: none; }
 .toast.leaving { animation-name: fade-out !important; }
-details.leaving { animation: none !important; }
+details.leaving { animation: none !important; pointer-events: auto; }
 details.leaving > :not(summary) { animation: pop-out var(--dur-exit) var(--ease-in) forwards; }
-.view-enter { animation: rise-in var(--dur-2) var(--ease-out); }
+.view-enter { animation: fade-in var(--dur-2) var(--ease-out); }
 .enter { animation: pop-in var(--dur-2) var(--ease-out); } /* a popover or dialog that was not there before */
 .modal-back.enter { animation-name: fade-in; }
 .modal-back.enter > .modal { animation: pop-in var(--dur-2) var(--ease-out); }
 .modal-back.leaving { animation-name: fade-out !important; }
+.search.leaving > .search-box, .modal-back.leaving > .modal { animation: pop-out var(--dur-exit) var(--ease-in) forwards; }
+details.opening:is(.card-menu, .file-recovery) > :not(summary) { transform-origin: top left; animation: pop-in var(--dur-2) var(--ease-out); }
 .late { animation: fade-in var(--dur-2) var(--ease-out); } /* content that arrives after the page */
 details.opening > :not(summary), .reveal { animation: reveal var(--dur-2) var(--ease-out); }
+.disclosure { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--dur-3) var(--ease-in-out); }
+.disclosure > div { min-height: 0; overflow: hidden; }
+details[data-fold-closed] > .disclosure { grid-template-rows: 0fr; }
 /* One chevron for every disclosure (summaries, and .chev in toggle buttons): a border corner
    pointing right, turning down when open. */
 summary { cursor: pointer; list-style: none; }
@@ -211,11 +221,14 @@ summary::-webkit-details-marker { display: none; }
 summary::before, .chev { content: ""; display: inline-block; flex: none; width: .4em; height: .4em; margin: 0 .5em .15em .1em;
   border: solid var(--ink-3); border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform var(--dur-1) var(--ease-out); }
 details[open] > summary::before, [aria-expanded="true"] > .chev { transform: rotate(45deg); }
-.flash { border-radius: 4px; animation: flash var(--dur-flash) var(--ease-out); }
-@keyframes flash { 0%, 20% { background-color: var(--mark); box-shadow: 0 0 0 4px var(--mark); } }
+details[data-fold-closed] > summary::before { transform: rotate(-45deg); }
+.flash { position: relative; isolation: isolate; }
+.flash::after { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 4px; pointer-events: none;
+  background: var(--mark); box-shadow: 0 0 0 4px var(--mark); animation: flash var(--dur-flash) var(--ease-out) forwards; }
+@keyframes flash { 0%, 20% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   /* a static mark that motion.ts clears after --dur-flash */
-  .flash { animation: none; background-color: var(--mark); box-shadow: 0 0 0 4px var(--mark); }
+  .flash::after { animation: none; }
 }
 
 /* ---------- home and the sign-in gate ---------- */

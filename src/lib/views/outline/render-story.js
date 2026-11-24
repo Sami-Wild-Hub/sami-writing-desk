@@ -15,7 +15,7 @@ export function picker(v, line) {
     <button class="btn tiny quiet" data-act="new-line">＋ 新建故事线</button></div><p class="hint">把卡片拖到某条线上即转过去。</p>
     <div role="radiogroup" aria-label="故事线">${sections().map(s => `<div class="sec-name">${esc(s.name)}</div>${s.lines.map(item).join('')}`).join('')}</div></div>`;
   return `<aside class="picker ${UI.picker ? 'open' : ''}" data-drag-open><button class="picker-strip" data-act="toggle-picker" aria-expanded="${UI.picker}" title="选择故事线">
-    <span class="strip-label">${UI.picker ? '▸' : '◂'} 故事线</span><span class="strip-name">${esc(nameOf(line))}</span></button>${panel}</aside>`;
+    <span class="chev" aria-hidden="true"></span><span class="strip-label">故事线</span><span class="strip-name">${esc(nameOf(line))}</span></button>${panel}</aside>`;
 }
 
 // Parts 2 and 3 share one grid: a row per Beat category, so both sides line up.
