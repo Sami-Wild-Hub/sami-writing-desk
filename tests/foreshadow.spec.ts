@@ -29,7 +29,7 @@ test('optional absence, column order, line breaks, filters and reader links', as
   expect(await root.locator('th').allTextContents()).toEqual([...foreshadowFixture().columns.map(c => c.header), '操作']);
   await expect(root.locator('tbody tr').first().locator('td').nth(2)).toHaveText('A clue\nSecond line');
   await expect(root.locator('tbody tr').nth(1).locator('script')).toHaveCount(0);
-  await root.getByLabel('是否已收', { exact: true }).selectOption('已收');
+  await root.getByLabel('是否已收', { exact: true }).selectOption('部分回收');
   await expect(root.locator('tbody tr')).toHaveCount(1);
   await root.getByLabel('埋设章节', { exact: true }).selectOption('C2');
   await expect(root.locator('tbody tr')).toHaveCount(0);
@@ -55,12 +55,12 @@ test('edit, reload, add/delete and outline saves preserve the third document', a
   await root.getByRole('button', { name: '保存修改' }).click();
   await expect.poll(async () => JSON.parse(await unpack(db.at(`${path}/live/foreshadow`) as string)).rows[0].author['埋设章节']).toBe('C2');
   let saved = JSON.parse(await unpack(db.at(`${path}/live/foreshadow`) as string));
-  expect(saved.rows[0].derived.planting_location.link).toBe('C1#P2');
+  expect(saved.rows[0].derived).toEqual({ recovery_chapters: ['C2'] });
   expect(db.at(`${path}/live/plot`)).toBe(original.plot); expect(db.at(`${path}/live/plan`)).toBe(original.plan);
   await page.reload(); await expect(root.locator('tbody tr').first()).toContainText('Changed\nSecond line');
   await root.getByRole('button', { name: '加行', exact: true }).click();
   await root.getByLabel('伏笔ID', { exact: true }).fill('three');
-  await root.getByLabel('埋设链接', { exact: true }).fill('C2#P5-P6');
+  await root.getByLabel('埋设章节', { exact: true }).last().fill('C2P5-6');
   await root.getByLabel('回收章节链接', { exact: true }).fill('C1, C2');
   await root.getByRole('button', { name: '保存修改' }).click();
   await expect.poll(async () => JSON.parse(await unpack(db.at(`${path}/live/foreshadow`) as string)).rows.length).toBe(3);
@@ -112,6 +112,41 @@ test('remote changes to another row cannot redirect an open editor to the wrong 
   await expect.poll(async () => JSON.parse(await unpack(db.at(`${path}/live/foreshadow`) as string)).rows[0].author['备注']).toBe('Editing row two');
 });
 
+test('已收 is hidden until the remembered filter changes; phone cards edit, add and delete', async ({ page }) => {
+  const data = foreshadowFixture(); data.rows[1].author['是否已收'] = '已收';
+  await page.setViewportSize({ width: 390, height: 844 });
+  const db = await stubFirebase(page);
+  db.server(`${path}/live/foreshadow`, await pack(data));
+  await page.goto('book/?book=maritime-story&view=foreshadow');
+  const root = page.locator('[data-view="foreshadow"]'), status = root.getByLabel('是否已收', { exact: true });
+  await expect(root.locator('tbody tr')).toHaveCount(1);
+  await expect(status).toHaveValue('!已收');
+  const card = root.locator('tbody tr').first();
+  await expect(root.locator('thead')).toBeHidden();
+  await expect(card.locator('td.fsh-id')).toHaveCSS('font-size', '12px');
+  await expect(card.locator('td.fsh-empty').first()).toBeHidden();
+  await card.locator('[data-kind="planting"]').click();
+  await expect(page.locator('[data-view="reader"] #p2')).toHaveClass(/flash/);
+  await page.goBack();
+  await status.selectOption('');
+  await page.reload();
+  await expect(root.locator('tbody tr')).toHaveCount(2);
+  await expect(status).toHaveValue('');
+  await root.locator('tbody tr').last().getByRole('button', { name: '编辑', exact: true }).click();
+  await expect(root.locator('.fsh-scroll')).toBeHidden();
+  await root.getByLabel('埋设章节', { exact: true }).last().fill('C2P5-6，C3');
+  await root.getByRole('button', { name: '保存修改' }).click();
+  await expect(root.locator('tbody tr').last().locator('[data-kind="planting"]')).toHaveText(['C2P5-6', 'C3']);
+  await root.getByRole('button', { name: '加行', exact: true }).click();
+  await root.getByLabel('伏笔ID', { exact: true }).fill('three');
+  await root.getByRole('button', { name: '保存修改' }).click();
+  await expect(root.locator('tbody tr')).toHaveCount(3);
+  page.once('dialog', dialog => dialog.accept());
+  await root.locator('tbody tr').last().getByRole('button', { name: '删除', exact: true }).click();
+  await expect.poll(async () => JSON.parse(await unpack(db.at(`${path}/live/foreshadow`) as string)).rows.map((r: { author: Record<string, string> }) => r.author['埋设章节']))
+    .toEqual(['C1P2', 'C2P5-6，C3']);
+});
+
 test.describe('private foreshadow screenshots and real reader destinations', () => {
   test.skip(!env.FORESHADOW_SHOTS_DIR, 'set private foreshadow paths to capture screenshots');
   test.use({ deviceScaleFactor: 2 });
@@ -130,20 +165,31 @@ test.describe('private foreshadow screenshots and real reader destinations', () 
     db.server(`${book}/manifest`, manifest); db.server(`${path}/live/foreshadow`, await pack(data));
     await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
     await page.goto('book/?book=maritime-story&view=foreshadow');
-    const root = page.locator('[data-view="foreshadow"]');
-    await expect(root.locator('tbody tr')).toHaveCount(data.rows.length);
+    const root = page.locator('[data-view="foreshadow"]'), visible = data.rows.filter(r => r.author['是否已收'] !== '已收');
+    await expect(root.locator('tbody tr')).toHaveCount(visible.length);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
+    const shot = (name: string) => page.screenshot({ path: resolve(env.FORESHADOW_SHOTS_DIR!, `${name}.png`) });
     await mkdir(env.FORESHADOW_SHOTS_DIR!, { recursive: true });
-    await page.screenshot({ path: resolve(env.FORESHADOW_SHOTS_DIR!, `${width === 390 ? 'phone' : 'desktop'}.png`) });
-    for (const i of [0, 1, 2]) {
-      const loc = data.rows[i].derived.planting_location.link, match = /^C(\d+)#P(\d+)/.exec(loc)!;
-      await root.locator('tbody tr').nth(i).locator('[data-kind="planting"]').click();
+    await shot(width === 390 ? 'phone' : 'desktop');
+    for (const i of [0, 1]) {
+      const match = /^C(\d+)P(\d+)/.exec(visible[i].author['埋设章节'])!;
+      await root.locator('tbody tr').nth(i).locator('[data-kind="planting"]').first().click();
       await expect(page.locator(`[data-view="reader"] #p${match[2]}`)).toHaveClass(/flash/);
       expect(new URL(page.url()).searchParams.get('doc')).toBe(`source/C${match[1]}.md`);
-      const quote = data.rows[i].author['伏笔／线索内容'].split('\n')[0];
+      const quote = visible[i].author['伏笔／线索内容'].split('\n')[0];
       await expect(page.locator(`[data-view="reader"] #p${match[2]}`)).toContainText(quote);
       await page.goBack();
     }
+    if (width === 390) {
+      const card = root.locator('tbody tr').nth(1);
+      await card.scrollIntoViewIfNeeded();
+      const y = await page.evaluate(() => scrollY);
+      await card.getByRole('button', { name: '编辑', exact: true }).click();
+      await shot('phone-edit');
+      await root.getByRole('button', { name: '取消', exact: true }).click();
+      expect(await page.evaluate(() => scrollY)).toBe(y);
+    }
+    await root.getByLabel('是否已收', { exact: true }).selectOption('');
     const i = data.rows.findIndex(r => r.derived.recovery_chapters.length);
     const chapter = data.rows[i].derived.recovery_chapters[0];
     await root.locator('tbody tr').nth(i).locator('[data-kind="recovery"]').first().click();

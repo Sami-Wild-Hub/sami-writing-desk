@@ -1,20 +1,29 @@
-// Authenticated foreshadow table, filters and row editor using the shared outline saves.
+// Authenticated foreshadow table (cards on phones), remembered filters and row editor using the shared outline saves.
+// Reads/Writes: localStorage <outline draft key>:foreshadow:view (JSON filter choice)
 import type { CreateNovelView, NovelViewHost } from '../types.ts';
 import { esc } from '../../archive/ui.ts';
 import { ForeshadowCloud } from './cloud.ts';
-import { addRow, deleteRow, filterRows, validateForeshadow, validatePlantingLink } from './model.js';
-import { editorHtml, fillEditor, rowHtml } from './render.ts';
+import { OPEN, addRow, deleteRow, filterRows, plantingChapters, validateForeshadow } from './model.js';
+import { columnClass, editorHtml, fillEditor, rowHtml } from './render.ts';
 import { keptWorkspace } from '../outline/sync.ts';
 import './style.css';
 import type { ForeshadowRow } from './schema.ts';
 
 class ForeshadowPanel {
   cloud: ForeshadowCloud;
-  private status = '';
+  private status = OPEN;
   private chapter = '';
   private editing = false;
   private editBase: ForeshadowRow | null = null;
+  private returnY = 0;
+  private viewKey: string;
   constructor(private host: NovelViewHost, state: ConstructorParameters<typeof ForeshadowCloud>[1]) {
+    this.viewKey = host.outlineDraftKey + ':foreshadow:view';
+    try {
+      const saved = JSON.parse(localStorage.getItem(this.viewKey) ?? 'null');
+      if (typeof saved?.status === 'string') this.status = saved.status;
+      if (typeof saved?.chapter === 'string') this.chapter = saved.chapter;
+    } catch { /* unreadable choice: keep the default filters */ }
     this.cloud = new ForeshadowCloud(host, state, () => this.render());
     host.root.innerHTML = '<main class="fsh"><header><h2>伏笔表</h2><span class="fsh-status" role="status"></span></header>' +
       '<div class="fsh-notice"></div><div class="fsh-tools"></div><div class="fsh-editor-slot"></div><div class="fsh-scroll" tabindex="0" role="region" aria-label="伏笔表，可横向滚动"><table><thead></thead><tbody></tbody></table></div></main>';
@@ -34,11 +43,15 @@ class ForeshadowPanel {
     if (this.cloud.remote.kept) notice.innerHTML += '<button data-action="download-kept">下载被替换的版本</button>';
     notice.querySelectorAll<HTMLButtonElement>('button').forEach(button => { button.disabled = this.cloud.replacing; });
     if (!data) { this.q('.fsh-tools').textContent = '这本书的伏笔表尚未同步。'; this.q('thead').replaceChildren(); this.q('tbody').replaceChildren(); return; }
-    const select = (header: string, value: string) => `<label>${header}<select aria-label="${header}" data-filter="${header}"><option value="">全部</option>` +
-      [...new Set(data.rows.map(r => r.author[header] || '未标注'))].sort((a, b) => a.localeCompare(b, 'zh', { numeric: true })).map(v => `<option${v === value ? ' selected' : ''} value="${esc(v)}">${esc(v)}</option>`).join('') + '</select></label>';
+    const select = (header: string, value: string, values: string[], fixed: [string, string][]) => {
+      const options = [...new Set([...values, value].filter(v => v && !fixed.some(([f]) => f === v)))].sort((a, b) => a.localeCompare(b, 'zh', { numeric: true }));
+      return `<label>${header}<select aria-label="${header}" data-filter="${header}">` + [...fixed, ...options.map(v => [v, v])]
+        .map(([v, text]) => `<option${v === value ? ' selected' : ''} value="${esc(v)}">${esc(text)}</option>`).join('') + '</select></label>';
+    };
     const rows = filterRows(data, this.status, this.chapter);
-    this.q('.fsh-tools').innerHTML = select('是否已收', this.status) + select('埋设章节', this.chapter) + `<span>${rows.length} / ${data.rows.length} 条</span><button data-add>加行</button>`;
-    this.q('thead').innerHTML = `<tr>${data.columns.map(c => `<th scope="col">${esc(c.header)}</th>`).join('')}<th scope="col">操作</th></tr>`;
+    this.q('.fsh-tools').innerHTML = select('是否已收', this.status, data.rows.map(r => r.author['是否已收'] || '未标注'), [[OPEN, '隐藏已收'], ['', '全部']]) +
+      select('埋设章节', this.chapter, data.rows.flatMap(plantingChapters), [['', '全部']]) + `<span>${rows.length} / ${data.rows.length} 条</span><button data-add>加行</button>`;
+    this.q('thead').innerHTML = `<tr>${data.columns.map(c => `<th scope="col" class="${columnClass(c.header)}">${esc(c.header)}</th>`).join('')}<th scope="col">操作</th></tr>`;
     this.q('tbody').innerHTML = rows.map((row: ForeshadowRow) => rowHtml(data, row, this.host)).join('');
     this.host.root.querySelectorAll<HTMLButtonElement>('[data-edit], [data-delete], [data-add]').forEach(button => { button.disabled = this.cloud.replacing; });
   }
@@ -47,6 +60,7 @@ class ForeshadowPanel {
     if (select.dataset.filter === '是否已收') this.status = select.value;
     else if (select.dataset.filter === '埋设章节') this.chapter = select.value;
     else return;
+    try { localStorage.setItem(this.viewKey, JSON.stringify({ status: this.status, chapter: this.chapter })); } catch { /* private mode or full storage: just don't remember */ }
     this.render();
   };
   private click = (event: Event) => {
@@ -64,7 +78,7 @@ class ForeshadowPanel {
     }
     const data = this.cloud.data;
     if (!data) return;
-    if (button.hasAttribute('data-cancel')) { this.editing = false; this.q('.fsh-editor-slot').replaceChildren(); return; }
+    if (button.hasAttribute('data-cancel')) { this.closeEditor(); return; }
     if (this.editing) { this.host.toast('请先保存或取消正在编辑的行。'); return; }
     const index = Number(button.closest<HTMLElement>('[data-row]')?.dataset.row);
     if (button.hasAttribute('data-edit') || button.hasAttribute('data-add')) {
@@ -72,7 +86,9 @@ class ForeshadowPanel {
       this.editBase = button.hasAttribute('data-add') ? null : structuredClone(row);
       this.q('.fsh-editor-slot').innerHTML = editorHtml(next, row, button.hasAttribute('data-add') ? -1 : index);
       fillEditor(this.q('.fsh-editor') as HTMLFormElement, next, row);
-      this.editing = true; this.q('.fsh-editor').scrollIntoView({ block: 'start' }); this.q('textarea').focus();
+      // On phones the editor takes the place of the card list until it closes, then the list returns to the same spot.
+      this.editing = true; this.returnY = window.scrollY; this.q('.fsh').classList.add('fsh-is-editing');
+      this.q('.fsh-editor').scrollIntoView({ block: 'start' }); this.q('textarea').focus({ preventScroll: true });
     } else if (button.hasAttribute('data-delete') && confirm('删除这条伏笔？')) {
       const next = structuredClone(data); deleteRow(next, next.rows[index]); this.cloud.edit(next);
     }
@@ -92,12 +108,14 @@ class ForeshadowPanel {
         const input = form.elements.namedItem(`cell${i}`) as HTMLTextAreaElement;
         if (input.value !== input.dataset.initial) row.author[c.header] = input.value;
       });
-      const link = String(fields.get('planting') ?? '').trim(); validatePlantingLink(link);
-      row.derived.planting_location.link = link;
       row.derived.recovery_chapters = String(fields.get('recovery') ?? '').split(/[,，\s]+/).filter(Boolean);
-      this.cloud.edit(validateForeshadow(next)); this.editing = false; this.q('.fsh-editor-slot').replaceChildren();
+      this.cloud.edit(validateForeshadow(next)); this.closeEditor();
     } catch (error) { this.q('.fsh-editor-error').textContent = String(error); }
   };
+  private closeEditor() {
+    this.editing = false; this.q('.fsh-editor-slot').replaceChildren(); this.q('.fsh').classList.remove('fsh-is-editing');
+    window.scrollTo(0, this.returnY);
+  }
   private download(name: string, value: unknown) {
     const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2) + '\n'], { type: 'application/json' }));
     const link = document.createElement('a'); link.href = url; link.download = name; link.click();

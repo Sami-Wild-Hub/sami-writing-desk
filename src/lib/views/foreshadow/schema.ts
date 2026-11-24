@@ -1,10 +1,9 @@
-// Imported foreshadow table: author cells and separately editable derived links.
+// Imported foreshadow table: author cells and separately editable recovery chapter links.
 export interface ForeshadowRow {
   sheet: string;
   source_row: number;
   author: Record<string, string>;
   derived: {
-    planting_location: { link: string; [key: string]: unknown };
     recovery_chapters: string[];
     [key: string]: unknown;
   };
