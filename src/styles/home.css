@@ -20,11 +20,11 @@
   box-shadow: inset -2px 0 0 rgb(255 255 255 / .12); }
 .bookcard h3 { margin: 0; font-size: 1.25rem; }
 .bookcard .scope { margin: .15rem 0 .55rem; color: var(--ink-3); font-size: .875rem; }
-/* Reserve two lines for counts and the fifth action slot before sign-in data arrives. */
+/* Reserve two lines for counts and all six action slots before sign-in data arrives. */
 .stats { display: flex; flex-wrap: wrap; gap: 4px 14px; min-height: calc(2.8rem + 4px); color: var(--ink-2); font-size: .875rem; }
 .stats b { color: var(--ink); }
-.bookcard .acts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .5rem; margin-top: auto; padding: .25rem 1.1rem 1.1rem; }
-.bookcard .acts > :last-child { grid-column: 5; }
+.bookcard .acts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .5rem; margin-top: auto; padding: .25rem 1.1rem 1.1rem; }
+.bookcard .acts > :last-child { grid-column: 6; }
 .bookcard .acts a, .bookcard .acts button { display: inline-flex; flex: 1; align-items: center; justify-content: center; height: 2.6rem;
   border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink-2); font-size: .9375rem; font-weight: 600; text-decoration: none; }
 .bookcard .acts a:hover, .bookcard .acts button:hover { border-color: var(--accent); color: var(--ink); }
