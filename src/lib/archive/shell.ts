@@ -31,7 +31,17 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
   const live = el('novel-live');
   const back = el('novel-back') as HTMLButtonElement;
   const scrim = el('novel-scrim');
-  const message = (text: string) => { live.textContent = text; };
+  live.className = 'view-progress'; live.hidden = true; app.before(live);
+  const message = (text: string) => {
+    live.hidden = !text; live.setAttribute('role', 'status');
+    live.innerHTML = text ? `<p>${esc(text)}</p><div class="skeleton" aria-hidden="true"><i></i><i></i><i></i></div>` : '';
+    if (text) app.setAttribute('aria-busy', 'true'); else app.removeAttribute('aria-busy');
+  };
+  const failure = (text: string, retry: () => void) => {
+    live.hidden = false; live.setAttribute('role', 'alert'); live.innerHTML = `<p>${esc(text)}</p>`;
+    const button = Object.assign(document.createElement('button'), { type: 'button', className: 'btn', textContent: '重试' });
+    button.onclick = retry; live.append(button); app.removeAttribute('aria-busy');
+  };
   const bar = mountBar(el('novel-bar'), {
     book: (slug) => go({ book: slug, view: parseNovelRoute(url()).view, doc: '', hash: '' }, 'nav'),
     signOut: () => void session?.signOut(),
@@ -86,8 +96,11 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
     message('');
   };
 
+  let previousAccess = session.getStatus().connection;
   const showStatus = (status: HouseholdSessionStatus) => {
     const ok = status.connection === 'connected';
+    if (ok && previousAccess === 'pending') toast('权限已开通');
+    previousAccess = status.connection;
     gate.hidden = ok;
     app.hidden = !ok;
     bar.setAccount(status);
@@ -116,7 +129,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       }
       await render('load');
     } catch (error) {
-      message(error instanceof Error ? `读取小说目录失败：${error.message}` : '读取小说目录失败');
+      failure(error instanceof Error ? `读取小说目录失败：${error.message}` : '读取小说目录失败', () => void loadCatalog());
     }
   };
 
@@ -186,8 +199,10 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
     const route = parseNovelRoute(url());
     route.book = catalog[route.book] ? route.book : Object.keys(catalog).sort()[0];
     showBookName(route.book, catalog[route.book].title, catalog[route.book].scope);
+    bar.select(route.view);
+    const targetName = routableViews.find(view => view.id === route.view)?.label ?? '页面';
+    message(`正在打开${targetName}…`);
     try {
-      if (!current || current.slug !== route.book) message('正在读取知识库索引…');
       const opened = await openBook(route.book);
       if (!opened || !latest()) return;
       const outlineHead = await store.outlineHead(route.book, opened.book);
@@ -207,6 +222,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       const restore = via === 'pop' && typeof history.state?.y === 'number' ? history.state.y as number : undefined;
       if (!await view.view.show(route, { latest, via, restore }) || !latest()) return;
       bar.setReady(true);
+      bar.setDrawerAvailable(route.view !== 'outline');
       bar.setBooks(catalog, route.book, (slug) => novelRouteHref(url(), { book: slug, view: route.view, doc: '', hash: '' }));
       // Other tabs keep the page that is open, but not a view's own doc (a 校稿 record).
       const keep = (id: string) => id === route.view || opened.book.pathToKey.has(route.doc);
@@ -220,7 +236,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       if (key) search.remember(opened.book.manifest.entries[key], normal);
       message('');
     } catch (error) {
-      if (mine === serial) message(error instanceof Error ? error.message : '知识库加载失败');
+      if (mine === serial) failure(error instanceof Error ? error.message : '知识库加载失败', () => void render(via));
     }
   };
 

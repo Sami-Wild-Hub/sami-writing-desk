@@ -97,6 +97,7 @@
 /* ---------- outline rail ---------- */
 .rail { position: sticky; top: var(--bar-h); height: calc(100vh - var(--bar-h)); overflow: auto; padding: 1.9rem 1rem 2rem .5rem; font-size: .875rem; }
 .rail h4 { margin: 0 0 .5rem; color: var(--ink-3); font-size: .8125rem; font-weight: 600; letter-spacing: .06em; }
+.rail-fold > summary { display:none; }
 .rail a { display: block; padding: .3rem 0 .3rem .65rem; border-left: 2px solid var(--line); color: var(--ink-2); text-decoration: none; line-height: 1.45; }
 .rail a:hover { color: var(--ink); }
 .rail a.sub { padding-left: 1.4rem; font-size: .8125rem; }
@@ -106,7 +107,7 @@
 .rail .box small { display: block; color: var(--ink-3); font-weight: 400; }
 
 /* ---------- hover preview ---------- */
-.peek { position: fixed; z-index: 70; width: 20rem; padding: .75rem .9rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+.peek { position: fixed; z-index: 70; width:min(20rem, calc(100vw - 16px)); padding: .75rem .9rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
   box-shadow: var(--shadow-pop); font-size: .875rem; line-height: 1.6; pointer-events: none; }
 .peek b { font-size: 1rem; }
 .peek .k { margin-left: 6px; color: var(--ink-3); font-size: .8125rem; }
@@ -114,7 +115,8 @@
 
 @media (max-width: 1180px) {
   .reader { grid-template-columns: var(--side-w) minmax(0, 1fr); }
-  .rail { display: none; }
+  .rail { display:block; position:static; height:auto; padding:.5rem 0 1rem; }
+  .rail-fold > summary { display:list-item; cursor:pointer; min-height:2.5rem; padding:.5rem; border:1px solid var(--line); border-radius:8px; }
 }
 @media (max-width: 860px) {
   .reader { display: block; }

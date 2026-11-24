@@ -220,7 +220,7 @@ button.badge.placed:hover { color: var(--placed); }
 .add-part input { flex: 1; }
 
 }
-.outline-view { --bar-h: 8.5rem; min-width: 1000px; }
+.outline-view { --bar-h: 8.5rem; min-width: 0; }
 .outline-view .bar { position: relative; height: 3.25rem; }
 .outline-view .file-tools { display:flex; align-items:center; gap:.35rem; padding:.3rem .6rem; flex-wrap:wrap; }
 .outline-view .status { font-size:.8rem; padding:0 .6rem; }
@@ -228,3 +228,36 @@ button.badge.placed:hover { color: var(--placed); }
 .outline-view [aria-pressed=true] { background:var(--accent-soft); }
 .outline-view .draft-notice { padding:.5rem; background:var(--alert-soft); }
 .outline-view .draft-notice button { margin-left:.5rem; }
+.outline-view .mobile-beat { display:none; }
+.outline-view .file-recovery { position:relative; }
+.outline-view .file-recovery > .file-tools { position:absolute; left:0; top:100%; z-index:95; width:min(34rem, 90vw); padding:.75rem; border:1px solid var(--line); border-radius:9px; background:var(--surface); box-shadow:var(--shadow-pop); }
+.outline-view .file-recovery p { flex-basis:100%; margin:.2rem 0; }
+.outline-view .card-menu { position:relative; display:inline-block; }
+.outline-view .card-menu summary { cursor:pointer; padding:.2rem .4rem; }
+.outline-view .card-menu[open] button { position:absolute; right:0; z-index:5; background:var(--surface); }
+@media (min-width:861px) and (max-width:1180px) {
+  .outline-view .ol { grid-template-columns:9rem minmax(0,1fr) 18rem; }
+  .outline-view .ol-board { grid-template-columns:1fr; }
+}
+@media (max-width:860px) {
+  .outline-view { --bar-h:3.25rem; }
+  .outline-view .bar { height:auto; min-height:3rem; flex-wrap:wrap; }
+  .outline-view .story, .outline-view .ol { display:flex; flex-direction:column; height:auto; min-height:0; }
+  .outline-view .picker { order:-1; border:0; }
+  .outline-view .picker-strip { flex-direction:row; padding:.5rem; height:auto; }
+  .outline-view .strip-label, .outline-view .strip-name { writing-mode:horizontal-tb; }
+  .outline-view .picker-panel { position:static; width:auto; height:auto; max-height:45vh; box-shadow:none; }
+  .outline-view .self-pane { order:0; padding:.5rem; }
+  .outline-view .beats-pane { order:1; overflow:visible; padding:.5rem; }
+  .outline-view .self-cols, .outline-view .ol-board { display:grid; grid-template-columns:1fr; }
+  .outline-view .col-body { overflow:visible; }
+  .outline-view .self-head { flex-wrap:wrap; }
+  .outline-view .self-title { flex-basis:100%; }
+  .outline-view .ol-side, .outline-view .drag-grip { display:none; }
+  .outline-view .mobile-beat { display:grid; gap:.3rem; padding:.5rem; }
+  .outline-view .ol-main { padding:0 .5rem 1rem; }
+  .outline-view .library { position:static; height:auto; overflow:visible; }
+  .outline-view .file-recovery > .file-tools { position:fixed; top:7rem; left:5vw; max-height:70vh; overflow:auto; }
+  .outline-view .bgrid { grid-template-columns:3.2rem minmax(0,1fr) minmax(0,1fr); gap:3px; }
+  .outline-view .bg-head span { position:static; }
+}

@@ -5,6 +5,8 @@ import { pathInfo } from './labels.ts';
 import { esc, toast } from './archive/ui.ts';
 import { createStore } from './archive/store.ts';
 import type { LoadedBook } from './archive/data.ts';
+import { accessMessage } from './archive/access.ts';
+import { searchInput } from './archive/input.ts';
 
 const greeting = () => {
   const hour = new Date().getHours();
@@ -25,8 +27,9 @@ function stats(book: LoadedBook) {
 export function mountHome(config: Partial<FirebaseConfig>) {
   const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
   const cards = [...document.querySelectorAll<HTMLElement>('.bookcard[data-book]')];
-  $<HTMLInputElement>('home-filter').addEventListener('input', (event) => {
-    const q = (event.target as HTMLInputElement).value.trim().toLocaleLowerCase();
+  const filter = $<HTMLInputElement>('home-filter');
+  if (filter) searchInput(filter, () => {
+    const q = filter.value.trim().toLocaleLowerCase();
     for (const card of cards) card.hidden = Boolean(q) && !card.dataset.title!.toLocaleLowerCase().includes(q);
   });
   document.addEventListener('click', (event) => {
@@ -44,7 +47,7 @@ export function mountHome(config: Partial<FirebaseConfig>) {
   account.addEventListener('click', () => toggle(menu.hidden));
   document.addEventListener('click', (event) => { if (!(event.target as Element).closest('.menu-wrap')) toggle(false); });
   $('home-sign-out').addEventListener('click', () => { toggle(false); void session.signOut(); });
-  signIn.addEventListener('click', () => void session.signInWithGoogle().catch((error) => toast(String(error))));
+  signIn.addEventListener('click', () => void (session.getStatus().email ? session.refreshAccess() : session.signInWithGoogle()).catch((error) => toast(String(error))));
 
   const reset = () => {
     for (const card of cards) {
@@ -81,15 +84,22 @@ export function mountHome(config: Partial<FirebaseConfig>) {
       if (book) stops.push(store.watchOutline(slug, shown => showOutline(card, shown)));
     }
   };
+  let previous = session.getStatus().connection;
   session.subscribe((status: HouseholdSessionStatus) => {
+    const access = accessMessage(status);
+    if (status.connection === 'connected' && previous === 'pending') toast('权限已开通');
+    previous = status.connection;
     const email = status.email ?? '';
     const name = status.displayName || email;
     account.hidden = !email;
     account.textContent = name.slice(0, 1).toUpperCase();
     account.setAttribute('aria-label', `账号：${name}`);
     menu.querySelector('.who')!.innerHTML = `${esc(status.displayName ?? '')}<small>${esc(email)}</small>`;
-    signIn.hidden = status.connection !== 'signed-out';
-    $('home-who').textContent = status.connection === 'connected' ? `${status.displayName ?? ''} · 家庭成员` : '';
+    signIn.hidden = status.connection === 'connected' || status.connection === 'connecting';
+    signIn.textContent = status.email ? '重新检查' : status.connection === 'error' ? '重试登录' : '登录';
+    $('home-who').textContent = status.connection === 'connected' ? `${status.displayName ?? ''} · 家庭成员` : access.title;
+    $('home-who').title = access.text;
+    if (status.connection !== 'connected') $('home-lead').textContent = access.text;
     $('home-greet').textContent = status.connection === 'connected' ? `${greeting()}${status.displayName ? `，${status.displayName}` : ''}` : '小离总周报';
     $('home-lead').hidden = status.connection === 'connected';
     if (status.connection !== 'connected') {
@@ -100,7 +110,7 @@ export function mountHome(config: Partial<FirebaseConfig>) {
       uid = status.uid ?? '';
       unwatch();
       store.clear();
-      void enrich().catch(() => {});
+      void enrich().catch(() => toast('书架信息未能加载，可刷新重试'));
     }
   });
 }

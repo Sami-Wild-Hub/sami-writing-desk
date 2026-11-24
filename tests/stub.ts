@@ -138,6 +138,10 @@ async function database({ canonical = false } = {}) {
 export async function stubFirebase(page: Page, { signedIn = true, canonical = false } = {}) {
   const db = await database({ canonical });
   const reads: string[] = [];
+  let hold = false;
+  const receipts: (() => void)[] = [];
+  let heldRead = '';
+  const readReceipts: (() => void)[] = [];
   const listens = new Map<{ send(data: unknown): void }, Set<string>>();
   const at = (path: string) => path.split('/').filter(Boolean).reduce<unknown>((node, key) => (node as Tree | null)?.[key] ?? null, db);
   const put = (path: string, value: unknown) => {
@@ -185,7 +189,10 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
       if (a === 'm') { Object.entries(b.d as Tree).forEach(([key, value]) => put(`${b.p}/${key}`, value)); server(b.p!, at(b.p!)); }
       if (a === 'q') { paths.add(b.p!); send({ a: 'd', b: { p: b.p, d: at(b.p!) } }); }
       if (a === 'n') paths.delete(b.p!);
-      send({ r, b: { s: 'ok', d: a === 'g' ? at(b.p!) : {} } });
+      const acknowledge = () => send({ r, b: { s: 'ok', d: a === 'g' ? at(b.p!) : {} } });
+      if (hold && (a === 'p' || a === 'm')) receipts.push(acknowledge);
+      else if (a === 'g' && heldRead && b.p?.includes(heldRead)) readReceipts.push(acknowledge);
+      else acknowledge();
     });
   });
   const server = (path: string, value: unknown) => {
@@ -195,7 +202,10 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
       for (const p of paths) if (norm(path).startsWith(norm(p)) || norm(p).startsWith(norm(path))) socket.send({ a: 'd', b: { p, d: at(p) } });
     }
   };
-  return Object.assign(reads, { server, at });
+  return Object.assign(reads, {
+    server, at, holdWrites: () => { hold = true; }, releaseWrites: () => { hold = false; receipts.splice(0).forEach(send => send()); },
+    holdReads: (part: string) => { heldRead = part; }, releaseReads: () => { heldRead = ''; readReceipts.splice(0).forEach(send => send()); },
+  });
 }
 
 /** Collects uncaught page errors and console errors. */

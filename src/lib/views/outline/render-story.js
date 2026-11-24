@@ -44,7 +44,7 @@ export function selfCol(v, line, cat) {
   const { UI, S, CAT_LABEL, list, cardFull, cardEditor, composer, lineSelect } = v;
   const all = S.time[line.id][cat], ids = UI.onlyUnplaced ? all.filter(id => S.cards[id].status === '未排') : all;
   const hidden = all.length - ids.length;
-  const actions = id => `<button class="tiny" data-act="edit-card" data-id="${id}">编辑</button>${lineSelect(S.cards[id])}<button class="tiny danger" data-act="delete-card" data-id="${id}">删除</button>`;
+  const actions = id => `<button class="tiny" data-act="edit-card" data-id="${id}">编辑</button>${lineSelect(S.cards[id])}${v.moveSelect(id)}<details class="card-menu"><summary aria-label="更多卡片操作">更多</summary><button class="tiny danger" data-act="delete-card" data-id="${id}">删除</button></details>`;
   const card = id => (UI.editing === id ? cardEditor(S.cards[id]) : cardFull(S.cards[id], { drag: true, mark: false, actions: actions(id) }));
   return `<section class="self-col ${cat}"><div class="col-head"><span class="era">${CAT_LABEL[cat]}</span><span class="n">${UI.onlyUnplaced ? `${ids.length} / ${all.length}` : all.length} 张</span>
     <button class="inline-plus" data-act="compose" data-cat="${cat}">＋ 新增</button></div>

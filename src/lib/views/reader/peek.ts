@@ -1,17 +1,18 @@
-// Hover preview for person/setting links (desktop only): name, domain and the page's
+// Hover or touch-hold preview for person/setting links: name, domain and the page's
 // 「Basic」 line, read from the linked page itself.
 import { domainLabels, ownerName, pathInfo } from '../../labels.ts';
 import { esc } from '../../archive/ui.ts';
 import type { NovelViewHost } from '../types.ts';
+import { touchPeek } from './touch-peek.ts';
 
 export function mountPeek(scope: HTMLElement, host: NovelViewHost) {
-  if (!window.matchMedia('(hover: hover)').matches) return { hide() {}, dispose() {} };
   const peek = Object.assign(document.createElement('div'), { className: 'peek', hidden: true });
   peek.setAttribute('role', 'tooltip');
   document.body.append(peek);
   const cache = new Map<string, string>();
   let over: HTMLAnchorElement | null = null;
   let timer = 0;
+  let cancelHold = () => {};
 
   const summary = async (path: string) => {
     if (cache.has(path)) return cache.get(path)!;
@@ -39,19 +40,29 @@ export function mountPeek(scope: HTMLElement, host: NovelViewHost) {
     place(anchor);
   };
   const hide = () => {
+    cancelHold();
     over = null;
     clearTimeout(timer);
     peek.hidden = true;
   };
-  scope.addEventListener('mouseover', (event) => {
+  const hover = (event: MouseEvent) => {
+    if (!window.matchMedia('(hover: hover)').matches) return;
     const anchor = (event.target as Element).closest<HTMLAnchorElement>('a.ent[data-doc-path]');
     if (anchor === over) return;
     hide();
     if (!anchor) return;
     over = anchor;
     timer = window.setTimeout(() => void show(anchor), 180);
-  });
+  };
+  scope.addEventListener('mouseover', hover);
   scope.addEventListener('mouseleave', hide);
   scope.addEventListener('click', hide);
-  return { hide, dispose: () => { hide(); peek.remove(); } };
+  const touch = touchPeek(scope, anchor => { over = anchor; void show(anchor); }, hide);
+  cancelHold = touch.dismiss;
+  const escape = (e: KeyboardEvent) => { if (e.key === 'Escape') hide(); };
+  document.addEventListener('keydown', escape);
+  return { hide, dispose: () => {
+    hide(); touch.dispose(); peek.remove(); document.removeEventListener('keydown', escape);
+    scope.removeEventListener('mouseover', hover); scope.removeEventListener('mouseleave', hide); scope.removeEventListener('click', hide);
+  } };
 }

@@ -29,8 +29,7 @@
 .ppl .people > thead > tr > th:nth-child(4) { width: 17%; }
 .ppl .people > thead > tr > th:nth-child(5) { width: 6%; }
 .ppl .people > thead > tr > th:nth-child(6) { width: 14%; }
-.ppl .people > thead > tr > th:nth-child(7) { width: 21%; }
-.ppl .people > thead > tr > th:nth-child(8) { width: 9%; }
+.ppl .people > thead > tr > th:nth-child(7) { width: 30%; }
 .ppl tr.person > * { padding: .5rem; overflow-wrap: anywhere; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 .ppl tr.person:hover > * { background: var(--hover); }
 .ppl tr.person.open > * { border-bottom-color: transparent; background: var(--accent-soft); }

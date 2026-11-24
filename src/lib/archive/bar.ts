@@ -6,6 +6,12 @@ import { esc, plainClick, toast } from './ui.ts';
 
 interface BarHandlers { book(slug: string): void; signOut(): void; search(): void; drawer(): void; }
 
+function selectTab(bar: HTMLElement, current: string) {
+  for (const tab of bar.querySelectorAll<HTMLAnchorElement>('a[data-novel-view]')) {
+    if (tab.dataset.novelView === current) tab.setAttribute('aria-current', 'page'); else tab.removeAttribute('aria-current');
+  }
+}
+
 export function mountBar(bar: HTMLElement, handlers: BarHandlers) {
   const $ = <T extends HTMLElement>(selector: string) => bar.querySelector<T>(selector)!;
   const title = $('#novel-book-title');
@@ -65,6 +71,8 @@ export function mountBar(bar: HTMLElement, handlers: BarHandlers) {
         else tab.removeAttribute('aria-current');
       }
     },
+    select: (current: string) => selectTab(bar, current),
+    setDrawerAvailable(available: boolean) { bar.querySelector<HTMLElement>('[data-drawer]')!.hidden = !available; },
     /** Shows the parts that need an open book (tabs, search, drawer) only when ready. */
     setReady(ready: boolean) {
       bar.classList.toggle('ready', ready);

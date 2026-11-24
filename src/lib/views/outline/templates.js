@@ -59,18 +59,18 @@ export function refChip(v, c) {
 }
 
 export function cardEditor(v, c) {
-  const { esc } = v;
-  return `<form class="card editor ${c.cat}" data-form="card" data-drag="card" data-id="${c.id}" data-locked>
-    <label class="field">内容<textarea name="text" rows="4">${esc(c.text)}</textarea></label>
-    <label class="field">细节（每行一条）<textarea name="details" rows="3">${esc((c.details || []).join('\n'))}</textarea></label>
+  const { esc, UI } = v, key = 'card:' + c.id, draft = UI.drafts?.[key];
+  return `<form class="card editor ${c.cat}" data-form="card" data-draft="${key}" data-drag="card" data-id="${c.id}" data-locked>
+    <label class="field">内容<textarea name="text" rows="4">${esc(draft?.text ?? c.text)}</textarea></label>
+    <label class="field">细节（每行一条）<textarea name="details" rows="3">${esc(draft?.details ?? (c.details || []).join('\n'))}</textarea></label>
     <div class="form-actions"><button class="primary" type="submit">保存</button><button type="button" data-act="cancel-edit">取消</button></div></form>`;
 }
 
 export function composer(v, cat) {
-  const { CAT_LABEL } = v;
-  return `<form class="card editor composer ${cat}" data-form="new" data-cat="${cat}">
+  const { CAT_LABEL, UI, esc } = v, key = `new:${UI.line}:${cat}`;
+  return `<form class="card editor composer ${cat}" data-form="new" data-draft="${key}" data-cat="${cat}">
     <div class="composer-caption">新增到 ${CAT_LABEL[cat]} 末尾</div>
-    <label class="field">内容<textarea name="text" rows="3" placeholder="发生了什么"></textarea></label>
+    <label class="field">内容<textarea name="text" rows="3" placeholder="发生了什么">${esc(UI.drafts?.[key]?.text || '')}</textarea></label>
     <div class="form-actions"><button class="primary" type="submit">添加</button><button type="button" data-act="cancel-compose">取消</button></div></form>`;
 }
 

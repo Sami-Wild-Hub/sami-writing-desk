@@ -89,7 +89,8 @@
   .tlv .t1 h2 { display: none; }
   .tlv .t1 .lines-btn { display: inline-flex; height: 2.3rem; }
   .tlv .seg button { min-width: 0; padding: 0 .5rem; }
-  .tlv .t1:has(.find.has-q) .dens { display: none; }
+  .tlv .t1 { flex-wrap:wrap; }
+  .tlv .dens { margin-left:auto; }
   .tlv .find { max-width: none; }
   .tlv .now { padding: 0 .65rem; }
   .tlv .own, .tlv .dom button { min-height: 2.75rem; }

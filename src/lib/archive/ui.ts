@@ -12,13 +12,23 @@ const paths: Record<string, string> = {
 export const icon = (name: keyof typeof paths & string) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
 
 let toastTimer = 0;
-export function toast(text: string) {
+export interface ToastAction { label: string; action(): void; }
+export function toast(text: string, action?: ToastAction) {
   document.querySelector('.toast')?.remove();
   clearTimeout(toastTimer);
   const node = Object.assign(document.createElement('div'), { className: 'toast', textContent: text });
   node.setAttribute('role', 'status');
+  if (action) {
+    const button = Object.assign(document.createElement('button'), { textContent: action.label, type: 'button' });
+    button.onclick = () => { node.remove(); action.action(); };
+    node.append(button);
+  }
   document.body.append(node);
-  toastTimer = window.setTimeout(() => node.remove(), 2600);
+  toastTimer = window.setTimeout(() => node.remove(), action ? 8000 : 2600);
+  if (action) {
+    node.addEventListener('focusin', () => clearTimeout(toastTimer));
+    node.addEventListener('pointerenter', () => clearTimeout(toastTimer));
+  }
 }
 
 /** True for a plain left click that the page may handle itself. */

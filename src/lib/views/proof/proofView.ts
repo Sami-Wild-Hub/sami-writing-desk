@@ -11,6 +11,8 @@ import { historyHtml, resultHtml, statusHtml, when, type Filter, type KindFilter
 import { ENDED, newId, proofStore, queuedRecord, reportsOf, type ProofRecord } from './store.ts';
 import { CHECKS, type Check } from './task.ts';
 import { chapterName, nextTitle } from './compose.ts';
+import { proofDraft, fields, signature, type DraftFields } from './draft.ts';
+import { updateResult } from './result.ts';
 
 const ID = /^\d{8}-\d{6}-[0-9a-z]{4}$/;
 interface ProofMemo {
@@ -36,11 +38,18 @@ class ProofPanel {
   private open: ProofRecord | null = null;
   private shown = '';
   private visible = false;
+  private local: ReturnType<typeof proofDraft>;
+  private sending = false;
+  private draftVersion = 0;
+  private context: ShowContext | null = null;
+  private disposed = false;
+  private returnItem = '';
 
   constructor(host: NovelViewHost) {
     this.host = host;
     this.store = proofStore(host.householdRef, host.slug);
-    this.st = (host.memo.state as ProofMemo | undefined) ?? { source: 'paste', title: '', draft: '', driveName: '', skipProse: false, report: {}, filter: {}, kind: {} };
+    this.local = proofDraft(host.outlineDraftKey + ':proof', text => host.toast(text));
+    this.st = (host.memo.state as ProofMemo | undefined) ?? { source: 'paste', title: '', draft: '', driveName: '', skipProse: false, ...this.local.load(), report: {}, filter: {}, kind: {} };
     host.memo.state = this.st;
     const frame = document.createElement('div');
     frame.className = 'proof frame';
@@ -67,6 +76,7 @@ class ProofPanel {
   }
 
   async show(route: NovelRoute, ctx: ShowContext) {
+    this.context = ctx; this.draftVersion++;
     await this.ready;
     if (!ctx.latest()) return false;
     this.visible = true;
@@ -81,7 +91,7 @@ class ProofPanel {
       route.doc = '';
     }
     this.renderList();
-    if (this.open) this.renderRecord(); else this.renderCompose();
+    if (this.open) this.renderRecord(); else { this.shown = ''; this.renderCompose(); }
     window.scrollTo(0, ctx.restore ?? (ctx.via === 'pop' ? this.st.y ?? 0 : 0));
     return true;
   }
@@ -90,7 +100,7 @@ class ProofPanel {
   private onRecords() {
     if (!this.visible || this.loadError) return;
     this.renderList();
-    if (!this.open) { this.prefillTitle(); return; }
+    if (!this.open) { if (!this.sending) this.prefillTitle(); return; }
     const next = this.records.find((r) => r.id === this.open!.id);
     if (!next) return;
     this.open = next;
@@ -111,6 +121,7 @@ class ProofPanel {
     const drive = this.st.source === 'drive';
     this.prefillTitle();
     const seg = (source: ProofMemo['source'], label: string) => `<button type="button" data-source="${source}" aria-pressed="${this.st.source === source}">${label}</button>`;
+    delete this.main.dataset.record;
     this.main.innerHTML = this.head('新校稿') +
       `<div class="seg psource" role="group" aria-label="稿子从哪来">${seg('paste', '贴入或上传')}${seg('drive', '从 Drive 取')}</div>` +
       (drive ? '<label class="field"><span>章节</span><input type="text" name="driveName" maxlength="200" placeholder="如：第22章" autocomplete="off"></label>' : '') +
@@ -128,7 +139,7 @@ class ProofPanel {
       const field = this.main.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name=${name}]`);
       if (!field) return;
       field.value = this.st[name];
-      field.addEventListener('input', () => { this.st[name] = field.value; after(); });
+      field.addEventListener('input', () => { this.st[name] = field.value; after(); this.persistDraft(); });
     };
     const count = this.main.querySelector<HTMLElement>('[data-count]');
     const recount = () => {
@@ -140,17 +151,37 @@ class ProofPanel {
     bind('draft', recount);
     const skipProse = this.main.querySelector<HTMLInputElement>('[name=skipProse]')!;
     skipProse.checked = this.st.skipProse;
-    skipProse.addEventListener('change', () => { this.st.skipProse = skipProse.checked; });
+    skipProse.addEventListener('change', () => { this.st.skipProse = skipProse.checked; this.persistDraft(); });
+    this.sendState();
     recount();
-    this.main.querySelector<HTMLInputElement>('[type=file]')?.addEventListener('change', async (event) => {
-      const input = event.target as HTMLInputElement;
-      const file = input.files?.[0];
-      if (!file) return;
-      this.st.draft = await file.text();
+    this.main.querySelector<HTMLInputElement>('[type=file]')?.addEventListener('change', event => void this.upload(event.target as HTMLInputElement));
+  }
+
+  private persistDraft() { this.draftVersion++; this.local.save(this.st); }
+  private sendState() {
+    const button = this.main.querySelector<HTMLButtonElement>('[data-send]');
+    if (button) { button.disabled = this.sending; button.textContent = this.sending ? '发送中…' : '发送校稿'; }
+  }
+  private async upload(input: HTMLInputElement) {
+    const file = input.files?.[0]; if (!file) return;
+    const version = ++this.draftVersion, before = fields(this.st);
+    try {
+      const text = await file.text();
+      if (version !== this.draftVersion || !input.isConnected || !this.visible || this.disposed) {
+        if (!this.disposed) this.host.toast('读取期间已继续编辑或离开，保留了原来的稿子；可重新上传');
+        return;
+      }
+      this.st.draft = text;
       if (!this.st.title.trim()) { this.st.title = file.name.replace(/\.(txt|md)$/i, ''); this.st.titleEdited = true; }
-      input.value = '';
-      this.renderCompose();
-    });
+      this.persistDraft(); this.renderCompose();
+      const uploaded = signature(this.st);
+      if (before.draft) this.host.toast('已载入文件', { label: '撤销', action: () => {
+        if (this.disposed || signature(this.st) !== uploaded) return this.host.toast('已继续编辑，保留当前稿子');
+        Object.assign(this.st, before); this.persistDraft(); if (this.visible && !this.open) this.renderCompose();
+      } });
+    } catch (error) {
+      if (input.isConnected) { const err = this.main.querySelector<HTMLElement>('[data-err]')!; err.hidden = false; err.textContent = '读取文件失败，原稿仍保留：' + failed(error); }
+    } finally { input.value = ''; }
   }
 
   private prefillTitle() {
@@ -161,6 +192,7 @@ class ProofPanel {
   }
 
   private async send(button: HTMLButtonElement) {
+    if (this.sending) return;
     const err = this.main.querySelector<HTMLElement>('[data-err]')!;
     const { source } = this.st;
     const title = this.st.title.trim();
@@ -173,33 +205,45 @@ class ProofPanel {
     if (problem) return;
     const now = Date.now();
     const record = queuedRecord({ id: newId(now), title, createdAt: now, source, draft: this.st.draft, driveName, skipProse: this.st.skipProse });
+    const submitted = signature(this.st), context = this.context;
+    this.sending = true;
     button.disabled = true;
     button.textContent = '发送中…';
     try {
       await this.store.create(record);
     } catch (error) {
-      err.hidden = false;
+      if (err.isConnected) { err.hidden = false;
       err.textContent = `没发出去：${failed(error)}。内容还在框里，可以再试。`;
-      button.disabled = false;
-      button.textContent = '发送校稿';
+      } else this.host.toast('没发出去，草稿仍保留：' + failed(error));
       return;
+    } finally {
+      this.sending = false; this.sendState();
     }
-    this.st.title = this.st.draft = this.st.driveName = '';
-    this.st.titleEdited = false;
-    this.st.skipProse = false;
-    this.host.go({ view: 'proof', doc: record.id }, 'nav');
+    const unchanged = signature(this.st) === submitted && (!this.disposed || signature(this.local.load() as DraftFields) === submitted);
+    if (unchanged) {
+      this.st.title = this.st.draft = this.st.driveName = ''; this.st.titleEdited = false; this.st.skipProse = false; this.persistDraft();
+    }
+    if (unchanged && !this.disposed && this.visible && !this.open && context?.latest()) this.host.go({ view: 'proof', doc: record.id }, 'nav');
+    else this.host.toast('校稿已发送', { label: '打开记录', action: () => this.host.go({ view: 'proof', doc: record.id }, 'nav') });
   }
 
   private renderRecord() {
     const record = this.open!;
     const paras = splitParagraphs(record.draft ?? '');
     const from = record.source === 'drive' ? `Drive：${esc(record.driveName ?? '')}` : '贴入';
-    const meta = `${esc(when(record.createdAt))} · ${from} · ${paras.length ? `${paras.length} 段` : '待取稿'} · 不验语病：${record.skipProse ? '是' : '否'}`;
+    const meta = `${esc(when(record.createdAt))} · ${from} · ${paras.length ? `${paras.length} 段` : '待取稿'}${record.skipProse ? ' · 不验语病' : ''}`;
     // While the watcher works on a record it is not deleted (its writes would bring parts back).
     const idle = record.status === 'queued' || ENDED.includes(record.status);
     const tools = idle ? '<button type="button" class="btn" data-delete>删除</button>' : '';
-    this.main.innerHTML = this.head(record.title, meta, tools) + statusHtml(record) +
-      `<section class="result" aria-label="校稿结果">${resultHtml(paras, record, this.st.report[record.id] ?? {}, this.st.filter[record.id] ?? 'all', this.st.kind[record.id] ?? 'all')}</section>`;
+    if (this.main.dataset.record !== record.id || !this.main.querySelector('.result')) {
+      this.main.innerHTML = '<div data-record-head></div><div data-progress></div><section class="result" aria-label="校稿结果"></section>';
+      this.main.dataset.record = record.id;
+    }
+    const head = this.main.querySelector<HTMLElement>('[data-record-head]')!, progress = this.main.querySelector<HTMLElement>('[data-progress]')!;
+    const heading = this.head(record.title, meta, tools), status = statusHtml(record);
+    if (head.dataset.html !== heading) { head.innerHTML = heading; head.dataset.html = heading; }
+    if (progress.dataset.html !== status) { progress.innerHTML = status; progress.dataset.html = status; }
+    updateResult(this.main.querySelector('.result')!, resultHtml(paras, record, this.st.report[record.id] ?? {}, this.st.filter[record.id] ?? 'all', this.st.kind[record.id] ?? 'all'));
     this.shown = JSON.stringify(record);
   }
 
@@ -238,8 +282,11 @@ class ProofPanel {
     const target = mark ?? row?.querySelector<HTMLElement>('.ptext');
     if (!target) return;
     if (card.closest('.plist')) {
+      this.returnItem = i ?? '';
       const bar = document.querySelector<HTMLElement>('.bar')?.offsetHeight ?? 0;
       window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - bar - 24, behavior: 'instant' });
+      let back = this.main.querySelector<HTMLButtonElement>('[data-back-note]');
+      if (!back) { back = Object.assign(document.createElement('button'), { type: 'button', className: 'btn proof-back', textContent: '返回刚才的意见' }); back.dataset.backNote = ''; this.main.append(back); }
     }
     target.classList.remove('flash');
     void target.offsetWidth;
@@ -253,6 +300,7 @@ class ProofPanel {
     if (button?.matches('[data-drawer]')) return this.host.setDrawer(true);
     if (button?.dataset.source) {
       this.st.source = button.dataset.source as ProofMemo['source'];
+      this.persistDraft();
       return this.renderCompose();
     }
     if (button?.matches('[data-send]')) return void this.send(button);
@@ -274,15 +322,17 @@ class ProofPanel {
     const card = target.closest<HTMLElement>('.pitem');
     if (card) return this.locate(card);
     const mark = target.closest<HTMLElement>('.pv mark[data-i]');
-    const note = mark && this.main.querySelector<HTMLElement>(`.pnotes .pitem[data-i="${mark.dataset.i}"]`);
-    if (note) { note.classList.remove('flash'); void note.offsetWidth; note.classList.add('flash'); }
+    const i = mark?.dataset.i ?? (button?.matches('[data-back-note]') ? this.returnItem : '');
+    const note = i && [...this.main.querySelectorAll<HTMLElement>(`.pitem[data-i="${i}"]`)].find(el => el.getClientRects().length);
+    if (note) { note.scrollIntoView({ block: 'center' }); note.focus({ preventScroll: true }); note.classList.remove('flash'); void note.offsetWidth; note.classList.add('flash'); }
   }
 
   hide() {
+    this.draftVersion++;
     this.st.y = window.scrollY;
     this.visible = false;
   }
-  dispose() { this.stop(); }
+  dispose() { this.disposed = true; this.stop(); }
   label() { return this.open?.title ?? '校稿台'; }
 }
 

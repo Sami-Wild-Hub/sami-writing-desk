@@ -7,13 +7,16 @@ class OutlineDrag {
     root.addEventListener('pointerdown', this.down);
     window.addEventListener('pointermove', this.move, { passive: false });
     window.addEventListener('pointerup', this.up); window.addEventListener('keydown', this.key);
+    window.addEventListener('pointercancel', this.cancel);
+    root.addEventListener('lostpointercapture', this.cancel);
   }
   down = (e) => {
     const src = e.target.closest('[data-drag]');
-    if (!src || e.button !== 0 || src.hasAttribute('data-locked') || e.target.closest(FIXED)) return;
+    if (this.state || !src || e.button !== 0 || src.hasAttribute('data-locked') || e.target.closest(FIXED)) return;
     // Card text remains native selectable/copyable; only its grip starts a drag.
     if (src.dataset.drag === 'card' && !e.target.closest('[data-drag-handle]')) return;
-    this.state = { src, kind: src.dataset.drag, id: src.dataset.id, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, on: false };
+    this.state = { src, pointer: e.pointerId, kind: src.dataset.drag, id: src.dataset.id, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, on: false };
+    src.setPointerCapture(e.pointerId);
   };
   begin = () => {
     const r = this.state.src.getBoundingClientRect();
@@ -31,7 +34,7 @@ class OutlineDrag {
     this.state.raf = requestAnimationFrame(this.scrollLoop);
   };
   move = (e) => {
-    if (!this.state) return;
+    if (!this.state || e.pointerId !== this.state.pointer) return;
     this.state.x = e.clientX;
     this.state.y = e.clientY;
     if (!this.state.on) {
@@ -70,14 +73,21 @@ class OutlineDrag {
     clearTimeout(st.openTimer);
     this.root.querySelectorAll('.drag-open').forEach(x => x.classList.remove('drag-open'));
   };
-  up = () => {
-    if (!this.state) return;
+  up = e => {
+    if (!this.state || e.pointerId !== this.state.pointer) return;
     const st = this.state;
     this.state = null;
+    if (st.src.hasPointerCapture(st.pointer)) st.src.releasePointerCapture(st.pointer);
     if (!st.on) return;
     this.finish(st);
     this.swallowClick();
     if (st.zone) this.onDrop({ kind: st.kind, id: st.id, zone: { ...st.zone.dataset }, index: st.index });
+  };
+  cancel = e => {
+    if (!this.state || (e.pointerId !== undefined && e.pointerId !== this.state.pointer)) return;
+    const st = this.state; this.state = null;
+    if (st.on) this.finish(st);
+    if (st.src.hasPointerCapture(st.pointer)) st.src.releasePointerCapture(st.pointer);
   };
   finish = (st) => {
     cancelAnimationFrame(st.raf);
@@ -111,8 +121,7 @@ class OutlineDrag {
   };
   key = (e) => {
     if (e.key !== 'Escape' || !this.state) return;
-    if (this.state.on) this.finish(this.state);
-    this.state = null;
+    this.cancel(e);
   };
 
   active = () => Boolean(this.state?.on);
@@ -120,5 +129,6 @@ class OutlineDrag {
     if (this.state?.on) this.finish(this.state); this.state = null;
     this.root.removeEventListener('pointerdown', this.down); window.removeEventListener('pointermove', this.move);
     window.removeEventListener('pointerup', this.up); window.removeEventListener('keydown', this.key);
+    window.removeEventListener('pointercancel', this.cancel); this.root.removeEventListener('lostpointercapture', this.cancel);
   };
 }

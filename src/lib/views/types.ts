@@ -5,6 +5,7 @@ import type { DatabaseReference } from 'firebase/database';
 import type { NovelTimelineData } from '../novelTimelineModel.ts';
 import type { NovelRoute } from '../novelArchiveRoute.ts';
 import type { OutlineSyncState } from './outline/sync.ts';
+import type { ToastAction } from '../archive/ui.ts';
 
 export interface PageEntry { path: string; title: string; section: string; }
 
@@ -36,7 +37,7 @@ export interface NovelViewHost {
   /** Navigates within this book; the rest of the route stays as it is. */
   go(route: Partial<NovelRoute>, via?: 'nav' | 'link'): void;
   message(text: string): void;
-  toast(text: string): void;
+  toast(text: string, action?: ToastAction): void;
   /** Phone drawer (the view's `.side`). */
   setDrawer(open: boolean): void;
   /** A side-column header for phones: book name, scope and the way back to the shelf. */

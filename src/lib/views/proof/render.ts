@@ -21,7 +21,7 @@ const badge = (status: Status) => `<span class="pst st-${status}">${STATUS[statu
 export function historyHtml(records: ProofRecord[], current: string, href: (id: string) => string) {
   if (!records.length) return '<p class="muted hist-empty">还没有校稿记录。</p>';
   return records.map((r) => `<a class="navlink hist" href="${esc(href(r.id))}" data-novel-view="proof" data-id="${esc(r.id)}"${r.id === current ? ' aria-current="page"' : ''}>` +
-    `<span><b>${esc(r.title)}</b><small>${esc(when(r.createdAt))} · ${STATUS[r.status] ?? r.status} · 不验语病：${r.skipProse ? '是' : '否'}</small></span></a>`).join('');
+    `<span><b>${esc(r.title)}</b><small>${esc(when(r.createdAt))} · ${STATUS[r.status] ?? r.status}${r.skipProse ? ' · 不验语病' : ''}</small></span></a>`).join('');
 }
 
 /** A stored report read again from its raw text (the raw text is what counts). */

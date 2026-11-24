@@ -1,7 +1,7 @@
 // 大纲 tab: choose a Beat, see it in Past / Current / Combined, pick cards in from the library; all grouped by participant.
 export function renderOutline(v) {
-  const { CATS, beatNav, beatHeader, boardLane, library } = v;
-  return `<div class="ol"><nav class="ol-side" aria-label="Act 与 Beat">${beatNav()}</nav>
+  const { CATS, beatNav, beatHeader, boardLane, library, BEAT_IDS, beatLong, UI, esc, BEAT } = v;
+  return `<div class="ol"><label class="mobile-beat">选择 Beat<select data-change="choose-beat">${BEAT_IDS.map(id => `<option value="${id}" ${id === UI.beat ? 'selected' : ''}>${beatLong(id)} · ${esc(BEAT[id].title)}</option>`).join('')}</select></label><nav class="ol-side" aria-label="Act 与 Beat">${beatNav()}</nav>
     <main class="ol-main">${beatHeader()}<div class="ol-board">${CATS.map(boardLane).join('')}</div></main>
     <aside class="library" data-keep="library" aria-label="素材库">${library()}</aside></div>`;
 }
@@ -29,8 +29,8 @@ export function lineHead(v, l) {
 }
 
 export function moveSelect(v, id) {
-  const { UI, BEAT_IDS, BEAT, beatShort, esc } = v;
-  const opts = BEAT_IDS.filter(b => b !== UI.beat).map(b => `<option value="${b}">${beatShort(b)}${BEAT[b].title ? ' · ' + esc(BEAT[b].title) : ''}</option>`).join('');
+  const { D, BEAT_IDS, BEAT, beatShort, esc } = v;
+  const opts = BEAT_IDS.filter(b => b !== D.placedIn[id]?.beat).map(b => `<option value="${b}">${beatShort(b)}${BEAT[b].title ? ' · ' + esc(BEAT[b].title) : ''}</option>`).join('');
   return `<select data-change="move-beat" data-id="${id}" aria-label="移到其他 Beat"><option value="">移到…</option>${opts}</select>`;
 }
 

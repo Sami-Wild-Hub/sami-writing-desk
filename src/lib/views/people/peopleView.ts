@@ -5,11 +5,12 @@ import { esc, icon } from '../../archive/ui.ts';
 import { filterPeople, groupsOf, hasEntries, parsePeopleData, type NovelPeopleData, type PeopleFilter } from '../../novelPeopleModel.ts';
 import type { CreateNovelView, NovelViewHost, ShowContext } from '../types.ts';
 import { detailHtml, peopleLinks, rowHtml, type PeopleLinks } from './cells.ts';
+import { searchInput } from '../../archive/input.ts';
 
 export { parsePeopleData };
 
 interface PeopleState { q: string; filter: PeopleFilter; open: Set<string>; y?: number; }
-const COLUMNS = ['姓名', '称呼/别名', '所属', '一句话身份', '首次出现', '当前状态', '记忆钩子', '主要关系'];
+const COLUMNS = ['姓名', '称呼/别名', '所属', '一句话身份', '首次出现', '当前状态', '记忆钩子'];
 
 class PeoplePanel {
   private st: PeopleState;
@@ -17,6 +18,7 @@ class PeoplePanel {
   private asOf: string;
   private el: Record<'tools' | 'chips' | 'side' | 'rows' | 'cnt', HTMLElement>;
   private input: HTMLInputElement;
+  private search: ReturnType<typeof searchInput> | null = null;
 
   constructor(private host: NovelViewHost, private data: NovelPeopleData) {
     this.st = (host.memo.state as PeopleState | undefined) ?? { q: '', filter: '', open: new Set() };
@@ -25,10 +27,9 @@ class PeoplePanel {
     this.asOf = `截至 ${data.scope.split(/[–-]/).pop() ?? ''}`;
     const frame = document.createElement('div');
     frame.className = 'ppl';
-    const notes = [data.scope && `KB ${data.scope}`, `称呼、外在与言行已抽 ${data.extracted || '—'}`, '主要关系暂未生成'].filter(Boolean).join(' · ');
     frame.innerHTML = '<aside class="side" aria-label="所属"><div class="side-body"></div></aside><main class="pmain"><div class="tools"><div class="t1">' +
       `<h2>人物</h2><label class="find">${icon('search')}<input type="search" enterkeyhint="search" placeholder="找姓名或称呼…" aria-label="找姓名或称呼"></label>` +
-      `<span class="cnt" aria-live="polite"></span><span class="sp"></span><span class="note">${esc(notes)}</span></div>` +
+      '<span class="cnt" aria-live="polite"></span><span class="sp"></span></div>' +
       '<div class="chips" role="group" aria-label="按所属筛选"></div></div>' +
       `<div class="tbl"><table class="people"><thead><tr>${COLUMNS.map((c) => `<th scope="col">${c}</th>`).join('')}</tr></thead><tbody></tbody></table>` +
       '<p class="none" hidden>没有符合的人物。</p></div></main>';
@@ -75,8 +76,9 @@ class PeoplePanel {
     };
     this.el.chips.addEventListener('click', pick);
     this.el.side.addEventListener('click', pick);
-    this.input.addEventListener('input', () => { this.st.q = this.input.value; this.render(); });
+    this.search = searchInput(this.input, () => { this.st.q = this.input.value; this.render(); });
     this.input.addEventListener('keydown', (event) => {
+      if (event.isComposing || this.search?.composing()) return;
       if (event.key === 'Escape') { this.input.value = ''; this.st.q = ''; this.render(); }
     });
     this.el.rows.addEventListener('click', (event) => {
@@ -118,6 +120,7 @@ class PeoplePanel {
   }
 
   hide() { this.st.y = window.scrollY; }
+  dispose() { this.search?.dispose(); }
 }
 
 const createPeople: CreateNovelView = (host) => {
@@ -141,7 +144,7 @@ const createPeople: CreateNovelView = (host) => {
       return true;
     },
     hide: () => panel?.hide(),
-    dispose: () => undefined,
+    dispose: () => panel?.dispose(),
     label: () => '人物',
   };
 };

@@ -113,7 +113,7 @@ test('send a pasted draft, follow its status, read both checks beside the draft'
   const history = view(page).locator('.hist-list a');
   await expect(history).toHaveCount(1);
   await expect(history).toContainText('完成');
-  await expect(history).toContainText('不验语病：否');
+  await expect(history).not.toContainText('不验语病');
   await history.click();
   await expect(items(page)).toHaveCount(3);
   expect(errors).toEqual([]);
@@ -124,7 +124,7 @@ test('a failed check says why; resending it queues it again and keeps the old re
   const stub = await stubFirebase(page);
   const id = await create(page, 'C23 初稿', true);
   expect(stub.at(`${book}/${id}/skipProse`)).toBe(true);
-  await expect(view(page).locator('.phead .meta')).toContainText('不验语病：是');
+  await expect(view(page).locator('.phead .meta')).toContainText('不验语病');
   sent(stub, id);
   report(stub, id, 'manuscript', 1, manuscript);
   stub.server(`${book}/${id}/checks/open`, { status: 'failed', attempt: 1, chat: 'https://chatgpt.com/c/abc', error: '60 分钟内没收到报告', at: Date.now() });
@@ -164,7 +164,7 @@ test('a failed check says why; resending it queues it again and keeps the old re
   expect(Object.keys(stub.at(`${book}/${id}/reports`) as object)).toHaveLength(3);
   expect(stub.at(`${book}/${id}/skipProse`)).toBe(true);
   await page.reload();
-  await expect(view(page).locator('.hist-list a')).toContainText('不验语病：是');
+  await expect(view(page).locator('.hist-list a')).toContainText('不验语病');
   await view(page).locator('.side').getByRole('link', { name: '＋ 新校稿' }).click();
   await expect(view(page).getByLabel('不验语病')).not.toBeChecked();
 });
@@ -210,6 +210,8 @@ test('on a phone the items come first and tapping one jumps to its quote', async
   const mark = view(page).locator('#pp-4 mark');
   await expect(mark).toHaveClass(/flash/);
   await expect(mark).toBeInViewport();
+  await view(page).locator('[data-back-note]').click(); await expect(list.nth(2)).toBeInViewport();
+  await list.nth(2).click(); await mark.click(); await expect(list.nth(2)).toBeInViewport();
   await view(page).getByRole('button', { name: '历史' }).click();
   await expect(view(page).locator('.side')).toHaveClass(/show/);
   await expect(view(page).locator('.hist-list a')).toContainText('C23 初稿');

@@ -47,8 +47,12 @@ export function mountReadingMenu(scope: HTMLElement) {
     const choice = target.closest<HTMLElement>('[data-set] button');
     if (choice) {
       const s = { ...load(), [choice.parentElement!.dataset.set!]: choice.dataset.v };
+      const top = document.querySelector<HTMLElement>('#novel-bar')?.offsetHeight ?? 0;
+      const anchor = [...scope.querySelectorAll<HTMLElement>('.prose p, .prose li, .prose h2, .prose h3')].find(el => el.getBoundingClientRect().bottom >= top);
+      const offset = anchor?.getBoundingClientRect().top ?? 0;
       localStorage.setItem(KEY, JSON.stringify(s));
       applyReading(s);
+      if (anchor) window.scrollBy({ top: anchor.getBoundingClientRect().top - offset, behavior: 'instant' });
       for (const b of choice.parentElement!.children) b.setAttribute('aria-pressed', String(b === choice));
     }
   });

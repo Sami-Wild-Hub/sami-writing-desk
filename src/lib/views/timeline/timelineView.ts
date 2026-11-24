@@ -8,6 +8,8 @@ import type { CreateNovelView, NovelViewHost, ShowContext } from '../types.ts';
 import { cardHtml, cardLinks, swatch, type CardLinks } from './card.ts';
 import { drawLanes, geometry, measure, rowsHtml, type Geometry, type TimelineState } from './draw.ts';
 import { sideHtml, wireSide } from './side.ts';
+import { searchInput } from '../../archive/input.ts';
+import { TimelineStrip } from './strip.ts';
 
 const DENSITIES: [number, string][] = [[.4, '总览'], [.7, '紧凑'], [1, '标准']];
 const narrow = () => window.innerWidth <= 860;
@@ -22,6 +24,10 @@ class TimelinePanel {
   private visible = false;
   private raf = 0;
   private resizeTimer = 0;
+  private search: ReturnType<typeof searchInput> | null = null;
+  private strip: TimelineStrip;
+  private currentBand = -1;
+  private renderPending = false;
   private onScroll = () => { if (this.visible && !this.raf) this.raf = requestAnimationFrame(() => { this.raf = 0; this.updateStrip(); }); };
   private onResize = () => { clearTimeout(this.resizeTimer); this.resizeTimer = window.setTimeout(() => { if (this.visible) this.render(); }, 120); };
 
@@ -43,6 +49,7 @@ class TimelinePanel {
     const q = <T extends HTMLElement>(s: string) => frame.querySelector<T>(s)!;
     this.el = { side: q('.side'), body: q('.side-body'), tools: q('.tools'), strip: q('.strip'), now: q('.now'), tl: q('.tl'), rows: q('.rows'), find: q('.find'), cnt: q('.cnt'), dens: q('.dens') };
     this.svg = frame.querySelector('.tl svg')!;
+    this.strip = new TimelineStrip(this.el.strip);
     this.el.side.prepend(host.sideHead());
     q<HTMLInputElement>('.find input').value = this.st.q;
     this.el.find.classList.toggle('has-q', Boolean(this.st.q));
@@ -52,8 +59,9 @@ class TimelinePanel {
   }
 
   private wire() {
-    wireSide(this.el.body, this.model, this.st, (focus) => {
-      this.render();
+    wireSide(this.el.body, this.model, this.st, (focus, previous) => {
+      this.renderAnchored();
+      if (previous) this.host.toast('已更新线路选择', { label: '撤销', action: () => { this.st.sel = previous; this.renderAnchored(); } });
       if (focus) this.el.body.querySelector<HTMLElement>(`[data-o="${CSS.escape(focus)}"]`)?.focus();
     }, (b) => {
       this.host.setDrawer(false);
@@ -88,15 +96,20 @@ class TimelinePanel {
   private wireFind() {
     const input = this.el.find.querySelector('input')!;
     const set = (value: string) => {
+      if (this.st.q === value.trim() && !this.renderPending) return;
+      const wasOverview = this.L?.g.overview;
       this.st.q = value.trim();
       this.st.hit = -1;
       this.el.find.classList.toggle('has-q', Boolean(this.st.q));
-      this.render();
+      if (this.renderPending || wasOverview !== (!this.st.q && this.st.z < .55)) this.renderAnchored();
+      else this.searchRows();
+      if (this.L?.hits.length) this.step(1);
     };
-    input.addEventListener('input', () => { set(input.value); if (this.L?.hits.length) this.step(1); });
+    this.search = searchInput(input, () => set(input.value));
     input.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') { event.preventDefault(); this.step(event.shiftKey ? -1 : 1); }
-      if (event.key === 'Escape') { input.value = ''; set(''); }
+      if (event.isComposing || this.search?.composing()) return;
+      if (event.key === 'Enter') { event.preventDefault(); const changed = input.value.trim() !== this.st.q; this.search?.flush(); if (!changed) this.step(event.shiftKey ? -1 : 1); }
+      if (event.key === 'Escape') { input.value = ''; this.search?.flush(); }
     });
     this.el.find.querySelectorAll<HTMLElement>('[data-find]').forEach((b) => b.addEventListener('click', () => this.step(Number(b.dataset.find))));
   }
@@ -104,10 +117,39 @@ class TimelinePanel {
   private stickyH() { return (document.querySelector<HTMLElement>('.bar')?.offsetHeight ?? 0) + this.el.tools.offsetHeight; }
   private rowEl(pid: string) { return [...this.el.rows.children as HTMLCollectionOf<HTMLElement>].find((r) => r.dataset.p === pid); }
 
+  private renderAnchored(pid?: string, closing = false) {
+    const old = this.L?.lay.pts ?? [], top = this.stickyH() + 8;
+    const visible = [...this.el.rows.children as HTMLCollectionOf<HTMLElement>].find(r => r.getBoundingClientRect().bottom >= top);
+    const id = pid ?? visible?.dataset.p ?? visible?.dataset.card;
+    const anchor = id ? this.rowEl(id) : null;
+    const offset = closing ? Math.max(top, anchor?.getBoundingClientRect().top ?? top) : anchor?.getBoundingClientRect().top ?? top;
+    this.render();
+    const nearest = id && (this.L?.lay.pts.includes(id) ? id : [...old].sort((a, b) => Math.abs(old.indexOf(a) - old.indexOf(id)) - Math.abs(old.indexOf(b) - old.indexOf(id))).find(p => this.L?.lay.pts.includes(p)));
+    const next = nearest && this.rowEl(nearest);
+    if (next) window.scrollBy({ top: next.getBoundingClientRect().top - offset, behavior: 'instant' });
+  }
+
+  private searchRows() {
+    if (!this.L) return;
+    const q = this.st.q, hits: string[] = [];
+    this.el.rows.querySelectorAll<HTMLElement>('.row[data-p]').forEach(row => {
+      const tx = row.querySelector<HTMLElement>('.tx')!, text = tx.dataset.text ?? tx.textContent ?? '';
+      tx.dataset.text = text;
+      tx.innerHTML = q ? esc(text).split(esc(q)).join(`<mark>${esc(q)}</mark>`) : esc(text);
+      const p = this.model.data.points[row.dataset.p!];
+      if (q && [text, p.title, p.story ?? ''].some(s => s.includes(q))) hits.push(row.dataset.p!);
+      row.classList.remove('cur');
+    });
+    this.L.hits = hits;
+    this.el.cnt.textContent = q ? hits.length ? `${Math.max(0, this.st.hit) + 1}/${hits.length}` : '0 处' : '';
+  }
+
   render() {
+    if (this.search?.composing()) { this.renderPending = true; return; }
+    this.renderPending = false;
     const { st, model, el } = this;
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) / 16 || 1;
-    const lay = layoutTimeline(model, st.sel), g = geometry(st.z, narrow(), rem);
+    const lay = layoutTimeline(model, st.sel), g = geometry(st.q && st.z < .55 ? .7 : st.z, narrow(), rem);
     el.tl.classList.toggle('overview', g.overview);
     el.tl.style.setProperty('--fs', `${g.fs}px`);
     el.tl.style.setProperty('--lh', `${g.lh}px`);
@@ -124,28 +166,27 @@ class TimelinePanel {
     el.dens.querySelectorAll<HTMLElement>('[data-z]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.z) === st.z)));
     el.body.innerHTML = sideHtml(model, lay, st);
     el.tools.querySelectorAll('[data-nsel]').forEach((b) => { b.textContent = String(st.sel.size); });
-    this.updateStrip();
+    this.strip.reset(); this.currentBand = -1; this.updateStrip();
   }
 
   private toggle(pid: string) {
-    if (this.st.open.has(pid)) this.st.open.delete(pid); else this.st.open.add(pid);
-    const before = this.rowEl(pid)?.getBoundingClientRect().top;
-    this.render();
-    const after = this.rowEl(pid)?.getBoundingClientRect().top;
-    if (before !== undefined && after !== undefined) window.scrollBy({ top: after - before, behavior: 'instant' });
+    const closing = this.st.open.has(pid);
+    if (closing) this.st.open.delete(pid); else this.st.open.add(pid);
+    this.renderAnchored(pid, closing);
   }
 
   /** Shows a point, adding a line that has it when it is off the current selection. */
   private jump(pid: string, { open = true, from }: { open?: boolean; from?: string } = {}) {
     const { model, st } = this;
+    let changed = false;
     if (!model.data.points[pid]) return;
     if (!this.L?.lay.pts.includes(pid)) {
       const id = (model.ownersOf[pid] ?? []).find((o) => !model.lines[o].axis);
-      if (id) { st.sel.add(id); this.host.toast(`已加入线路：${model.lines[id].name}`); }
+      if (id) { st.sel.add(id); changed = true; this.host.toast(`已加入线路：${model.lines[id].name}`); }
     }
-    if (from) st.open.delete(from);
-    if (open) st.open.add(pid);
-    this.render();
+    if (from && st.open.delete(from)) changed = true;
+    if (open && !st.open.has(pid)) { st.open.add(pid); changed = true; }
+    if (changed) this.render();
     const r = this.rowEl(pid);
     if (!r) return;
     window.scrollTo({ top: r.getBoundingClientRect().top + window.scrollY - this.stickyH() - 24, behavior: 'instant' });
@@ -158,6 +199,8 @@ class TimelinePanel {
     const hits = this.L?.hits ?? [];
     if (!hits.length) return;
     this.st.hit = (this.st.hit + d + hits.length) % hits.length;
+    this.el.rows.querySelectorAll('.cur').forEach(el => el.classList.remove('cur'));
+    this.el.cnt.textContent = `${this.st.hit + 1}/${hits.length}`;
     this.jump(hits[this.st.hit], { open: false });
   }
 
@@ -191,14 +234,10 @@ class TimelinePanel {
       html += `<div class="tick" style="left:${g.X(x.slot[row]) - 1}px;border-color:${o.color}"></div>`;
       chips.push({ x: g.X(x.slot[row]), html: `<span class="chip2">${swatch(o, 16)}${esc(o.name)}</span>` });
     });
-    this.el.strip.innerHTML = html + chips.map((c) => c.html).join('');
-    let left = 0;
-    this.el.strip.querySelectorAll<HTMLElement>('.chip2').forEach((chip, i) => {
-      const l = Math.max(Math.max(4, chips[i].x - 8), left);
-      chip.style.left = `${l}px`;
-      left = l + chip.offsetWidth + 4;
-    });
+    this.strip.update(html, chips);
     const b = data.points[lay.pts[row]]?.b ?? 0;
+    if (b === this.currentBand) return;
+    this.currentBand = b;
     this.el.now.innerHTML = `时段 ${b + 1}/${data.bands.length} · <b>${esc(data.bands[b] ?? '')}</b>`;
     this.el.body.querySelectorAll<HTMLElement>('[data-band]').forEach((a) => {
       if (Number(a.dataset.band) === b) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
@@ -234,6 +273,7 @@ class TimelinePanel {
   }
 
   dispose() {
+    this.search?.dispose();
     window.removeEventListener('scroll', this.onScroll);
     window.removeEventListener('resize', this.onResize);
     cancelAnimationFrame(this.raf);

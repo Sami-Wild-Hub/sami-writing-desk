@@ -15,6 +15,9 @@ const createReader: CreateNovelView = (host) => {
   const rail = document.createElement('aside');
   rail.className = 'rail';
   rail.setAttribute('aria-label', '本页');
+  rail.innerHTML = '<details class="rail-fold"><summary>本页目录与相关事件</summary><div data-rail-body></div></details>';
+  const railBody = rail.querySelector<HTMLElement>('[data-rail-body]')!, railFold = rail.querySelector('details')!;
+  const compact = window.matchMedia('(max-width: 1180px)');
   const frame = document.createElement('div');
   frame.className = 'reader';
   frame.append(toc, doc, rail);
@@ -24,6 +27,27 @@ const createReader: CreateNovelView = (host) => {
   const scrolls = (host.memo.scrolls ??= {}) as Record<string, number>;
   let path = '';
   let page: ReaderPage | null = null;
+  let observer: IntersectionObserver | null = null;
+  const placeRail = () => {
+    railFold.open = !compact.matches;
+    if (compact.matches && page) page.inner.querySelector('.prose')!.before(rail);
+    else frame.append(rail);
+  };
+  compact.addEventListener('change', placeRail);
+  const observeHeads = () => {
+    observer?.disconnect();
+    const heads = [...doc.querySelectorAll<HTMLElement>('.prose h2[id], .prose h3[id]')];
+    const mark = () => {
+      const top = (document.querySelector<HTMLElement>('#novel-bar')?.offsetHeight ?? 0) + 20;
+      const id = [...heads].reverse().find(h => h.getBoundingClientRect().top <= top)?.id ?? heads[0]?.id;
+      railBody.querySelectorAll<HTMLElement>('[data-to]').forEach(a => {
+        const on = a.dataset.to === id; a.classList.toggle('on', on);
+        if (on) a.setAttribute('aria-current', 'location'); else a.removeAttribute('aria-current');
+      });
+    };
+    observer = new IntersectionObserver(mark, { rootMargin: '-60px 0px -65% 0px' });
+    heads.forEach(h => observer!.observe(h)); mark();
+  };
 
   rail.addEventListener('click', (event) => {
     const to = (event.target as Element).closest<HTMLElement>('[data-to]');
@@ -67,11 +91,11 @@ const createReader: CreateNovelView = (host) => {
         path = next;
         page = buildPage(host, next, html);
         doc.replaceChildren(page.inner);
-        rail.innerHTML = outline();
+        railBody.innerHTML = outline(); placeRail(); observeHeads();
         markToc(toc, next);
         const shownPage = page;
         void host.timeline().then((data) => {
-          if (data && page === shownPage) addTimelineBits(shownPage, rail, data, host);
+          if (data && page === shownPage) addTimelineBits(shownPage, railBody, data, host);
         }, () => {});
         document.title = `${page.title} · ${host.bookTitle} · 小离总周报`;
         if (route.hash && jump(route.hash)) return true;
@@ -79,6 +103,7 @@ const createReader: CreateNovelView = (host) => {
         return true;
       }
       document.title = `${page.title} · ${host.bookTitle} · 小离总周报`;
+      observeHeads();
       if (ctx.restore !== undefined) window.scrollTo(0, ctx.restore);
       else if (route.hash && jump(route.hash)) return true;
       else window.scrollTo(0, scrolls[path] ?? 0);
@@ -90,6 +115,7 @@ const createReader: CreateNovelView = (host) => {
       peek.hide();
     },
     dispose() {
+      observer?.disconnect(); compact.removeEventListener('change', placeRail);
       reading.dispose();
       peek.dispose();
     },
