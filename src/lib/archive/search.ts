@@ -1,5 +1,5 @@
-// Search overlay of the book page (/ or Ctrl/⌘K): full-text hits over the synced search
-// texts, grouped by kind with filter chips; 正文 hits jump to their paragraph.
+// Search overlay of the book page (/ or Ctrl/⌘K): full-text hits over page text generated
+// from the cached HTML, grouped by kind with filter chips; 正文 hits jump to their paragraph.
 import { cleanTitle, ownerName, ownerPages, pageLabel, pathInfo } from '../labels.ts';
 import type { PageEntry } from '../views/types.ts';
 import { esc, icon } from './ui.ts';

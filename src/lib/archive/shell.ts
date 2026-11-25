@@ -63,7 +63,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
   const updateGate = mountGate(gate, session);
   bar.setReady(false);
   if (!session || !config.householdId) return;
-  const store = createStore(session, config.householdId);
+  const store = createStore(session, config.householdId, config.projectId);
   const search = mountSearch();
 
   let activeUid = '';

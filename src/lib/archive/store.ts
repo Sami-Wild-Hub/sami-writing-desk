@@ -6,9 +6,21 @@ import { parseTimelineData } from '../novelTimelineModel.ts';
 import type { OutlineSyncState } from '../views/outline/sync.ts';
 import { parsePeopleData } from '../novelPeopleModel.ts';
 import { parseOwnerImages } from '../views/reader/image-schema.ts';
-import { newBook, parseCatalog, parseSearch, validateManifest, type BookInfo, type LoadedBook } from './data.ts';
+import { parseBook, parseCatalog, newBook, type BookInfo, type BookPayload, type LoadedBook } from './data.ts';
+import { readArchiveCache, writeArchiveCache } from './cache.ts';
 
-export function createStore(session: FirebaseHouseholdSession, householdId: string) {
+const cacheKey = (kind: 'book' | 'images', householdId: string, slug: string) => `${kind}:${householdId}:${slug}`;
+
+function bookFromPayload(payload: BookPayload, useImages: boolean): LoadedBook {
+  const book = newBook(payload.manifest);
+  Object.entries(payload.pages).forEach(([key, html]) => book.pages.set(key, html));
+  book.timelineValue = payload.timeline;
+  book.peopleValue = payload.people;
+  if (useImages) book.imagesRaw = payload.images;
+  return book;
+}
+
+export function createStore(session: FirebaseHouseholdSession, householdId: string, projectId = '') {
   const root = `households/${householdId}/novelArchive`;
   const syncRoot = `households/${householdId}/outlineSync`;
   let generation = 0;
@@ -39,24 +51,34 @@ export function createStore(session: FirebaseHouseholdSession, householdId: stri
     async book(slug: string) {
       const cached = books.get(slug);
       if (cached) return cached;
-      const data = await read(`books/${slug}/manifest`);
-      if (data === undefined) return undefined;
-      const manifest = validateManifest(data);
-      if (!manifest) throw new Error('小说索引缺失或格式无效');
-      const book = books.get(slug) ?? newBook(manifest);
+      const version = catalog[slug]?.version;
+      const key = cacheKey('book', `${projectId}:${householdId}`, slug);
+      let payload: BookPayload | null = null;
+      let fromCache = false;
+      if (version) {
+        const local = parseBook(await readArchiveCache(key, version));
+        if (local) { payload = local; fromCache = true; }
+      }
+      if (!payload) {
+        const data = await read(`books/${slug}`);
+        if (data === undefined) return undefined;
+        payload = parseBook(data);
+        if (!payload) throw new Error('小说数据缺失或格式无效');
+        if (version) await writeArchiveCache(key, version, payload);
+      }
+      const book = books.get(slug) ?? bookFromPayload(payload, !fromCache);
+      if (!fromCache && version && catalog[slug]?.imageVersion && payload.images !== undefined) {
+        await writeArchiveCache(cacheKey('images', `${projectId}:${householdId}`, slug), catalog[slug].imageVersion!, payload.images);
+      }
       books.set(slug, book);
       return book;
     },
-    async page(slug: string, book: LoadedBook, path: string) {
+    async page(_slug: string, book: LoadedBook, path: string) {
       const key = book.pathToKey.get(path);
       if (!key) return undefined;
       const cached = book.pages.get(key);
       if (cached !== undefined) return cached;
-      const html = await read(`books/${slug}/pages/${key}`);
-      if (html === undefined) return undefined;
-      if (typeof html !== 'string') throw new Error('页面未同步');
-      book.pages.set(key, html);
-      return html;
+      return book.pages.get(key);
     },
     // Outline presence and content come from outlineSync, never novelArchive.
     outlineHead(slug: string, book: LoadedBook) {
@@ -74,28 +96,50 @@ export function createStore(session: FirebaseHouseholdSession, householdId: stri
         data => { if (data === undefined) book.outlineSyncRead = undefined; return data; },
         (error: unknown) => { book.outlineSyncRead = undefined; throw error; });
     },
-    timeline(slug: string, book: LoadedBook) {
-      book.timelineRead ??= read(`books/${slug}/timeline`).then((raw) => (raw === undefined ? undefined : parseTimelineData(raw)));
+    timeline(_slug: string, book: LoadedBook) {
+      book.timelineRead ??= Promise.resolve(book.timelineValue === undefined ? undefined : parseTimelineData(book.timelineValue));
       return book.timelineRead.then(
         (data) => { if (data === undefined) book.timelineRead = undefined; return data; },
         (error: unknown) => { book.timelineRead = undefined; throw error; });
     },
-    people(slug: string, book: LoadedBook) {
-      book.peopleRead ??= read(`books/${slug}/people`).then((raw) => (raw === undefined ? undefined : parsePeopleData(raw)));
+    people(_slug: string, book: LoadedBook) {
+      book.peopleRead ??= Promise.resolve(book.peopleValue === undefined ? undefined : parsePeopleData(book.peopleValue));
       return book.peopleRead.then(
         (data) => { if (data === undefined) book.peopleRead = undefined; return data; },
         (error: unknown) => { book.peopleRead = undefined; throw error; });
     },
     images(slug: string, book: LoadedBook) {
-      book.imagesRead ??= read(`books/${slug}/images`).then(raw => raw === undefined ? undefined : parseOwnerImages(raw));
+      book.imagesRead ??= (async () => {
+        if (book.imagesValue !== undefined) return book.imagesValue;
+        const version = catalog[slug]?.imageVersion;
+        const key = cacheKey('images', `${projectId}:${householdId}`, slug);
+        if (version) {
+          const local = await readArchiveCache(key, version);
+          if (local !== undefined) return book.imagesValue = parseOwnerImages(local);
+        }
+        if (book.imagesRaw !== undefined) {
+          const images = parseOwnerImages(book.imagesRaw);
+          if (version) await writeArchiveCache(key, version, book.imagesRaw);
+          return book.imagesValue = images;
+        }
+        const raw = await read(`books/${slug}/images`);
+        if (raw === undefined) return undefined;
+        const images = parseOwnerImages(raw);
+        if (version) await writeArchiveCache(key, version, images);
+        return book.imagesValue = images;
+      })();
       return book.imagesRead.then(
         data => { if (data === undefined) book.imagesRead = undefined; return data; },
         (error: unknown) => { book.imagesRead = undefined; throw error; });
     },
-    search(slug: string, book: LoadedBook) {
-      book.searchRead ??= read(`books/${slug}/search`).then((raw) => (raw === undefined ? undefined : parseSearch(raw)));
+    search(_slug: string, book: LoadedBook) {
+      book.searchRead ??= Promise.resolve(Object.fromEntries([...book.pages].map(([key, html]) => {
+        const root = document.createElement('div');
+        root.innerHTML = html;
+        return [key, (root.textContent ?? '').replace(/\s+/g, ' ').trim()];
+      })));
       return book.searchRead.then(
-        (data) => { if (data === undefined) book.searchRead = undefined; return data; },
+        (data) => data,
         (error: unknown) => { book.searchRead = undefined; throw error; });
     },
   };

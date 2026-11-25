@@ -36,9 +36,8 @@ test('shelf shows the same pending state and approval feedback', async ({ page }
 });
 
 test('navigation selects its target and shows a placeholder while data is pending', async ({ page }) => {
-  const stub = await stubFirebase(page); await page.goto('book/?book=maritime-story');
-  await expect(page.locator('.doc-head')).toBeVisible(); stub.holdReads('/timeline');
-  await page.locator('#novel-views [data-novel-view="timeline"]').click();
+  const stub = await stubFirebase(page); stub.holdReads('/books/maritime-story');
+  await page.goto('book/?book=maritime-story&view=timeline');
   await expect(page.locator('#novel-views [data-novel-view="timeline"]')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('#novel-live')).toContainText('时间线'); await expect(page.locator('.skeleton')).toBeVisible();
   stub.releaseReads(); await expect(page.locator('[data-view="timeline"] .row').first()).toBeVisible();
@@ -47,12 +46,12 @@ test('navigation selects its target and shows a placeholder while data is pendin
 
 test('search counts all matches before limiting a category, and composing Enter cannot open stale hits', async ({ page }) => {
   const stub = await stubFirebase(page), original = structuredClone(stub.at(book)) as any;
-  const entries: Record<string, any> = {}, search: Record<string, string> = {}, pages: Record<string, string> = {};
+  const entries: Record<string, any> = {}, pages: Record<string, string> = {};
   for (let i = 0; i < 71; i++) {
     const path = i < 70 ? `owners/CHARACTER/CH-Find${i}/START_HERE.md` : 'events/E-9999.md', key = Buffer.from(path).toString('base64url');
-    entries[key] = { path, title: `共同词 ${i}`, section: '全局' }; search[key] = '共同词'; pages[key] = `<h1>共同词 ${i}</h1>`;
+    entries[key] = { path, title: `共同词 ${i}`, section: '全局' }; pages[key] = `<h1>共同词 ${i}</h1>`;
   }
-  stub.server(book, { ...original, manifest: { ...original.manifest, entries }, search, pages });
+  stub.server(book, { ...original, manifest: { ...original.manifest, entries }, pages });
   await page.goto('book/?book=maritime-story'); await expect(page.locator('.doc-head')).toBeVisible();
   await page.keyboard.press('/'); const input = page.locator('#novel-search');
   await input.fill('共同词'); await expect(page.locator('[data-s="全部"] .n')).toHaveText('71');
@@ -63,6 +62,17 @@ test('search counts all matches before limiting a category, and composing Enter 
   await page.waitForTimeout(180); expect(page.url()).toBe(url);
   await input.dispatchEvent('compositionend'); await input.press('Enter'); expect(page.url()).toBe(url);
   await expect(page.locator('.search-list')).toContainText('没有找到');
+  expect(stub.some((path) => path.endsWith('/search'))).toBe(false);
+});
+
+test('a matching catalog version reuses the complete book from IndexedDB after reload', async ({ page }) => {
+  const reads = await stubFirebase(page);
+  await page.goto('book/?book=maritime-story');
+  await expect(page.locator('.doc-head')).toBeVisible();
+  reads.splice(0);
+  await page.reload();
+  await expect(page.locator('.doc-head')).toBeVisible();
+  expect(reads.filter((path) => path.includes('/novelArchive/books/'))).toEqual([]);
 });
 
 test('reader settings preserve the visible paragraph, active headings update, and rail links remain on narrow screens', async ({ page }) => {
