@@ -171,7 +171,7 @@ class OutlinePanel extends OutlineCloud {
       case 'cancel-compose': this.editors.drop(`new:${u.line}:${u.composing}`); u.composing = null; break;
       case 'choose-beat': m.activeBeat = id; break;
       case 'unplace': u.filters.add(m.unitMap[id].status === 'WRITTEN' ? 'written' : 'unplaced'); u.open.add('lib:' + m.unitMap[id].storyline_group_id); this.undoToast('已移出本拍', () => m.removeUnit(id)); return;
-      case 'pick': this.undoToast('已选入本拍', () => m.placeInCell(id, m.activeBeat, m.unitMap[id].category)); return;
+      case 'pick': this.undoToast('已选入当前分段', () => m.placeInCell(id, m.activeBeat, m.unitMap[id].category)); return;
       case 'toggle-written': {
         const written = m.unitMap[id].status !== 'WRITTEN';
         u.filters.add(written ? 'written' : m.used(id) ? 'placed' : 'unplaced');
@@ -263,7 +263,7 @@ class OutlinePanel extends OutlineCloud {
     on('overwrite-local', () => void this.writeResolution('use-local'));
     on('keep-web', () => void this.writeResolution('keep-web'));
     on('download-kept', () => void this.downloadKept());
-    on('clear-beat', () => this.undoToast('已清空本 Beat', () => this.model.clear()));
+    on('clear-beat', () => this.undoToast('已清空当前分段', () => this.model.clear()));
     on('reset-all', () => this.undoToast('已清空编排', () => this.model.clear(true)));
     on('restore-starter', () => {
       const s = this.payload.starter; if (!s) return;
