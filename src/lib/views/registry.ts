@@ -11,12 +11,12 @@ interface NovelViewEntry {
 }
 
 export const novelViews = [
+  { id: 'proof', label: '校稿台', load: () => import('./proof/proofView.ts') },
+  { id: 'outline', label: '大纲', load: () => import('./outline/outlineView.ts') },
+  { id: 'people', label: '人物', load: () => import('./people/peopleView.ts') },
+  { id: 'foreshadow', label: '伏笔表', load: () => import('./foreshadow/foreshadowView.ts') },
   { id: 'reader', label: '阅读', load: () => import('./reader/readerView.ts') },
   { id: 'timeline', label: '时间线', load: () => import('./timeline/timelineView.ts') },
-  { id: 'outline', label: '大纲', load: () => import('./outline/outlineView.ts') },
-  { id: 'foreshadow', label: '伏笔表', load: () => import('./foreshadow/foreshadowView.ts') },
-  { id: 'people', label: '人物', load: () => import('./people/peopleView.ts') },
-  { id: 'proof', label: '校稿台', load: () => import('./proof/proofView.ts') },
 ] as const satisfies readonly NovelViewEntry[];
 
 type Routable<T> = T extends { load: unknown } ? T : never;
