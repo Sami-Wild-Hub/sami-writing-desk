@@ -178,6 +178,10 @@ class OutlinePanel extends OutlineCloud {
         this.undoToast(written ? '已标为已写' : '已改回未写', () => m.setWritten(id, written)); return;
       }
       case 'toggle-unplaced': u.onlyUnplaced = !u.onlyUnplaced; break;
+      case 'toggle-part': {
+        const a = t.dataset.actNo, v = presentation(m, u), key = (v.partState(a).done ? 'part-open:' : 'part-shut:') + a;
+        if (!u.open.delete(key)) u.open.add(key); break;
+      }
       case 'filter': if (!u.filters.delete(t.dataset.filterState)) u.filters.add(t.dataset.filterState); break;
     } this.render();
   };

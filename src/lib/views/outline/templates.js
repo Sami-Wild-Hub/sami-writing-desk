@@ -37,12 +37,16 @@ export function cardFull(v, c, { actions = '', where = true, drag = false, mark 
     <div class="c-foot">${foot}<span class="c-actions">${actions}</span></div></article>`;
 }
 
-// Compact card in a Beat cell of the current storyline.
+// Compact card in a Beat cell of the current storyline; its details, merged originals and refs unfold in place.
 export function cardMini(v, c) {
-  const { D, esc, markBlock, badge } = v;
+  const { D, UI, esc, list, markBlock, badge } = v;
+  const nd = c.details?.length || 0, no = c.origins?.length || 0, key = `m:${c.id}`;
+  const label = [nd && `细节 ${nd}`, no && `原纲 ${no}`, c.refs && '出处'].filter(Boolean).join(' · ');
+  const more = label ? `<details class="mini-more" data-key="${esc(key)}" ${UI.open.has(key) ? 'open' : ''}><summary>${label}</summary>
+    ${nd ? list(c.details) : ''}${no ? `<div class="mini-sub">并入的原纲</div>${list(c.origins)}` : ''}${c.refs ? `<span class="refs">出处 ${esc(c.refs)}</span>` : ''}</details>` : '';
   return `<div class="mini ${c.cat} ${D.marks[c.id] ? 'marked' : ''}" data-drag="card" data-id="${c.id}" data-card="${c.id}">
     <div class="mini-head"><span class="drag-grip" data-drag-handle title="拖动卡片排序" aria-hidden="true">⋮⋮</span>${badge(c)}<span class="mini-text">${esc(c.text)}</span>
-    <button class="x" data-act="unplace" data-id="${c.id}" title="移出这一拍" aria-label="移出这一拍">×</button></div>${markBlock(c)}</div>`;
+    <button class="x" data-act="unplace" data-id="${c.id}" title="移出这一拍" aria-label="移出这一拍">×</button></div>${more}${markBlock(c)}</div>`;
 }
 
 // Move a card to another storyline; it keeps its category and Beat placement.

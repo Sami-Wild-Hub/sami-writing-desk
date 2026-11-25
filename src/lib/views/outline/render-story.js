@@ -18,17 +18,39 @@ export function picker(v, line) {
     <span class="chev" aria-hidden="true"></span><span class="strip-label">故事线</span><span class="strip-name">${esc(nameOf(line))}</span></button>${panel}</aside>`;
 }
 
+// A Part is written once it has placed cards and every one of them (any storyline) is 已写.
+export function partState(v, act) {
+  const { S, BEAT_IDS, BEAT } = v;
+  const ids = BEAT_IDS.filter(b => String(BEAT[b].act) === String(act)).flatMap(b => S.reveal[b]);
+  const written = ids.filter(id => S.cards[id]?.status === '已写').length;
+  return { total: ids.length, written, done: ids.length > 0 && written === ids.length };
+}
+
+// Written Parts start folded; the reader's own fold/unfold is remembered in UI.open.
+export function partOpen(v, act) {
+  const { UI } = v;
+  return v.partState(act).done ? UI.open.has(`part-open:${act}`) : !UI.open.has(`part-shut:${act}`);
+}
+
 // Parts 2 and 3 share one grid: a row per Beat category, so both sides line up.
 export function beatsGrid(v, line) {
   const { S, CATS, CAT_LABEL, BEAT_IDS, BEAT, beatLong, esc, cardMini, refChip } = v;
   const head = `<div class="bg-head"><span>${v.actOnly ? 'Part' : 'Beat'}</span><span>其他故事线 · 已排（只读）</span><span>本线 · 揭示顺序</span></div>`;
-  const rows = BEAT_IDS.map(b => `<div class="bg-beat"><b>${beatLong(b)}</b><span>${esc(BEAT[b].title)}</span></div>` + CATS.map(cat => {
+  const acts = [...new Set(BEAT_IDS.map(b => BEAT[b].act))];
+  const partHead = a => {
+    const st = v.partState(a), open = v.partOpen(a), only = v.actOnly && BEAT_IDS.find(b => BEAT[b].act === a);
+    const sign = st.done ? `<span class="part-done" title="本 Part 已排的卡全部已写">✓ 已写完</span>` : st.total ? `<small class="part-count">${st.written}/${st.total} 已写</small>` : '';
+    return `<button class="bg-part ${st.done ? 'done' : ''}" data-act="toggle-part" data-act-no="${esc(a)}" aria-expanded="${open}">
+      <span class="chev" aria-hidden="true"></span><b>Part ${esc(a)}</b>${only ? `<span class="part-title">${esc(BEAT[only].title)}</span>` : ''}${sign}</button>`;
+  };
+  const beatRows = b => (v.actOnly ? '' : `<div class="bg-beat"><b>${beatLong(b)}</b><span>${esc(BEAT[b].title)}</span></div>`) + CATS.map(cat => {
     const ids = S.reveal[b].filter(id => S.cards[id].cat === cat);
     const others = ids.filter(id => S.cards[id].line !== line.id), mine = ids.filter(id => S.cards[id].line === line.id);
     return `<div class="bg-row" data-zone-area><div class="bg-cat ${cat}">${CAT_LABEL[cat]}</div>
       <div class="bg-other ${cat}">${others.map(id => refChip(S.cards[id])).join('')}</div>
       <div class="bg-mine ${cat}" data-zone="beat" data-accept="card" data-beat="${b}" data-cat="${cat}">${mine.map(id => cardMini(S.cards[id])).join('')}</div></div>`;
-  }).join('')).join('');
+  }).join('');
+  const rows = acts.map(a => partHead(a) + (v.partOpen(a) ? BEAT_IDS.filter(b => BEAT[b].act === a).map(beatRows).join('') : '')).join('');
   return `<div class="bgrid">${head}${rows}</div>`;
 }
 

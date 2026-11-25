@@ -125,6 +125,19 @@ button.badge.placed:hover { color: var(--placed); }
 .mini-head { display: flex; align-items: flex-start; gap: .35rem; }
 .mini-head .badge { margin-top: .15rem; }
 .mini-text { flex: 1; min-width: 0; line-height: 1.55; white-space: pre-wrap; }
+.mini-more { margin: .15rem 0 0 1.6rem; }
+.mini-more > summary { width: fit-content; color: var(--ink-3); font-size: .75rem; cursor: pointer; }
+.mini-more ul { margin: .1rem 0 .2rem; padding-left: 1.2em; color: var(--ink-2); font-size: .78rem; line-height: 1.6; cursor: text; user-select: text; }
+.mini-sub { margin-top: .2rem; color: var(--ink-3); font-size: .6875rem; }
+.mini-more .refs { display: block; white-space: normal; }
+.bg-part { grid-column: 1 / -1; display: flex; align-items: center; gap: .5rem; margin-top: .7rem; padding: .35rem .5rem; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--sunk); color: var(--ink); font-size: .8125rem; text-align: left; cursor: pointer; }
+.bg-part:hover { border-color: var(--ink-3); }
+.bg-part .part-title { color: var(--ink-2); }
+.bg-part .part-count { margin-left: auto; color: var(--ink-3); }
+.bg-part .part-done { margin-left: auto; padding: 0 .5rem; border-radius: 999px; background: var(--done-soft); color: var(--done); font-size: .6875rem; font-weight: 700; line-height: 1.15rem; }
+.bg-part.done { background: var(--done-soft); border-color: transparent; }
+.bg-part + .bg-beat { margin-top: .2rem; border-top: 0; }
 .x { flex: none; min-height: 1.4rem; width: 1.4rem; padding: 0; border-color: transparent; background: none; color: var(--ink-3); font-size: .9rem; }
 .x:hover { background: var(--alert-soft); color: var(--alert); }
 
