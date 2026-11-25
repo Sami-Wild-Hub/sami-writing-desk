@@ -6,6 +6,8 @@ import type { NovelTimelineData } from '../../novelTimelineModel.ts';
 import { esc } from '../../archive/ui.ts';
 import type { NovelViewHost } from '../types.ts';
 import { remapLinks } from './links.ts';
+import { addOwnerImages } from './images.ts';
+import type { OwnerImages } from './image-schema.ts';
 
 export interface ReaderPage { path: string; inner: HTMLElement; title: string; info: PathInfo; }
 
@@ -110,7 +112,7 @@ function pager(host: NovelViewHost, path: string, info: PathInfo) {
   return `<nav class="pager" aria-label="翻页">${side(list[at - 1], prevLabel, 'prev')}${side(list[at + 1], nextLabel, 'next')}</nav>`;
 }
 
-export function buildPage(host: NovelViewHost, path: string, html: string): ReaderPage {
+export function buildPage(host: NovelViewHost, path: string, html: string, images: OwnerImages = {}): ReaderPage {
   const info = pathInfo(path);
   const title = info.kind === 'event' || info.kind === 'world-event' ? cleanTitle(host.entries[host.pathToKey.get(path)!].title) : titleOf(host, path);
   const prose = document.createElement('div');
@@ -135,6 +137,7 @@ export function buildPage(host: NovelViewHost, path: string, html: string): Read
     `<div class="doc-meta">${meta.join('')}</div>${subtabs(host, path, info)}`;
   inner.append(prose);
   inner.insertAdjacentHTML('beforeend', pager(host, path, info));
+  addOwnerImages(inner, info, images);
   return { path, inner, title, info };
 }
 

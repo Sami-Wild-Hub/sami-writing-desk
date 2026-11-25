@@ -34,6 +34,20 @@
 .subtabs { display: flex; gap: 2px; margin-block: 1.1rem .25rem; overflow-x: auto; border-bottom: 1px solid var(--line); font-family: var(--sans); scrollbar-width: none; }
 .subtabs a { flex: none; margin-bottom: -1px; padding: .5rem .8rem; border-bottom: 2px solid transparent; color: var(--ink-2); font-size: .9375rem; text-decoration: none; }
 .subtabs a[aria-current="page"] { border-color: var(--accent); color: var(--ink); font-weight: 600; }
+.subtabs button { flex: none; margin-bottom: -1px; padding: .5rem .8rem; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--ink-2); font: inherit; font-size: .9375rem; cursor: pointer; }
+.subtabs button[aria-current="page"] { border-color: var(--accent); color: var(--ink); font-weight: 600; }
+.subtabs button:disabled { color: var(--muted); opacity: .5; cursor: default; }
+.owner-gallery:not([hidden]) { display: grid; gap: 1.5rem; margin-block: 1.5rem; }
+.owner-gallery figure { margin: 0; min-width: 0; }
+.owner-gallery button { display: block; width: 100%; padding: 0; border: 1px solid var(--line); background: var(--surface); cursor: zoom-in; border-radius: 8px; overflow: hidden; }
+.owner-gallery img { display: block; width: 100%; height: auto; }
+.owner-gallery figcaption { margin-top: .5rem; color: var(--ink-2); font: .875rem var(--sans); overflow-wrap: anywhere; }
+.owner-image-dialog { width: calc(100vw - 2rem); max-width: none; max-height: calc(100dvh - 2rem); padding: .75rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); overflow: auto; }
+.owner-image-dialog::backdrop { background: #000b; }
+.owner-image-dialog > div { display: flex; align-items: center; gap: 1rem; position: sticky; top: -.75rem; background: var(--surface); padding-block: .5rem; }
+.owner-image-dialog p { margin: 0; font: .875rem var(--sans); overflow-wrap: anywhere; }
+.owner-image-dialog button { flex: none; padding: .4rem .8rem; cursor: pointer; }
+.owner-image-dialog > img { display: block; max-width: none; height: auto; }
 .aa { position: relative; flex: none; font-family: var(--sans); }
 .aa > .iconbtn b { font: 600 1.05rem var(--serif); }
 .aa-pop { position: absolute; right: 0; top: 2.9rem; z-index: 30; width: 16.5rem; padding: .75rem; border: 1px solid var(--line); border-radius: 12px;

@@ -175,6 +175,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       outlineDraftKey: `outline:${config.projectId}:${config.householdId}:${activeUid}:${slug}`,
       uid: activeUid,
       people: () => store.people(slug, book),
+      images: () => store.images(slug, book),
       memo: (book.memo[view] ??= {}),
       href,
       readerHref: (path, hash = '') => (book.pathToKey.has(path) ? href({ view: 'reader', doc: path, hash }) : null),
