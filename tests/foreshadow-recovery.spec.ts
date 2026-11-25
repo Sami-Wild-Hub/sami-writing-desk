@@ -1,14 +1,10 @@
 // Regression coverage for repository replacement, recovery downloads and literal form values.
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { path, setup } from './foreshadow-browser.ts';
+import { cell, path, setup, typeCell } from './foreshadow-browser.ts';
 import { foreshadowFixture } from './foreshadow-fixture.mjs';
 import { pack, unpack } from '../src/lib/views/outline/codec.js';
 
-async function editNote(root: Locator, note: string) {
-  await root.getByRole('button', { name: '编辑', exact: true }).first().click();
-  await root.getByLabel('备注', { exact: true }).fill(note);
-  await root.getByRole('button', { name: '保存修改' }).click();
-}
+const editNote = (root: Locator, note: string) => typeCell(root, 0, '备注', note);
 async function downloadJson(page: Page, button: Locator) {
   const waiting = page.waitForEvent('download');
   await button.click();
@@ -27,9 +23,9 @@ test('repository replacement locks mutations until confirmation and retains the 
   db.holdNextWrite();
   await root.getByRole('button', { name: '用仓库版', exact: true }).click();
   await expect.poll(() => db.at(`${path}/live/over`)).toBe('repo-tree');
-  for (const name of ['编辑', '删除', '加行']) {
-    await expect(root.getByRole('button', { name, exact: true }).last()).toBeDisabled();
-  }
+  await expect(root.getByRole('button', { name: /加行/ })).toBeDisabled();
+  await expect(cell(root, 0, '备注')).not.toBeEditable();
+  await expect(cell(root, 0, '是否已收')).toBeDisabled();
   await expect(root.locator('.fsh-notice button').first()).toBeDisabled();
   db.releaseWrite();
   await expect(root.locator('.fsh-notice')).toContainText('云端已有新版本');
@@ -40,7 +36,7 @@ test('repository replacement locks mutations until confirmation and retains the 
   await page.reload();
   await expect(root.locator('.fsh-notice')).toContainText('云端已有新版本');
   await root.getByRole('button', { name: '载入云端版', exact: true }).click();
-  await expect(root.locator('tbody tr').last()).toContainText('Repository row two');
+  await expect(cell(root, 1, '备注')).toHaveValue('Repository row two');
   await editNote(root, 'New repository-based note');
   await expect.poll(async () => JSON.parse(await unpack(db.at(`${path}/live/foreshadow`) as string)).rows[0].author['备注']).toBe('New repository-based note');
   expect(JSON.parse(await unpack(db.at(`${path}/live/foreshadow`) as string)).rows[1].author['备注']).toBe('Repository row two');
@@ -54,7 +50,7 @@ test('both views download the complete replaced version after repository adoptio
   const repo = foreshadowFixture(); repo.rows[0].author['备注'] = 'Repository';
   db.server(`${path}/incoming`, { ...previous, tree: 'repo-tree', commit: 'repo-commit', foreshadow: await pack(repo) });
   await root.getByRole('button', { name: '用仓库版', exact: true }).click();
-  await expect(root.locator('tbody tr').first()).toContainText('Repository');
+  await expect(cell(root, 0, '备注')).toHaveValue('Repository');
   const kept = await downloadJson(page, root.getByRole('button', { name: '下载被替换的版本', exact: true }));
   expect(kept.foreshadow.rows[0].author['备注']).toBe('Saved web version');
   expect(kept.plot_data).toEqual(JSON.parse(await unpack(previous.plot)));
@@ -69,10 +65,8 @@ test('editing another cell preserves leading newlines, CRLF and trailing spaces 
   const data = foreshadowFixture(), original = '\nFirst\r\nSecond\n  ';
   data.rows[0].author['伏笔／线索内容'] = original;
   const { db, root } = await setup(page, data);
-  await root.getByRole('button', { name: '编辑', exact: true }).first().click();
-  await expect(root.getByLabel('伏笔／线索内容', { exact: true })).toHaveValue(original.replaceAll('\r\n', '\n'));
-  await root.getByLabel('备注', { exact: true }).fill('Only the note changed');
-  await root.getByRole('button', { name: '保存修改' }).click();
+  await expect(cell(root, 0, '伏笔／线索内容')).toHaveValue(original.replaceAll('\r\n', '\n'));
+  await typeCell(root, 0, '备注', 'Only the note changed');
   await expect.poll(async () => JSON.parse(await unpack(db.at(`${path}/live/foreshadow`) as string)).rows[0].author['备注']).toBe('Only the note changed');
   expect(JSON.parse(await unpack(db.at(`${path}/live/foreshadow`) as string)).rows[0].author['伏笔／线索内容']).toBe(original);
 });
