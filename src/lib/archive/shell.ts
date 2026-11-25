@@ -127,6 +127,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       entries: book.manifest.entries, pathToKey: book.pathToKey,
       read: (path) => store.page(slug, book, path),
       timeline: () => store.timeline(slug, book),
+      people: () => store.people(slug, book),
       memo: (book.memo[view] ??= {}),
       href,
       readerHref: (path, hash = '') => (book.pathToKey.has(path) ? href({ view: 'reader', doc: path, hash }) : null),

@@ -2,6 +2,7 @@
 // search texts. Validation is strict so malformed data never reaches the DOM as paths.
 import type { PageEntry } from '../views/types.ts';
 import type { NovelTimelineData } from '../novelTimelineModel.ts';
+import type { NovelPeopleData } from '../novelPeopleModel.ts';
 
 export interface BookInfo { title: string; scope?: string; pageCount?: number; }
 export interface BookManifest { title: string; scope?: string; entries: Record<string, PageEntry>; }
@@ -12,6 +13,7 @@ export interface LoadedBook {
   /** Pending or finished reads, shared by every view and the search overlay. */
   searchRead?: Promise<Record<string, string> | null | undefined>;
   timelineRead?: Promise<NovelTimelineData | null | undefined>;
+  peopleRead?: Promise<NovelPeopleData | null | undefined>;
   memo: Record<string, Record<string, unknown>>;
 }
 

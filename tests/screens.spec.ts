@@ -47,6 +47,18 @@ test.describe('screens', () => {
       await expect(tl.locator('.tl')).toHaveClass(/overview/);
       await shot('timeline-overview');
 
+      const pv = page.locator('[data-view="people"] .ppl');
+      await page.goto('book/?book=maritime-story&view=people');
+      await expect(pv.locator('tr.person').first()).toBeVisible();
+      await shot('people');
+      await shot('people-full', true);
+      const known = pv.locator('tr.person').filter({ has: page.locator('.hk') }).first();
+      await known.locator('.who-btn').click();
+      await expect(pv.locator('tr.detail')).toBeVisible();
+      await pv.locator('tr.detail').evaluate((row) => window.scrollTo(0, row.getBoundingClientRect().top + window.scrollY -
+        document.querySelector<HTMLElement>('.bar')!.offsetHeight - document.querySelector<HTMLElement>('.ppl .tools')!.offsetHeight - document.querySelector<HTMLElement>('.ppl thead')!.offsetHeight - 8));
+      await shot('people-detail');
+
       await page.goto(event!);
       await expect(doc.locator('.doc-head h1')).not.toBeEmpty();
       await shot('reader-event');

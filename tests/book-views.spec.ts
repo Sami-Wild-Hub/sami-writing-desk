@@ -4,7 +4,7 @@ import { stubFirebase, watchErrors } from './stub.ts';
 // Signed-in book page behaviour against the stubbed Firebase in tests/stub.ts.
 const doc = (page: Page) => page.locator('[data-view="reader"] .doc');
 const title = (page: Page) => doc(page).locator('.doc-head h1');
-const tab = (page: Page, name: '阅读' | '时间线') => page.locator('#novel-views').getByRole('link', { name });
+const tab = (page: Page, name: '阅读' | '时间线' | '人物') => page.locator('#novel-views').getByRole('link', { name });
 const expectUrl = (page: Page, params: Record<string, string>, hash = '') => expect.poll(() => {
   const url = new URL(page.url());
   return { ...Object.fromEntries(url.searchParams), hash: decodeURIComponent(url.hash) };
@@ -126,6 +126,78 @@ test('timeline cards lead to the source and back, densities keep the place', asy
   await expect(tl(page).locator('.find .cnt')).toHaveText('1/1');
   await expect(row(page, '告别')).toHaveClass(/cur/);
   expect(errors).toEqual([]);
+});
+
+const ppl = (page: Page) => page.locator('[data-view="people"] .ppl');
+const person = (page: Page, name: string) => ppl(page).locator('tr.person').filter({ has: page.getByRole('button', { name }) });
+
+test('the people table searches, filters, expands and leads to the source and back', async ({ page }) => {
+  const errors = watchErrors(page);
+  await stubFirebase(page);
+  await page.goto('book/?book=maritime-story');
+  await tab(page, '人物').click();
+  await expectUrl(page, { book: 'maritime-story', view: 'people', doc: 'INDEX.md' });
+  await expect(tab(page, '人物')).toHaveAttribute('aria-current', 'page');
+  await expect(ppl(page).locator('tr.person')).toHaveCount(3);
+  await expect(ppl(page).locator('.cnt')).toHaveText('3 人');
+  const ann = person(page, 'Ann');
+  await expect(ann.locator('[data-label="称呼/别名"]')).toContainText('阿安（Cy）');
+  await expect(ann.locator('[data-label="所属"]')).toHaveText('Crew');
+  await expect(ann.locator('[data-label="首次出现"] a.loc')).toHaveText('1·2');
+  await expect(ann.locator('[data-label="首次出现"] a.loc')).toHaveAttribute('title', '第1章·2段');
+  await expect(ann.locator('[data-label="当前状态"]')).toHaveText('在码头等 Cy');
+  await expect(ann.locator('.hk')).toHaveText(['体貌左眉有疤一见1·2', '声音说话说话慢阶段：春2·5']);
+  await expect(person(page, 'Dee').locator('.kind')).toHaveText('简档');
+  await expect(person(page, 'Dee').locator('[data-label="主要关系"] a')).toHaveCount(0);
+
+  await ppl(page).locator('.find input').fill('阿安');
+  await expect(ppl(page).locator('tr.person')).toHaveCount(1);
+  await expect(ppl(page).locator('.cnt')).toHaveText('1 / 3 人');
+  await expect(ann.locator('mark')).toHaveText('阿安');
+  await ppl(page).locator('.find input').fill('');
+  await ppl(page).locator('.chips [data-filter="GR-Crew"]').click();
+  await expect(ppl(page).locator('tr.person')).toHaveCount(2);
+  await ppl(page).locator('.chips [data-filter="*entries"]').click();
+  await expect(ppl(page).locator('tr.person')).toHaveCount(1);
+
+  await ann.getByRole('button', { name: 'Ann' }).click();
+  const detail = ppl(page).locator('tr.detail');
+  await expect(detail.locator('h3')).toHaveText('Ann');
+  await expect(detail.locator('h4')).toHaveText(['称呼 1 条', '外在与言行 2 条']);
+  await expect(detail.locator('dd ul li')).toHaveText(['在码头等 Cy', '还没定约']);
+  await detail.locator('table.evt [data-label="出处"] a.loc').last().click();
+  await expectUrl(page, { book: 'maritime-story', doc: 'source/C2.md' }, '#p5');
+  await expect(doc(page).locator('[id="p5"]')).toBeInViewport();
+  await expect(page.locator('#novel-back')).toHaveText('返回 人物');
+  await page.locator('#novel-back').click();
+  await expectUrl(page, { book: 'maritime-story', view: 'people', doc: 'INDEX.md' });
+  await expect(ppl(page).locator('tr.detail h3')).toHaveText('Ann');
+  await expect(ppl(page).locator('.chips [aria-pressed="true"]')).toContainText('有称呼外貌');
+
+  await ppl(page).locator('tr.detail').getByRole('link', { name: '打开 KB 档案' }).click();
+  await expectUrl(page, { book: 'maritime-story', doc: 'owners/CHARACTER/CH-Ann/START_HERE.md' });
+  await expect(title(page)).toHaveText('Ann');
+  await page.goBack();
+  await ppl(page).locator('tr.detail').getByRole('button', { name: '收起' }).click();
+  await expect(ppl(page).locator('tr.detail')).toHaveCount(0);
+
+  await page.goto('book/?book=second-book&view=people');
+  await expect(page.locator('[data-view="people"] .ppl-empty')).toHaveText('这本书的人物表尚未同步。');
+  expect(errors).toEqual([]);
+});
+
+test('on a phone the people rows are cards and 所属 is in the drawer', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await stubFirebase(page);
+  await page.goto('book/?book=maritime-story&view=people');
+  await expect(ppl(page).locator('tr.person')).toHaveCount(3);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  await expect(ppl(page).locator('thead')).toBeHidden();
+  await page.locator('.bar [data-drawer]').click();
+  await ppl(page).locator('.side a.navlink[data-filter="*none"]').click();
+  await expect(ppl(page).locator('.side')).not.toHaveClass(/show/);
+  await expect(ppl(page).locator('tr.person')).toHaveCount(1);
+  await expect(person(page, 'Cy')).toBeVisible();
 });
 
 test('reader links locate a point or a line, and each book keeps its own timeline', async ({ page }) => {
