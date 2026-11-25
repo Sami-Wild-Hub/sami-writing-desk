@@ -34,15 +34,16 @@ async function drag(page: Page, source: Locator, target: Locator, before = false
  await page.mouse.move(tx,ty,{steps:25}); await page.mouse.up();
 }
 const card = (r: Locator, id: string) => r.locator(`.self-pane [data-card="${id}"]`);
-const cell = (r: Locator, beat: string, cat: string) => r.locator(`[data-zone="beat"][data-beat="${beat}"][data-cat="${cat}"]`);
+// One reveal list per Beat across all storylines; the category argument is kept for readability only.
+const cell = (r: Locator, beat: string, _cat?: string) => r.locator(`[data-zone="beat"][data-beat="${beat}"]`);
 test('picker, aligned reference, three categories and both tabs', async ({ page }) => {
  const { root, errors } = await open(page);
  await expect(root.locator('.self-col')).toHaveCount(3); await expect(root.locator('.mark')).toHaveCount(0);
  await root.locator('[data-act="toggle-picker"]').click(); await expect(root.locator('.pick-line')).toHaveCount(26);
  await root.locator('[data-act="select-line"][data-id="G11"]').click(); await expect(root.locator('.picker-panel')).toBeHidden(); await select(root, 'G01');
- const rows = await root.locator('.bg-mine').evaluateAll(xs => xs.map(x => [x.getBoundingClientRect().top, x.previousElementSibling!.getBoundingClientRect().top]));
- expect(rows).toHaveLength(30); expect(rows.every(([a,b]) => Math.abs(a-b) < 1)).toBe(true);
- expect(await root.locator('.bg-other .ref-line').allTextContents()).not.toContain(await root.locator('.self-head h2').textContent());
+ await expect(root.locator('.bgrid .badge.unplaced')).toHaveCount(0);
+ const own = await root.locator('.ri.mine .ri-line').allTextContents(), title = await root.locator('.self-head h2').textContent();
+ expect(own.every(t => t === title)).toBe(true); expect(await root.locator('.ri:not(.mine) .ri-line').allTextContents()).not.toContain(title);
  await root.locator('[data-act="tab"][data-tab="outline"]').click(); await expect(root.locator('.lane')).toHaveCount(3); await expect(root.locator('[data-filter-state]')).toHaveCount(3);
  expect(errors).toEqual([]);
 });
@@ -55,12 +56,11 @@ test('real drags: independent orders, inversions, category change, cross Beat an
  let current = await workspace(page, root); expect(current.plot_data.storyline_groups.find((g: any) => g.id === 'G01').time_order.current[i-1]).toBe(b);
  expect(current.plan).toEqual(initial.plan); await root.locator('#undo').click();
  await drag(page, cell(root,beat,'current').locator(`[data-card="${b}"]`), cell(root,beat,'current').locator(`[data-card="${a}"]`), true);
- await expect(root.locator('.bg-mine .marked')).toHaveCount(1); await expect(cell(root,beat,'current').locator(`[data-card="${b}"] .mark`)).toContainText('之后');
- expect((await workspace(page,root)).plot_data).toEqual(initial.plot_data);
+ current = await workspace(page,root); const at = (w: any, id: string) => w.plan.placements.find((p: any) => p.unit_id === id).order;
+ expect(at(current,b)).toBeLessThan(at(current,a)); expect(current.plot_data).toEqual(initial.plot_data);
  await drag(page, cell(root,beat,'current').locator(`[data-card="${a}"]`), cell(root,beat,'current').locator(`[data-card="${b}"]`), true); await expect(root.locator('.mark')).toHaveCount(0);
- await drag(page, card(root,a), cell(root,beat,'past'));
- current = await workspace(page,root); expect(current.plot_data.plot_units.find((u: any) => u.unit_id === a).category).toBe('past');
- expect(current.plot_data.storyline_groups.find((g: any) => g.id === 'G01').time_order.past.at(-1)).toBe(a); await root.locator('#undo').click();
+ await drag(page, card(root,a), cell(root,beat));
+ current = await workspace(page,root); expect(current.plot_data.plot_units.find((u: any) => u.unit_id === a).category).toBe('current');
  const id = group.time_order.current.find((id: string) => !initial.plan.placements.some((p: any) => p.unit_id === id));
  await drag(page,card(root,id),cell(root,'A1-B1','current')); await expect(cell(root,'A1-B1','current').locator(`[data-card="${id}"]`)).toHaveCount(1); await expect(card(root,id)).toHaveCount(1);
  await drag(page,cell(root,'A1-B1','current').locator(`[data-card="${id}"]`),cell(root,'A2-B1','current')); await expect(cell(root,'A2-B1','current').locator(`[data-card="${id}"]`)).toHaveCount(1);

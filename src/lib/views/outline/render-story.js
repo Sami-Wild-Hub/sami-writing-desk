@@ -32,10 +32,10 @@ export function partOpen(v, act) {
   return v.partState(act).done ? UI.open.has(`part-open:${act}`) : !UI.open.has(`part-shut:${act}`);
 }
 
-// Parts 2 and 3 share one grid: a row per Beat category, so both sides line up.
+// Left pane: per Part, one reveal-order list per Beat of every placed card (all storylines); 未排 cards are not here.
 export function beatsGrid(v, line) {
-  const { S, CATS, CAT_LABEL, BEAT_IDS, BEAT, beatLong, esc, cardMini, refChip } = v;
-  const head = `<div class="bg-head"><span>${v.actOnly ? 'Part' : 'Beat'}</span><span>其他故事线 · 已排（只读）</span><span>本线 · 揭示顺序</span></div>`;
+  const { S, BEAT_IDS, BEAT, beatLong, esc, revealItem } = v;
+  const head = `<div class="bg-head"><b>各 ${v.actOnly ? 'Part' : 'Beat'} 已排的卡</b><span>所有故事线 · 揭示顺序 · 本线卡片有描边，可拖动</span></div>`;
   const acts = [...new Set(BEAT_IDS.map(b => BEAT[b].act))];
   const partHead = a => {
     const st = v.partState(a), open = v.partOpen(a), only = v.actOnly && BEAT_IDS.find(b => BEAT[b].act === a);
@@ -43,15 +43,10 @@ export function beatsGrid(v, line) {
     return `<button class="bg-part ${st.done ? 'done' : ''}" data-act="toggle-part" data-act-no="${esc(a)}" aria-expanded="${open}">
       <span class="chev" aria-hidden="true"></span><b>Part ${esc(a)}</b>${only ? `<span class="part-title">${esc(BEAT[only].title)}</span>` : ''}${sign}</button>`;
   };
-  const beatRows = b => (v.actOnly ? '' : `<div class="bg-beat"><b>${beatLong(b)}</b><span>${esc(BEAT[b].title)}</span></div>`) + CATS.map(cat => {
-    const ids = S.reveal[b].filter(id => S.cards[id].cat === cat);
-    const others = ids.filter(id => S.cards[id].line !== line.id), mine = ids.filter(id => S.cards[id].line === line.id);
-    return `<div class="bg-row" data-zone-area><div class="bg-cat ${cat}">${CAT_LABEL[cat]}</div>
-      <div class="bg-other ${cat}">${others.map(id => refChip(S.cards[id])).join('')}</div>
-      <div class="bg-mine ${cat}" data-zone="beat" data-accept="card" data-beat="${b}" data-cat="${cat}">${mine.map(id => cardMini(S.cards[id])).join('')}</div></div>`;
-  }).join('');
-  const rows = acts.map(a => partHead(a) + (v.partOpen(a) ? BEAT_IDS.filter(b => BEAT[b].act === a).map(beatRows).join('') : '')).join('');
-  return `<div class="bgrid">${head}${rows}</div>`;
+  const beatList = b => (v.actOnly ? '' : `<div class="bg-beat"><b>${beatLong(b)}</b><span>${esc(BEAT[b].title)}</span></div>`) +
+    `<div class="bg-list" data-zone="beat" data-accept="card" data-beat="${b}">${S.reveal[b].map(id => revealItem(S.cards[id], S.cards[id].line === line.id)).join('')}</div>`;
+  const parts = acts.map(a => partHead(a) + (v.partOpen(a) ? BEAT_IDS.filter(b => BEAT[b].act === a).map(beatList).join('') : '')).join('');
+  return `<div class="bgrid">${head}${parts}</div>`;
 }
 
 export function selfPane(v, line) {

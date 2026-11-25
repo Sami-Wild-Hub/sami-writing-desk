@@ -62,6 +62,14 @@ class OutlineModel {
     rows.splice(at, 0, { unit_id: id, beat_id: beat, order: 0 });
     rows.forEach((p, i) => { this.state.placements[p.unit_id] = { ...p, order: (i + 1) * 10 }; });
   });
+  // Story tab: one reveal list per Beat across all storylines; index counts every other card already in that Beat.
+  placeAt = (id, beat, index = Infinity) => this.change(() => {
+    if (!this.beatIds.includes(beat)) throw Error('未知 Beat');
+    delete this.state.placements[id];
+    const rows = this.placedList().filter(p => p.beat_id === beat);
+    rows.splice(Math.min(index, rows.length), 0, { unit_id: id, beat_id: beat, order: 0 });
+    rows.forEach((p, i) => { this.state.placements[p.unit_id] = { ...p, order: (i + 1) * 10 }; });
+  });
   removeUnit = id => this.change(() => { delete this.state.placements[id]; });
   freshId = (prefix, existing) => { let n = 1; while (existing.has(prefix + n)) n++; return prefix + n; };
   addCard = (line, category, content) => {

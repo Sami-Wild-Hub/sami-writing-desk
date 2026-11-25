@@ -34,7 +34,7 @@ class OutlinePanel extends OutlineCloud {
     this.drag.onDrop = ({ kind, id, zone, index }) => this.attempt(() => {
       if (kind === 'rank') this.model.moveRank(id, index);
       else if (zone.zone === 'time') this.model.moveInTime(id, zone.cat, this.timeIndex(id, zone.cat, index));
-      else if (zone.zone === 'beat') this.model.placeInCell(id, zone.beat, zone.cat, index);
+      else if (zone.zone === 'beat') this.model.placeAt(id, zone.beat, index);
       else if (zone.zone === 'line') this.moveToLine(id, zone.line);
     });
     this.wire(); this.wireFiles();
@@ -178,6 +178,7 @@ class OutlinePanel extends OutlineCloud {
         this.undoToast(written ? '已标为已写' : '已改回未写', () => m.setWritten(id, written)); return;
       }
       case 'toggle-unplaced': u.onlyUnplaced = !u.onlyUnplaced; break;
+      case 'toggle-row': if (!u.open.delete('w:' + id)) u.open.add('w:' + id); break;
       case 'toggle-part': {
         const a = t.dataset.actNo, v = presentation(m, u), key = (v.partState(a).done ? 'part-open:' : 'part-shut:') + a;
         if (!u.open.delete(key)) u.open.add(key); break;

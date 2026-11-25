@@ -70,21 +70,21 @@ test('move cards by dropdown and by dragging onto the picker; drop into blank co
   await root.locator('#undo').click();
 
   const free = g01.time_order.current.find((id: string) => id !== x && id !== y && !initial.plan.placements.some((p: any) => p.unit_id === id));
-  const other = root.locator('[data-beat="A2-B1"][data-cat="current"]').locator('xpath=preceding-sibling::div[contains(@class,"bg-other")][1]');
+  const other = root.locator('[data-zone="beat"][data-beat="A2-B1"]');
   await grab(page, card(root, free)); await other.scrollIntoViewIfNeeded(); await dropAt(page, other, b => b.y + b.height / 2);
-  await expect(root.locator(`[data-beat="A2-B1"][data-cat="current"] [data-card="${free}"]`)).toHaveCount(1);
+  await expect(root.locator(`[data-beat="A2-B1"] [data-card="${free}"]`)).toHaveCount(1);
 
   const long = '长内容换行验证，'.repeat(40) + '结尾不被截断';
   await card(root, free).getByRole('button', { name: '编辑', exact: true }).click(); const form = root.locator('[data-form="card"]');
   await expect(form.locator('[name="title"]')).toHaveCount(0); await form.locator('[name="text"]').fill(long); await form.getByRole('button', { name: '保存', exact: true }).click();
-  for (const text of [card(root, free).locator('.c-text'), root.locator(`.bg-mine [data-card="${free}"] .mini-text`)]) {
+  for (const text of [card(root, free).locator('.c-text'), root.locator(`.bg-list [data-card="${free}"] .mini-text`)]) {
     await expect(text).toHaveText(long);
     expect(await text.evaluate(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight + 1 && el.clientHeight > 60)).toBe(true);
   }
   const badges = root.locator('[data-workbench] .badge');
   await expect(badges).toHaveText(Array(await badges.count()).fill(/^(已写|已排|未排)$/));
   await expect(root.locator('.self-col.combined .era')).toHaveText('Combined');
-  await expect(root.locator(`.bg-mine [data-card="${free}"]`)).toBeVisible();
+  await expect(root.locator(`.bg-list [data-card="${free}"]`)).toBeVisible();
   await root.locator('[data-act="toggle-picker"]').click();
   await expect(root.locator('.pick-line[data-id="G03"] small')).toHaveText(/^\d+\|\d+\|\d+$/);
   const panel = (await root.locator('.picker-panel').boundingBox())!, self = (await root.locator('.self-pane').boundingBox())!;

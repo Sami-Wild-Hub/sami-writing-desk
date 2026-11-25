@@ -37,16 +37,28 @@ export function cardFull(v, c, { actions = '', where = true, drag = false, mark 
     <div class="c-foot">${foot}<span class="c-actions">${actions}</span></div></article>`;
 }
 
-// Compact card in a Beat cell of the current storyline; its details, merged originals and refs unfold in place.
-export function cardMini(v, c) {
-  const { D, UI, esc, list, markBlock, badge } = v;
-  const nd = c.details?.length || 0, no = c.origins?.length || 0, key = `m:${c.id}`;
-  const label = [nd && `细节 ${nd}`, no && `原纲 ${no}`, c.refs && '出处'].filter(Boolean).join(' · ');
-  const more = label ? `<details class="mini-more" data-key="${esc(key)}" ${UI.open.has(key) ? 'open' : ''}><summary>${label}</summary>
-    ${nd ? list(c.details) : ''}${no ? `<div class="mini-sub">并入的原纲</div>${list(c.origins)}` : ''}${c.refs ? `<span class="refs">出处 ${esc(c.refs)}</span>` : ''}</details>` : '';
-  return `<div class="mini ${c.cat} ${D.marks[c.id] ? 'marked' : ''}" data-drag="card" data-id="${c.id}" data-card="${c.id}">
-    <div class="mini-head"><span class="drag-grip" data-drag-handle title="拖动卡片排序" aria-hidden="true">⋮⋮</span>${badge(c)}<span class="mini-text">${esc(c.text)}</span>
-    <button class="x" data-act="unplace" data-id="${c.id}" title="移出这一拍" aria-label="移出这一拍">×</button></div>${more}${markBlock(c)}</div>`;
+// What unfolds under a card in the Beat list: details, merged originals and refs.
+export function cardMore(v, c) {
+  const { list, esc } = v, nd = c.details?.length || 0, no = c.origins?.length || 0;
+  return [nd ? list(c.details) : '', no ? `<div class="mini-sub">并入的原纲</div>${list(c.origins)}` : '', c.refs ? `<span class="refs">出处 ${esc(c.refs)}</span>` : ''].join('');
+}
+
+// One card in a Beat's reveal list (any storyline). Written cards fold to one line; only this storyline's cards drag or leave.
+export function revealItem(v, c, mine) {
+  const { UI, CAT_LABEL, esc, nameOf, lineOf, badge, cardMore } = v;
+  const tag = `<span class="cat-tag ${c.cat}">${CAT_LABEL[c.cat]}</span><span class="ri-line">${esc(nameOf(lineOf(c.line)))}</span>`;
+  const grip = mine ? '<span class="drag-grip" data-drag-handle title="拖动调整揭示顺序" aria-hidden="true">⋮⋮</span>' : '';
+  const x = mine ? `<button class="x" data-act="unplace" data-id="${c.id}" title="移出这一拍" aria-label="移出这一拍">×</button>` : '';
+  const attrs = `data-drag="card" data-id="${c.id}" data-card="${c.id}"`;
+  if (c.status === '已写') {
+    const open = UI.open.has('w:' + c.id);
+    return `<div class="ri done ${mine ? 'mine' : ''} ${open ? 'open' : ''}" ${attrs}><div class="ri-head">${grip}<button type="button" class="ri-ok" data-act="toggle-written" data-id="${c.id}" aria-pressed="true" title="已写 · 点击改回未写">✓</button>${tag}
+      <button type="button" class="ri-text" data-act="toggle-row" data-id="${c.id}" aria-expanded="${open}" title="${open ? '收起' : '展开全文'}">${esc(c.text)}</button>${x}</div>${open ? `<div class="ri-more">${cardMore(c)}</div>` : ''}</div>`;
+  }
+  const key = `m:${c.id}`, n = (c.details?.length || 0) + (c.origins?.length || 0) + (c.refs ? 1 : 0);
+  const label = [c.details?.length && `细节 ${c.details.length}`, c.origins?.length && `原纲 ${c.origins.length}`, c.refs && '出处'].filter(Boolean).join(' · ');
+  return `<div class="ri todo ${mine ? 'mine' : ''}" ${attrs}><div class="ri-head">${grip}${badge(c)}${tag}${mine ? '<span class="ri-mine">本线</span>' : ''}${x}</div>
+    <div class="mini-text">${esc(c.text)}</div>${n ? `<details class="mini-more" data-key="${esc(key)}" ${UI.open.has(key) ? 'open' : ''}><summary>${label}</summary>${cardMore(c)}</details>` : ''}</div>`;
 }
 
 // Move a card to another storyline; it keeps its category and Beat placement.
@@ -54,12 +66,6 @@ export function lineSelect(v, c) {
   const { S, sections, nameOf, esc } = v;
   const groups = sections(S.lines.filter(l => l.id !== c.line)).map(s => `<optgroup label="${esc(s.name)}">${s.lines.map(l => `<option value="${l.id}">${esc(nameOf(l))}</option>`).join('')}</optgroup>`).join('');
   return `<select data-change="move-line" data-id="${c.id}" aria-label="转到其他故事线"><option value="">转到…</option>${groups}</select>`;
-}
-
-// Read-only reference to another storyline's card.
-export function refChip(v, c) {
-  const { lineOf, nameOf, esc } = v;
-  return `<div class="ref"><span class="ref-line">${esc(nameOf(lineOf(c.line)))}</span><span class="ref-text">${esc(c.text)}</span></div>`;
 }
 
 export function cardEditor(v, c) {
