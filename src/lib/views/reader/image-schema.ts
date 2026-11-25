@@ -8,7 +8,8 @@ export function parseOwnerImages(raw: unknown): OwnerImages | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('图片数据格式无效');
   for (const images of Object.values(value)) {
     if (!Array.isArray(images) || !images.every(image => image && typeof image.caption === 'string' &&
-      typeof image.src === 'string' && image.src.startsWith('data:image/webp;base64,'))) throw new Error('图片数据格式无效');
+      typeof image.src === 'string' &&
+      (image.src.startsWith('data:image/webp;base64,') || image.src.startsWith('data:image/svg+xml;base64,')))) throw new Error('图片数据格式无效');
   }
   return value as OwnerImages;
 }
