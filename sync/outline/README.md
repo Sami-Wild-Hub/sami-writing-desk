@@ -34,7 +34,9 @@ on leaving the cell (or after a short pause); 是否已收 is a dropdown with �
 部分回收 / 不需要. Rows are archived with 不需要 instead of deleted. The quote in
 伏笔／线索内容 links to its 埋设章节 paragraph, and each `Cn` in 实际回收章节 links in
 place; `derived.recovery_chapters` is recomputed from that cell when it is edited.
-回收方式／揭示内容 stays in the file but is not shown. Shortcuts: Enter / Shift+Enter
+重要程度 and 回收方式／揭示内容 stay in the file but are not shown. 埋设章节 shows
+chapter numbers only (`C1P10-11` → `1`); stored paragraphs still steer the quote
+link until the cell is retyped, and a plain number is read as a chapter. Shortcuts: Enter / Shift+Enter
 move down / up, Alt+Enter inserts a line break, Alt+0–3 set the status, Alt+S opens it,
 Ctrl/⌘+Enter adds a row below. Source-row numbers are internal; the author’s 伏笔ID
 cell is freely editable and new rows continue numeric IDs. Phones show each row as a

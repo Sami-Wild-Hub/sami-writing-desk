@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { foreshadowFixture } from './foreshadow-fixture.mjs';
-import { validateForeshadow, addRow, filterRows, plantingParts, recoveryChapters, setCell, visibleColumns, OPEN } from '../src/lib/views/foreshadow/model.js';
+import { validateForeshadow, addRow, filterRows, plantingChapterText, plantingParts, recoveryChapters, setCell, visibleColumns, OPEN } from '../src/lib/views/foreshadow/model.js';
 import { rowHtml, plantingHtml } from '../src/lib/views/foreshadow/render.ts';
 
 test('editing author cells leaves derived links and unrelated metadata untouched', () => {
@@ -56,6 +56,15 @@ test('埋设章节 pieces keep the author text and separators; only CxPy, CxPy-z
   assert.deepEqual(plantingParts('C3'), [{ text: 'C3', chapter: 3, paragraph: 0 }]);
   assert.deepEqual(plantingParts('C1#P8 或 C0P1'), [{ text: 'C1#P8' }, { text: ' ' }, { text: '或' }, { text: ' ' }, { text: 'C0P1' }]);
   assert.equal(plantingParts('').length, 0);
+  assert.deepEqual(plantingParts('12'), [{ text: '12', chapter: 12, paragraph: 0 }]);
+});
+
+test('the table shows 埋设章节 as chapter numbers only; unrecognized text stays as written', () => {
+  assert.equal(plantingChapterText('C1P10-11'), '1');
+  assert.equal(plantingChapterText('C12P34-37，C15P1，C12P40'), '12，15');
+  assert.equal(plantingChapterText('3'), '3');
+  assert.equal(plantingChapterText('待定'), '待定');
+  assert.equal(plantingChapterText(''), '');
 });
 
 test('the quote links to its planting paragraph, recovery chapters link in place, cells are inputs with author text escaped verbatim', () => {
@@ -63,12 +72,12 @@ test('the quote links to its planting paragraph, recovery chapters link in place
   const host = { readerHref: (path, hash = '') => `/sami-writing-desk/book/?doc=${path}${hash}` };
   const html = rowHtml(data, data.rows[0], host);
   assert.ok(html.includes('data-kind="planting"') && html.includes('source/C1.md#p2') && html.includes('>A clue\nSecond line</a>'));
-  assert.ok(html.includes('data-col="埋设章节" aria-label="埋设章节" spellcheck="false">\nC1P2</textarea>'));
+  assert.ok(html.includes('data-col="埋设章节" aria-label="埋设章节" spellcheck="false">\n1</textarea>'));
   assert.ok(html.includes('data-kind="recovery"') && html.includes('source/C2.md') && html.includes('>C2</a>'));
   assert.ok(html.includes('<select class="fsh-input" data-col="是否已收"') && html.includes('<option value="部分回收" selected>'));
   assert.ok(html.includes('<option value="不需要">'));
-  assert.ok(!html.includes('回收方式／揭示内容') && !html.includes('<button'));
-  assert.deepEqual(visibleColumns(data).map(c => c.header), data.columns.map(c => c.header).filter(h => h !== '回收方式／揭示内容'));
+  assert.ok(!html.includes('回收方式／揭示内容') && !html.includes('重要程度') && !html.includes('<button'));
+  assert.deepEqual(visibleColumns(data).map(c => c.header), ['伏笔ID', '埋设章节', '伏笔／线索内容', '是否已收', '实际回收章节', '回收场景／位置', '备注']);
   const literal = rowHtml(data, data.rows[1], host);
   assert.ok(literal.includes('&lt;script&gt;literal&lt;/script&gt;') && !literal.includes('<script>'));
   assert.ok(plantingHtml('C2P5-6', host).includes('source/C2.md#p5'));

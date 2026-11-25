@@ -12,7 +12,7 @@
 - **时间线**：`src/lib/views/timeline/`（主轴与线路、总览/紧凑/标准三档密度、查找、卡片）+ `src/lib/novelTimelineModel.ts` + `src/styles/timeline.css`。卡片里「打开事件页」进阅读器的事件页，出处跳到 `source/C#.md#p#`，线路名跳到该 Owner 的时间索引页。时间线数据是 `books/<slug>/timeline`，由 Novel 仓库 `site/sync_familyhub.py` 写成**一个 JSON 字符串**（RTDB 会丢掉空列表与空对象），页面登录后读取并 `JSON.parse`。
 - **校稿台**：`src/lib/views/proof/` + `src/styles/proof.css`，用法、存储与任务全文见 [proofdesk.md](proofdesk.md)。它是唯一会写数据库的视图（`households/<householdId>/proofdesk`）。
 - **样式**：`src/styles/global.css` 是共用的颜色、字号与布局（手机 / 1280 / 2560 同一套，宽屏放大字号、正文保持行长）；各视图样式单独一个文件。
-- **伏笔表**：`src/lib/views/foreshadow/`，在大纲之后；读取 `outlineSync/<slug>/live/foreshadow` 的压缩 JSON，和大纲共享修订、权限与保存通道。按导入列顺序显示作者原文（「回收方式／揭示内容」列保留在数据里但不显示），每格像表格一样直接输入，离开格子或停顿后自动保存。伏笔／线索内容的引文本身链接到埋设章节的段落，实际回收章节里的每个 `C#` 就地链接；回收链接由该格自动推出。是否已收是下拉框（未收／已收／部分回收／不需要），不删行，用「不需要」归档。键盘：Enter/Shift+Enter 上下、边缘方向键换格、Alt+Enter 换行、Esc 撤销本格、Alt+0–3 设状态、Alt+S 打开状态、Ctrl/⌘+Enter 在下面加行（新行带上当前筛选的章节/状态）。手机按卡片显示，默认隐藏已收和不需要，筛选记在本机，本机草稿按账号/书隔离。没有伏笔文件时显示未同步。同步与上线步骤见 [outline sync README](../sync/outline/README.md#foreshadow-table)。
+- **伏笔表**：`src/lib/views/foreshadow/`，在大纲之后；读取 `outlineSync/<slug>/live/foreshadow` 的压缩 JSON，和大纲共享修订、权限与保存通道。按导入列顺序显示作者原文（「重要程度」「回收方式／揭示内容」两列保留在数据里但不显示；埋设章节只显示章节号，段落仍保存在数据里供引文跳转；行底色交替），每格像表格一样直接输入，离开格子或停顿后自动保存。伏笔／线索内容的引文本身链接到埋设章节的段落，实际回收章节里的每个 `C#` 就地链接；回收链接由该格自动推出。是否已收是下拉框（未收／已收／部分回收／不需要），不删行，用「不需要」归档。键盘：Enter/Shift+Enter 上下、边缘方向键换格、Alt+Enter 换行、Esc 撤销本格、Alt+0–3 设状态、Alt+S 打开状态、Ctrl/⌘+Enter 在下面加行（新行带上当前筛选的章节/状态）。手机按卡片显示，默认隐藏已收和不需要，筛选记在本机，本机草稿按账号/书隔离。没有伏笔文件时显示未同步。同步与上线步骤见 [outline sync README](../sync/outline/README.md#foreshadow-table)。
 
 ## 权威与数据流
 
