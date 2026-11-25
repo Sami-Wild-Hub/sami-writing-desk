@@ -132,6 +132,16 @@ button.badge.placed:hover { color: var(--placed); }
 .ri-more ul, .mini-more ul { margin: .1rem 0 .2rem; padding-left: 1.2em; color: var(--ink-2); font-size: .78rem; line-height: 1.6; cursor: text; user-select: text; }
 .ri-more .refs, .mini-more .refs { display: block; white-space: normal; }
 .mini-more { margin: .15rem 0 0; }
+.bg-written { display: flex; flex-direction: column; gap: 3px; margin: .2rem 0 .1rem; }
+.bw-cap { padding: .1rem .2rem; color: var(--done); font-size: .75rem; font-weight: 700; }
+.pillar { border-radius: 8px; background: var(--done-soft); }
+.pillar.own { box-shadow: inset 0 0 0 1.5px var(--accent-soft); }
+.pillar > summary { display: flex; align-items: center; gap: .5rem; padding: .3rem .55rem; font-size: .8125rem; }
+.pillar > summary small { margin-left: auto; color: var(--ink-3); }
+.pl-name { font-weight: 700; color: var(--ink); }
+.pl-body { display: flex; flex-direction: column; gap: 2px; padding: 0 .3rem .3rem; }
+.pl-body .ri.done { background: var(--surface); }
+.pl-body .ri.done.mine { background: var(--accent-soft); }
 .bg-beat { display: flex; align-items: baseline; gap: .6rem; margin-top: .55rem; padding-top: .35rem; border-top: 1px solid var(--line-2); font-size: .8125rem; }
 .bg-beat span { color: var(--ink-3); }
 .mini-more > summary { width: fit-content; color: var(--ink-3); font-size: .75rem; cursor: pointer; }

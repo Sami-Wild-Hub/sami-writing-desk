@@ -34,7 +34,11 @@ class OutlinePanel extends OutlineCloud {
     this.drag.onDrop = ({ kind, id, zone, index }) => this.attempt(() => {
       if (kind === 'rank') this.model.moveRank(id, index);
       else if (zone.zone === 'time') this.model.moveInTime(id, zone.cat, this.timeIndex(id, zone.cat, index));
-      else if (zone.zone === 'beat') this.model.placeAt(id, zone.beat, index);
+      else if (zone.zone === 'beat') {
+        // The Beat list shows only unwritten cards; turn the drop spot into a place among all of the Beat's cards.
+        const m = this.model, ids = m.placedList().filter(p => p.beat_id === zone.beat).map(p => p.unit_id);
+        m.placeAt(id, zone.beat, fullTimeIndex(ids, id, x => m.unitMap[x].status !== 'WRITTEN', index));
+      }
       else if (zone.zone === 'line') this.moveToLine(id, zone.line);
     });
     this.wire(); this.wireFiles();

@@ -32,10 +32,10 @@ export function partOpen(v, act) {
   return v.partState(act).done ? UI.open.has(`part-open:${act}`) : !UI.open.has(`part-shut:${act}`);
 }
 
-// Left pane: per Part, one reveal-order list per Beat of every placed card (all storylines); 未排 cards are not here.
+// Left pane, per Part: 已写 cards folded by main character, then the 已排 cards of every storyline in reveal order; 未排 cards are not here.
 export function beatsGrid(v, line) {
   const { S, BEAT_IDS, BEAT, beatLong, esc, revealItem } = v;
-  const head = `<div class="bg-head"><b>各 ${v.actOnly ? 'Part' : 'Beat'} 已排的卡</b><span>所有故事线 · 揭示顺序 · 本线卡片有描边，可拖动</span></div>`;
+  const head = `<div class="bg-head"><b>各 ${v.actOnly ? 'Part' : 'Beat'} 已排的卡</b><span>所有故事线 · 已写按人物收起 · 待写按揭示顺序，本线卡片可拖动</span></div>`;
   const acts = [...new Set(BEAT_IDS.map(b => BEAT[b].act))];
   const partHead = a => {
     const st = v.partState(a), open = v.partOpen(a), only = v.actOnly && BEAT_IDS.find(b => BEAT[b].act === a);
@@ -43,8 +43,21 @@ export function beatsGrid(v, line) {
     return `<button class="bg-part ${st.done ? 'done' : ''}" data-act="toggle-part" data-act-no="${esc(a)}" aria-expanded="${open}">
       <span class="chev" aria-hidden="true"></span><b>Part ${esc(a)}</b>${only ? `<span class="part-title">${esc(BEAT[only].title)}</span>` : ''}${sign}</button>`;
   };
-  const beatList = b => (v.actOnly ? '' : `<div class="bg-beat"><b>${beatLong(b)}</b><span>${esc(BEAT[b].title)}</span></div>`) +
-    `<div class="bg-list" data-zone="beat" data-accept="card" data-beat="${b}">${S.reveal[b].map(id => revealItem(S.cards[id], S.cards[id].line === line.id)).join('')}</div>`;
+  // 已写 cards gather under the storyline's first-ranked participant (张予安 × 周念儿 → 张予安), one fold per person.
+  const pillarOf = id => v.partsOf(v.lineOf(S.cards[id].line))[0];
+  const written = b => {
+    const ids = S.reveal[b].filter(id => S.cards[id].status === '已写');
+    if (!ids.length) return '';
+    const names = [...new Set(ids.map(pillarOf))].sort((x, y) => v.rankOf(x) - v.rankOf(y));
+    const pillar = name => {
+      const mine = ids.filter(id => pillarOf(id) === name), key = `pl:${b}:${name}`, own = mine.some(id => S.cards[id].line === line.id);
+      return `<details class="pillar ${own ? 'own' : ''}" data-key="${esc(key)}" ${v.UI.open.has(key) ? 'open' : ''}><summary><span class="pl-name">${esc(name)}</span><small>${mine.length} 张已写</small></summary>
+        <div class="pl-body">${mine.map(id => revealItem(S.cards[id], S.cards[id].line === line.id)).join('')}</div></details>`;
+    };
+    return `<div class="bg-written"><div class="bw-cap">✓ 已写 ${ids.length} 张 · 按主要人物</div>${names.map(pillar).join('')}</div>`;
+  };
+  const beatList = b => (v.actOnly ? '' : `<div class="bg-beat"><b>${beatLong(b)}</b><span>${esc(BEAT[b].title)}</span></div>`) + written(b) +
+    `<div class="bg-list" data-zone="beat" data-accept="card" data-beat="${b}">${S.reveal[b].filter(id => S.cards[id].status !== '已写').map(id => revealItem(S.cards[id], S.cards[id].line === line.id)).join('')}</div>`;
   const parts = acts.map(a => partHead(a) + (v.partOpen(a) ? BEAT_IDS.filter(b => BEAT[b].act === a).map(beatList).join('') : '')).join('');
   return `<div class="bgrid">${head}${parts}</div>`;
 }

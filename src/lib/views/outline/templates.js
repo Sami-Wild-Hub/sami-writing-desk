@@ -43,7 +43,7 @@ export function cardMore(v, c) {
   return [nd ? list(c.details) : '', no ? `<div class="mini-sub">并入的原纲</div>${list(c.origins)}` : '', c.refs ? `<span class="refs">出处 ${esc(c.refs)}</span>` : ''].join('');
 }
 
-// One card in a Beat's reveal list (any storyline). Written cards fold to one line; only this storyline's cards drag or leave.
+// One card in a Beat (any storyline). Written cards are one-line rows inside a person's fold (not draggable); only this storyline's cards drag or leave.
 export function revealItem(v, c, mine) {
   const { UI, CAT_LABEL, esc, nameOf, lineOf, badge, cardMore } = v;
   const tag = `<span class="cat-tag ${c.cat}">${CAT_LABEL[c.cat]}</span><span class="ri-line">${esc(nameOf(lineOf(c.line)))}</span>`;
@@ -52,7 +52,7 @@ export function revealItem(v, c, mine) {
   const attrs = `data-drag="card" data-id="${c.id}" data-card="${c.id}"`;
   if (c.status === '已写') {
     const open = UI.open.has('w:' + c.id);
-    return `<div class="ri done ${mine ? 'mine' : ''} ${open ? 'open' : ''}" ${attrs}><div class="ri-head">${grip}<button type="button" class="ri-ok" data-act="toggle-written" data-id="${c.id}" aria-pressed="true" title="已写 · 点击改回未写">✓</button>${tag}
+    return `<div class="ri done ${mine ? 'mine' : ''} ${open ? 'open' : ''}" data-card="${c.id}"><div class="ri-head"><button type="button" class="ri-ok" data-act="toggle-written" data-id="${c.id}" aria-pressed="true" title="已写 · 点击改回未写">✓</button>${tag}
       <button type="button" class="ri-text" data-act="toggle-row" data-id="${c.id}" aria-expanded="${open}" title="${open ? '收起' : '展开全文'}">${esc(c.text)}</button>${x}</div>${open ? `<div class="ri-more">${cardMore(c)}</div>` : ''}</div>`;
   }
   const key = `m:${c.id}`, n = (c.details?.length || 0) + (c.origins?.length || 0) + (c.refs ? 1 : 0);
