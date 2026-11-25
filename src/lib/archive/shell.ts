@@ -63,7 +63,9 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
   const updateGate = mountGate(gate, session);
   bar.setReady(false);
   if (!session || !config.householdId) return;
-  const store = createStore(session, config.householdId);
+  const store = createStore(session, config.householdId, config.projectId, (slug) => {
+    if (connected()) toast('小说后台下载失败，可继续阅读', { label: '重试', action: () => store.refresh(slug) });
+  });
   const search = mountSearch();
 
   let activeUid = '';
@@ -147,6 +149,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
   };
 
   const loadCatalog = async () => {
+    if (!connected()) return;
     message('正在加载小说目录…');
     try {
       const catalog = await store.loadCatalog();
@@ -193,7 +196,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
   };
 
   const openBook = async (slug: string) => {
-    if (current?.slug === slug) return current;
+    if (current?.slug === slug && current.book === store.peek(slug)) return current;
     const book = await store.book(slug);
     if (!book) return null;
     dropBook();

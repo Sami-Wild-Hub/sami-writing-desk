@@ -1,5 +1,5 @@
-// Search overlay of the book page (/ or Ctrl/⌘K): full-text hits over the synced search
-// texts, grouped by kind with filter chips; 正文 hits jump to their paragraph.
+// Search overlay of the book page (/ or Ctrl/⌘K): full-text hits over page text generated
+// from the cached HTML, grouped by kind with filter chips; 正文 hits jump to their paragraph.
 import { cleanTitle, ownerName, ownerPages, pageLabel, pathInfo } from '../labels.ts';
 import type { PageEntry } from '../views/types.ts';
 import { esc, icon } from './ui.ts';
@@ -114,7 +114,7 @@ export function mountSearch() {
         : '<div class="search-empty">输入人物、事件或原文里的字词</div>';
       return select(0);
     }
-    list.innerHTML = '<div class="search-empty">搜索中…</div>';
+    list.innerHTML = '<div class="search-empty">搜索准备中…</div>';
     let texts;
     try { texts = await source.texts(); }
     catch { if (run === serial) { list.inert = false; list.innerHTML = '<button type="button" data-retry>搜索失败，点击重试</button>'; } return; }

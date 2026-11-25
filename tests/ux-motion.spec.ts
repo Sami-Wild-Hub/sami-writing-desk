@@ -62,7 +62,7 @@ test('search can reopen during its exit, and revocation removes it immediately',
 });
 
 test('late reader metadata is ready before the page becomes readable', async ({ page }) => {
-  const stub = await stubFirebase(page); stub.holdReads('/timeline');
+  const stub = await stubFirebase(page); stub.holdReads('/books/maritime-story');
   await page.goto('book/?book=maritime-story&doc=source%2FC2.md');
   await expect(page.locator('#novel-live')).toBeVisible();
   await expect(page.locator('.doc-head')).toHaveCount(0);
