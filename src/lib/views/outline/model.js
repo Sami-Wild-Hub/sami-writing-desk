@@ -48,7 +48,13 @@ class OutlineModel {
     if (unit.category === category) return;
     columns[unit.category] = columns[unit.category].filter(x => x !== id); unit.category = category; columns[category].push(id);
   };
-  moveInTime = (id, category, index) => this.change(() => {
+  // line: drop into another storyline's column (story tab shows a whole section); one undo step.
+  moveInTime = (id, category, index, line) => this.change(() => {
+    const unit = this.unitMap[id];
+    if (line && this.storyMap[line] && unit.storyline_group_id !== line) {
+      const from = this.storyMap[unit.storyline_group_id].time_order;
+      from[unit.category] = from[unit.category].filter(x => x !== id); this.storyMap[line].time_order[unit.category].push(id); unit.storyline_group_id = line;
+    }
     this.setCategory(id, category);
     const ids = this.storyMap[this.unitMap[id].storyline_group_id].time_order[category];
     ids.splice(ids.indexOf(id), 1); ids.splice(index, 0, id);

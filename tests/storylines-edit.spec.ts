@@ -40,14 +40,14 @@ test('delete a card and a storyline, undo both, and the deletions survive a refr
   await card(root, id).locator('.card-menu summary').click(); await card(root, id).getByRole('button', { name: '删除', exact: true }).click(); await expect(card(root, id)).toHaveCount(0);
 
   await root.locator('[data-act="toggle-picker"]').click(); await root.locator('.pick-line[data-id="G11"]').click();
-  await root.locator('.self-head [data-act="edit-line"]').click();
+  await root.locator('.self-line.current [data-act="edit-line"]').click();
   await root.getByRole('button', { name: '删除故事线', exact: true }).click(); await expect(page.locator('.toast')).toContainText('撤销');
   await root.locator('[data-act="toggle-picker"]').click(); await expect(root.locator('.pick-line')).toHaveCount(25);
   await root.locator('#undo').click(); await expect(root.locator('.pick-line')).toHaveCount(26);
-  await root.locator('.pick-line[data-id="G11"]').click(); await root.locator('.self-head [data-act="edit-line"]').click();
+  await root.locator('.pick-line[data-id="G11"]').click(); await root.locator('.self-line.current [data-act="edit-line"]').click();
   await root.getByRole('button', { name: '删除故事线', exact: true }).click();
   await expect.poll(async () => { const p = await savedPlot(reads); return [Boolean(unit({ plot_data: p }, id)), Boolean(line({ plot_data: p }, 'G11'))]; }).toEqual([false, false]);
-  await page.reload(); await expect(root.locator('.self-head h2')).toBeVisible();
+  await page.reload(); await expect(root.locator('.self-line.current h3')).toBeVisible();
   const after = await workspace(page, root); expect(unit(after, id)).toBeUndefined(); expect(line(after, 'G11')).toBeUndefined();
   expect(after.plot_data.storyline_groups).toHaveLength(25); expect(errors).toEqual([]);
 });
@@ -65,7 +65,7 @@ test('move cards by dropdown and by dragging onto the picker; drop into blank co
   w = await workspace(page, root); expect(unit(w, y).storyline_group_id).toBe('G03'); expect(line(w, 'G03').time_order.current.at(-1)).toBe(y);
 
   const past = g01.time_order.past[0];
-  await grab(page, card(root, past)); await dropAt(page, root.locator('.self-col.combined .col-body'), b => b.y + b.height - 30);
+  await grab(page, card(root, past)); await dropAt(page, root.locator('.self-line.current .self-col.combined .col-body'), b => b.y + b.height - 30);
   w = await workspace(page, root); expect(unit(w, past).category).toBe('combined'); expect(line(w, 'G01').time_order.combined.at(-1)).toBe(past);
   await root.locator('#undo').click();
 
@@ -92,7 +92,7 @@ test('move cards by dropdown and by dragging onto the picker; drop into blank co
   await root.locator('[data-act="toggle-picker"]').click();
 
   await expect.poll(async () => (await savedPlot(reads)).plot_units.find((u: any) => u.unit_id === free).content).toBe(long);
-  await page.reload(); await expect(root.locator('.self-head h2')).toBeVisible(); w = await workspace(page, root);
+  await page.reload(); await expect(root.locator('.self-line.current h3')).toBeVisible(); w = await workspace(page, root);
   expect([unit(w, x).storyline_group_id, unit(w, y).storyline_group_id, unit(w, free).content, unit(w, free).element_title || '']).toEqual(['G03', 'G03', long, '']);
   expect(w.plan.placements.find((p: any) => p.unit_id === free).beat_id).toBe('A2-B1'); expect(errors).toEqual([]);
 });

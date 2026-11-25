@@ -33,7 +33,7 @@ for (const width of [390, 1440]) {
     expect(await root.locator('.rank-pop').evaluate((el: HTMLElement) => el.inert)).toBe(false);
     await page.keyboard.press('Escape'); await expect(root.locator('.rank-pop')).toHaveCount(0);
     await expect(rank).toBeFocused();
-    await root.locator('.self-head [data-act="edit-line"]').click();
+    await root.locator('.self-line.current [data-act="edit-line"]').click();
     await expect(root.locator('.modal [name="title"]')).toBeFocused();
     await page.keyboard.press('Escape'); await expect(root.locator('.modal-back')).toHaveCount(0);
     await root.locator('[data-tab="outline"]').click();

@@ -24,7 +24,7 @@ test('the workbench resumes where it was left after a reload', async ({ page }) 
   await expect(root.locator('[data-filter-state="placed"]')).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => library.evaluate(el => el.scrollTop)).toBe(top);
   await root.locator('[data-act="tab"][data-tab="story"]').click();
-  await expect(root.locator('.self-head h2')).toContainText(plot_data.storyline_groups.at(-1).title);
+  await expect(root.locator('.self-line.current h3')).toContainText(plot_data.storyline_groups.at(-1).title);
   await expect(root.locator('.self-head [data-act="toggle-unplaced"]')).toHaveAttribute('aria-pressed', 'false');
   expect(errors).toEqual([]);
 });

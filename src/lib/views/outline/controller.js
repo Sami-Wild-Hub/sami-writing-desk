@@ -33,7 +33,7 @@ class OutlinePanel extends OutlineCloud {
     this.drag = mountDrag(root.querySelector('.outline-view'));
     this.drag.onDrop = ({ kind, id, zone, index }) => this.attempt(() => {
       if (kind === 'rank') this.model.moveRank(id, index);
-      else if (zone.zone === 'time') this.model.moveInTime(id, zone.cat, this.timeIndex(id, zone.cat, index));
+      else if (zone.zone === 'time') this.model.moveInTime(id, zone.cat, this.timeIndex(id, zone.cat, index, zone.line), zone.line);
       else if (zone.zone === 'beat') {
         // The Beat list shows only unwritten cards; turn the drop spot into a place among all of the Beat's cards.
         const m = this.model, ids = m.placedList().filter(p => p.beat_id === zone.beat).map(p => p.unit_id);
@@ -51,8 +51,8 @@ class OutlinePanel extends OutlineCloud {
     this.render();
   }
   // With placed/written cards hidden, the drop index counts shown cards only.
-  timeIndex = (id, cat, index) => {
-    const m = this.model, ids = m.storyMap[m.unitMap[id].storyline_group_id].time_order[cat];
+  timeIndex = (id, cat, index, line) => {
+    const m = this.model, ids = m.storyMap[line && m.storyMap[line] ? line : m.unitMap[id].storyline_group_id].time_order[cat];
     return this.UI.onlyUnplaced ? fullTimeIndex(ids, id, x => m.unitMap[x].status !== 'WRITTEN' && !m.used(x), index) : index;
   };
   get activeBeat() { return this.model.activeBeat; }
@@ -120,6 +120,12 @@ class OutlinePanel extends OutlineCloud {
     if (this.scroll && !this.viewShown) { this.viewShown = true; for (const [key, top] of Object.entries(this.scroll)) root.querySelector(`[data-keep="${CSS.escape(key)}"]`)?.scrollTo(0, top); }
     const field = draft ? root.querySelector(`[data-draft="${CSS.escape(draft)}"] [name="${name}"]`) : focused === search ? search : null;
     if (field) { field.focus({ preventScroll: true }); if (selection != null) field.setSelectionRange(selection, end); }
+    // Picking a storyline or a main character scrolls the stacked storylines to it (a whole section opens at its top).
+    if (this.scrollLine && u.tab === 'story') {
+      const box = root.querySelector('.self-lines'), block = root.querySelector(`[data-line-block="${CSS.escape(this.scrollLine)}"]`);
+      if (box && block) box.scrollTo(0, this.scrollTop ? 0 : block.offsetTop - box.offsetTop);
+    }
+    this.scrollLine = null; this.scrollTop = false;
     this.updateSyncStatus(); this.queueView();
   };
   renderSearch = () => {
@@ -157,10 +163,15 @@ class OutlinePanel extends OutlineCloud {
       case 'undo': m.undo(); return;
       case 'toggle-rank': u.rank = !u.rank; break;
       case 'toggle-picker': u.picker = !u.picker; break;
-      case 'select-line': this.finishInline(); u.line = id; u.picker = false; u.editing = u.composing = null; break;
+      case 'select-line': this.finishInline(); u.line = id; u.picker = false; u.editing = u.composing = null; this.scrollLine = id; break;
+      case 'select-section': {
+        const first = presentation(m, u).sections().find(s => s.name === t.dataset.name)?.lines[0];
+        if (first) { this.finishInline(); u.line = first.id; u.picker = false; u.editing = u.composing = null; this.scrollLine = first.id; this.scrollTop = true; }
+        break;
+      }
       case 'new-line': u.dialog = { id: null, title: '', parts: [], lead: '' }; u.picker = false; break;
       case 'edit-line': { const l = m.storyMap[id]; u.dialog = { id, title: l.title, parts: [...l.participants], lead: l.lead_participant }; break; }
-      case 'open-line': u.tab = 'story'; u.line = id; break;
+      case 'open-line': u.tab = 'story'; u.line = id; this.scrollLine = id; break;
       case 'close-dialog': u.dialog = null; break;
       case 'add-part': this.addPart(); break;
       case 'drop-part':
@@ -171,7 +182,7 @@ class OutlinePanel extends OutlineCloud {
       case 'delete-card': if (u.editing === id) u.editing = null; this.undoToast('已删除卡片', () => m.deleteCard(id)); return;
       case 'delete-line': this.deleteLine(id); return;
       case 'cancel-edit': this.editors.drop('card:' + u.editing); u.editing = null; break;
-      case 'compose': u.composing = t.dataset.cat; break;
+      case 'compose': this.finishInline(); if (t.dataset.line) u.line = t.dataset.line; u.composing = t.dataset.cat; break;
       case 'cancel-compose': this.editors.drop(`new:${u.line}:${u.composing}`); u.composing = null; break;
       case 'choose-beat': m.activeBeat = id; break;
       case 'unplace': u.filters.add(m.unitMap[id].status === 'WRITTEN' ? 'written' : 'unplaced'); u.open.add('lib:' + m.unitMap[id].storyline_group_id); this.undoToast('已移出本拍', () => m.removeUnit(id)); return;

@@ -45,7 +45,7 @@ test('lead sections in both tabs update immediately, survive refresh, and follow
   await expect.poll(async () => JSON.parse(await unpack((reads.at('households/novel-stub-house/outlineSync/maritime-story/live') as { plot: string }).plot)).storyline_groups.find((g: any) => g.id === 'G03').lead_participant).toBe('周念儿');
   await page.reload(); await expect(root.locator('#overall')).toBeVisible(); await pickerLead(root, 'G03', '周念儿');
   await root.locator('[data-act="toggle-picker"]').click(); await root.locator('.pick-line[data-id="G03"]').click();
-  await root.locator('.self-head [data-act="edit-line"]').click();
+  await root.locator('.self-line.current [data-act="edit-line"]').click();
   await root.locator('[data-act="drop-part"][data-name="周念儿"]').click();
   await expect(root.getByRole('combobox', { name: '标志性参与者', exact: true })).toHaveValue('赵祈宁');
   await root.locator('[data-form="line"]').getByRole('button', { name: '保存', exact: true }).click();

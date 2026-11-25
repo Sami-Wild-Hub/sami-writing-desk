@@ -38,11 +38,11 @@ const card = (r: Locator, id: string) => r.locator(`.self-pane [data-card="${id}
 const cell = (r: Locator, beat: string, _cat?: string) => r.locator(`[data-zone="beat"][data-beat="${beat}"]`);
 test('picker, aligned reference, three categories and both tabs', async ({ page }) => {
  const { root, errors } = await open(page);
- await expect(root.locator('.self-col')).toHaveCount(3); await expect(root.locator('.mark')).toHaveCount(0);
+ await expect(root.locator('.self-line.current .self-col')).toHaveCount(3); await expect(root.locator('.mark')).toHaveCount(0);
  await root.locator('[data-act="toggle-picker"]').click(); await expect(root.locator('.pick-line')).toHaveCount(26);
  await root.locator('[data-act="select-line"][data-id="G11"]').click(); await expect(root.locator('.picker-panel')).toBeHidden(); await select(root, 'G01');
  await expect(root.locator('.bgrid .badge.unplaced')).toHaveCount(0);
- const own = await root.locator('.ri.mine .ri-line').allTextContents(), title = await root.locator('.self-head h2').textContent();
+ const own = await root.locator('.ri.mine .ri-line').allTextContents(), title = await root.locator('.self-line.current h3').textContent();
  expect(own.every(t => t === title)).toBe(true); expect(await root.locator('.ri:not(.mine) .ri-line').allTextContents()).not.toContain(title);
  await root.locator('[data-act="tab"][data-tab="outline"]').click(); await expect(root.locator('.lane')).toHaveCount(3); await expect(root.locator('[data-filter-state]')).toHaveCount(3);
  expect(errors).toEqual([]);
@@ -76,10 +76,10 @@ test('new card, edit, participants, real ranking drag, cloud refresh and undo', 
  let form = root.locator('[data-form="new"]'); await expect(form.locator('[name="title"]')).toHaveCount(0); await form.locator('[name="text"]').fill('验证新增 保存往返'); await form.getByRole('button',{name:'添加',exact:true}).click();
  const added = (await workspace(page,root)).plot_data.plot_units.find((u:any)=>u.content==='验证新增 保存往返').unit_id;
  await card(root,added).getByRole('button',{name:'编辑',exact:true}).click(); form=root.locator('[data-form="card"]'); await form.locator('[name="text"]').fill('修改后的内容'); await form.getByRole('button',{name:'保存',exact:true}).click();
- await root.locator('.self-head [data-act="edit-line"]').click(); form=root.locator('[data-form="line"]'); await form.locator('[name="title"]').fill('更改标题'); await form.locator('[name="part"]').fill('手填参与者'); await form.getByRole('button',{name:'添加',exact:true}).click(); await root.locator('[data-form="line"]').getByRole('button',{name:'保存',exact:true}).click();
- await root.locator('[data-act="toggle-rank"]').click(); const ranking=root.locator('.rank-item'), second=await ranking.nth(1).getAttribute('data-id'); await drag(page,ranking.nth(1),ranking.nth(0),true); await root.locator('.rank-pop [data-act="toggle-rank"]').click(); await expect(root.locator('.self-head h2')).toContainText(`${second} ×`);
+ await root.locator('.self-line.current [data-act="edit-line"]').click(); form=root.locator('[data-form="line"]'); await form.locator('[name="title"]').fill('更改标题'); await form.locator('[name="part"]').fill('手填参与者'); await form.getByRole('button',{name:'添加',exact:true}).click(); await root.locator('[data-form="line"]').getByRole('button',{name:'保存',exact:true}).click();
+ await root.locator('[data-act="toggle-rank"]').click(); const ranking=root.locator('.rank-item'), second=await ranking.nth(1).getAttribute('data-id'); await drag(page,ranking.nth(1),ranking.nth(0),true); await root.locator('.rank-pop [data-act="toggle-rank"]').click(); await expect(root.locator('.self-line.current h3')).toContainText(`${second} ×`);
  await expect.poll(async()=>JSON.parse(await unpack((reads.at('households/novel-stub-house/outlineSync/maritime-story/live') as {plot:string}).plot)).participant_order[0]).toBe(second);
- await page.reload(); await expect(root.locator('.self-head h2')).toContainText('更改标题'); const saved=await workspace(page,root); expect(saved.plot_data.plot_units.find((u:any)=>u.unit_id===added).content).toBe('修改后的内容'); expect(saved.plot_data.participant_order[0]).toBe(second);
+ await page.reload(); await expect(root.locator('.self-line.current h3')).toContainText('更改标题'); const saved=await workspace(page,root); expect(saved.plot_data.plot_units.find((u:any)=>u.unit_id===added).content).toBe('修改后的内容'); expect(saved.plot_data.participant_order[0]).toBe(second);
  await root.locator('[data-act="toggle-rank"]').click(); await drag(page,root.locator('.rank-item').nth(1),root.locator('.rank-item').nth(0),true); await root.locator('.rank-pop [data-act="toggle-rank"]').click(); await root.locator('#undo').click(); expect((await workspace(page,root)).plot_data.participant_order[0]).toBe(second); expect(errors).toEqual([]);
 });
 

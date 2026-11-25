@@ -27,6 +27,8 @@ export function presentation(model, UI) {
     return `${ids.length - placed}|${placed}|${ids.length}`;
   };
   v.sections = (lines = S.lines) => S.ranking.map(name => ({ name, lines: lines.filter(l => l.lead === name) })).filter(s => s.lines.length);
+  // The section (lead participant) a storyline is listed under; the story tab shows all of its storylines at once.
+  v.sectionOf = line => v.sections().find(s => s.lines.some(l => l.id === line.id)) || { name: line.lead, lines: [line] };
   v.list = items => `<ul>${items.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul>`;
   v.markText = m => {
     const q = ids => ids.map(id => `「${v.clip(S.cards[id].text, 20)}」`).join('、');

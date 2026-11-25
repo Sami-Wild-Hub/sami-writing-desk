@@ -6,16 +6,18 @@ export function renderStory(v) {
     <section class="self-pane">${selfPane(line)}</section></div>`;
 }
 
-// Sits between the Beat grid and the storyline; opens leftward over the grid, also while a card is dragged onto it.
+// Sits between the Beat grid and the storylines; opens leftward over the grid, also while a card is dragged onto it.
+// Picking a main character (section) shows all of its storylines; picking one storyline shows the same section, scrolled to it.
 export function picker(v, line) {
-  const { UI, nameOf, countOf, sections, esc } = v;
-  const item = l => `<button class="pick-line" role="radio" aria-checked="${l.id === line.id}" data-act="select-line" data-id="${l.id}" data-zone="line" data-accept="card" data-line="${l.id}" data-nomark>
+  const { nameOf, countOf, sections, esc, UI } = v, sec = v.sectionOf(line);
+  const item = l => `<button class="pick-line" aria-current="${l.id === line.id}" data-in="${sec.lines.includes(l)}" data-act="select-line" data-id="${l.id}" data-zone="line" data-accept="card" data-line="${l.id}" data-nomark>
     <span>${esc(nameOf(l))}</span><small>${countOf(l.id)}</small></button>`;
-  const panel = `<div class="picker-panel" data-keep="picker"><div class="picker-top"><b>选择故事线</b><small class="muted" title="未排 | 已排 | 总数">未排|已排|total</small>
-    <button class="btn tiny quiet" data-act="new-line">＋ 新建故事线</button></div><p class="hint">把卡片拖到某条线上即转过去。</p>
-    <div role="radiogroup" aria-label="故事线">${sections().map(s => `<div class="sec-name">${esc(s.name)}</div>${s.lines.map(item).join('')}`).join('')}</div></div>`;
-  return `<aside class="picker ${UI.picker ? 'open' : ''}" data-drag-open><button class="picker-strip" data-act="toggle-picker" aria-expanded="${UI.picker}" title="选择故事线">
-    <span class="chev" aria-hidden="true"></span><span class="strip-label">故事线</span><span class="strip-name">${esc(nameOf(line))}</span></button>${panel}</aside>`;
+  const head = s => `<button class="sec-name sec-pick" data-act="select-section" data-name="${esc(s.name)}" aria-pressed="${s.name === sec.name}" title="显示 ${esc(s.name)} 的全部故事线">${esc(s.name)}<small>${s.lines.length} 条</small></button>`;
+  const panel = `<div class="picker-panel" data-keep="picker"><div class="picker-top"><b>选择主要人物</b><small class="muted" title="未排 | 已排 | 总数">未排|已排|total</small>
+    <button class="btn tiny quiet" data-act="new-line">＋ 新建故事线</button></div><p class="hint">点人物名显示其全部故事线；把卡片拖到某条线上即转过去。</p>
+    <div aria-label="故事线">${sections().map(s => `${head(s)}${s.lines.map(item).join('')}`).join('')}</div></div>`;
+  return `<aside class="picker ${UI.picker ? 'open' : ''}" data-drag-open><button class="picker-strip" data-act="toggle-picker" aria-expanded="${UI.picker}" title="选择主要人物">
+    <span class="chev" aria-hidden="true"></span><span class="strip-label">主要人物</span><span class="strip-name">${esc(sec.name)}</span></button>${panel}</aside>`;
 }
 
 // A Part is written once it has placed cards and every one of them (any storyline) is 已写.
@@ -34,8 +36,8 @@ export function partOpen(v, act) {
 
 // Left pane, per Part: 已写 cards folded by main character, then the 已排 cards of every storyline in reveal order; 未排 cards are not here.
 export function beatsGrid(v, line) {
-  const { S, BEAT_IDS, BEAT, beatLong, esc, revealItem } = v;
-  const head = `<div class="bg-head"><b>各 ${v.actOnly ? 'Part' : 'Beat'} 已排的卡</b><span>所有故事线 · 已写按人物收起 · 待写按揭示顺序，本线卡片可拖动</span></div>`;
+  const { S, BEAT_IDS, BEAT, beatLong, esc, revealItem } = v, own = new Set(v.sectionOf(line).lines.map(l => l.id));
+  const head = `<div class="bg-head"><b>各 ${v.actOnly ? 'Part' : 'Beat'} 已排的卡</b><span>所有故事线 · 已写按人物收起 · 待写按揭示顺序，右侧人物的卡可拖动</span></div>`;
   const acts = [...new Set(BEAT_IDS.map(b => BEAT[b].act))];
   const partHead = a => {
     const st = v.partState(a), open = v.partOpen(a), only = v.actOnly && BEAT_IDS.find(b => BEAT[b].act === a);
@@ -50,34 +52,36 @@ export function beatsGrid(v, line) {
     if (!ids.length) return '';
     const names = [...new Set(ids.map(pillarOf))].sort((x, y) => v.rankOf(x) - v.rankOf(y));
     const pillar = name => {
-      const mine = ids.filter(id => pillarOf(id) === name), key = `pl:${b}:${name}`, own = mine.some(id => S.cards[id].line === line.id);
-      return `<details class="pillar ${own ? 'own' : ''}" data-key="${esc(key)}" ${v.UI.open.has(key) ? 'open' : ''}><summary><span class="pl-name">${esc(name)}</span><small>${mine.length} 张已写</small></summary>
-        <div class="pl-body">${mine.map(id => revealItem(S.cards[id], S.cards[id].line === line.id)).join('')}</div></details>`;
+      const mine = ids.filter(id => pillarOf(id) === name), key = `pl:${b}:${name}`, ours = mine.some(id => own.has(S.cards[id].line));
+      return `<details class="pillar ${ours ? 'own' : ''}" data-key="${esc(key)}" ${v.UI.open.has(key) ? 'open' : ''}><summary><span class="pl-name">${esc(name)}</span><small>${mine.length} 张已写</small></summary>
+        <div class="pl-body">${mine.map(id => revealItem(S.cards[id], own.has(S.cards[id].line))).join('')}</div></details>`;
     };
     return `<div class="bg-written"><div class="bw-cap">✓ 已写 ${ids.length} 张 · 按主要人物</div>${names.map(pillar).join('')}</div>`;
   };
   const beatList = b => (v.actOnly ? '' : `<div class="bg-beat"><b>${beatLong(b)}</b><span>${esc(BEAT[b].title)}</span></div>`) + written(b) +
-    `<div class="bg-list" data-zone="beat" data-accept="card" data-beat="${b}">${S.reveal[b].filter(id => S.cards[id].status !== '已写').map(id => revealItem(S.cards[id], S.cards[id].line === line.id)).join('')}</div>`;
+    `<div class="bg-list" data-zone="beat" data-accept="card" data-beat="${b}">${S.reveal[b].filter(id => S.cards[id].status !== '已写').map(id => revealItem(S.cards[id], own.has(S.cards[id].line))).join('')}</div>`;
   const parts = acts.map(a => partHead(a) + (v.partOpen(a) ? BEAT_IDS.filter(b => BEAT[b].act === a).map(beatList).join('') : '')).join('');
   return `<div class="bgrid">${head}${parts}</div>`;
 }
 
 export function selfPane(v, line) {
-  const { UI, CATS, nameOf, esc, selfCol } = v;
-  return `<div class="self-head"><div class="self-title"><span class="kicker">故事线 · 时间顺序</span><h2>${esc(nameOf(line))}</h2></div>
-    <button class="chip" data-act="toggle-unplaced" aria-pressed="${UI.onlyUnplaced}" title="隐藏已排和已写的卡">只看未排</button>
-    <button class="btn" data-act="edit-line" data-id="${line.id}">编辑名称与参与者</button></div>
-    <div class="self-cols">${CATS.map(cat => selfCol(line, cat)).join('')}</div>`;
+  const { UI, CATS, nameOf, countOf, esc, selfCol } = v, sec = v.sectionOf(line);
+  const block = l => `<section class="self-line ${l.id === line.id ? 'current' : ''}" data-line-block="${l.id}"><div class="self-line-head"><h3>${esc(nameOf(l))}</h3>
+    <small class="muted" title="未排 | 已排 | 总数">${countOf(l.id)}</small><button class="btn tiny quiet" data-act="edit-line" data-id="${l.id}" title="编辑名称与参与者">✎ 编辑</button></div>
+    <div class="self-cols">${CATS.map(cat => selfCol(l, cat)).join('')}</div></section>`;
+  return `<div class="self-head"><div class="self-title"><span class="kicker">主要人物 · ${sec.lines.length} 条故事线 · 时间顺序</span><h2>${esc(sec.name)}</h2></div>
+    <button class="chip" data-act="toggle-unplaced" aria-pressed="${UI.onlyUnplaced}" title="隐藏已排和已写的卡">只看未排</button></div>
+    <div class="self-lines" data-keep="self">${sec.lines.map(block).join('')}</div>`;
 }
 
 export function selfCol(v, line, cat) {
-  const { UI, S, CAT_LABEL, list, cardFull, cardEditor, composer, lineSelect } = v;
+  const { UI, S, CAT_LABEL, cardFull, cardEditor, composer, lineSelect } = v;
   const all = S.time[line.id][cat], ids = UI.onlyUnplaced ? all.filter(id => S.cards[id].status === '未排') : all;
   const hidden = all.length - ids.length;
   const actions = id => `<button class="btn tiny" data-act="edit-card" data-id="${id}">编辑</button>${lineSelect(S.cards[id])}${v.moveSelect(id)}<details class="card-menu"><summary class="btn tiny" aria-label="更多卡片操作">更多</summary><button class="btn tiny danger" data-act="delete-card" data-id="${id}">删除</button></details>`;
   const card = id => (UI.editing === id ? cardEditor(S.cards[id]) : cardFull(S.cards[id], { drag: true, mark: false, actions: actions(id) }));
   return `<section class="self-col ${cat}"><div class="col-head"><span class="era">${CAT_LABEL[cat]}</span><span class="n">${UI.onlyUnplaced ? `${ids.length} / ${all.length}` : all.length} 张</span>
-    <button class="inline-plus" data-act="compose" data-cat="${cat}">＋ 新增</button></div>
-    <div class="col-body" data-keep="col-${cat}" data-zone-area><div class="col-list" data-zone="time" data-accept="card" data-cat="${cat}">${ids.map(card).join('')}</div>
-    ${hidden ? `<button class="btn tiny quiet hidden-note" data-act="toggle-unplaced">另有 ${hidden} 张已排/已写，点此显示</button>` : ''}${UI.composing === cat ? composer(cat) : ''}</div></section>`;
+    <button class="inline-plus" data-act="compose" data-cat="${cat}" data-line="${line.id}">＋ 新增</button></div>
+    <div class="col-body" data-zone-area><div class="col-list" data-zone="time" data-accept="card" data-cat="${cat}" data-line="${line.id}">${ids.map(card).join('')}</div>
+    ${hidden ? `<button class="btn tiny quiet hidden-note" data-act="toggle-unplaced">另有 ${hidden} 张已排/已写，点此显示</button>` : ''}${UI.composing === cat && UI.line === line.id ? composer(cat) : ''}</div></section>`;
 }
