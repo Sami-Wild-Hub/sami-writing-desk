@@ -128,10 +128,13 @@ async function database({ canonical = false } = {}) {
   }
   }
   const books: Record<string, Tree> = { 'maritime-story': first, 'second-book': stubBook('Second Book', fixture('第二本')) };
+  for (const [slug, book] of Object.entries(books)) {
+    book.version ??= `${slug}-book-v1`; book.imageVersion ??= `${slug}-images-v1`;
+  }
   const catalog = Object.fromEntries(Object.entries(books).map(([slug, book]) => [slug, {
     title: (book.manifest as Tree).title,
     scope: (book.manifest as Tree).scope,
-    version: `${slug}-book-v1`, imageVersion: `${slug}-images-v1`,
+    version: book.version, imageVersion: book.imageVersion,
   }]));
   return { households: { [stub.householdId]: { members: { [reader.uid]: { email: reader.email } }, settings: { enrollmentOpen: false }, novelArchive: { catalog, books }, outlineSync } } } as Tree;
 }
@@ -144,6 +147,7 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
   let hold = false;
   const receipts: (() => void)[] = [];
   let heldRead = '';
+  let exactRead = false;
   const readReceipts: (() => void)[] = [];
   const listens = new Map<{ send(data: unknown): void }, Set<string>>();
   let holdWrite = false;
@@ -197,7 +201,7 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
       const ack = () => send({ r, b: { s: 'ok', d: a === 'g' ? at(b.p!) : {} } });
       if (holdWrite && (a === 'p' || a === 'm')) { holdWrite = false; acknowledge = ack; }
       else if (hold && (a === 'p' || a === 'm')) receipts.push(ack);
-      else if (a === 'g' && heldRead && b.p?.includes(heldRead)) readReceipts.push(ack);
+      else if (a === 'g' && heldRead && (exactRead ? b.p === heldRead : b.p?.includes(heldRead))) readReceipts.push(ack);
       else ack();
     });
   });
@@ -210,7 +214,8 @@ export async function stubFirebase(page: Page, { signedIn = true, canonical = fa
   };
   return Object.assign(reads, {
     server, at, holdWrites: () => { hold = true; }, releaseWrites: () => { hold = false; receipts.splice(0).forEach(send => send()); },
-    holdReads: (part: string) => { heldRead = part; }, releaseReads: () => { heldRead = ''; readReceipts.splice(0).forEach(send => send()); },
+    holdReads: (part: string, exact = false) => { heldRead = part; exactRead = exact; },
+    releaseReads: () => { heldRead = ''; readReceipts.splice(0).forEach(send => send()); },
     holdNextWrite: () => { holdWrite = true; },
     releaseWrite: () => { if (!acknowledge) throw Error('No write awaiting confirmation'); acknowledge(); acknowledge = undefined; },
   });

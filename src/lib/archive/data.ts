@@ -9,6 +9,8 @@ import type { OwnerImages } from '../views/reader/image-schema.ts';
 export interface BookInfo { title: string; scope?: string; pageCount?: number; version?: string; imageVersion?: string; }
 export interface BookManifest { title: string; scope?: string; entries: Record<string, PageEntry>; }
 export interface BookPayload {
+  version?: string;
+  imageVersion?: string;
   manifest: BookManifest;
   pages: Record<string, string>;
   timeline?: unknown;
@@ -16,6 +18,9 @@ export interface BookPayload {
   images?: unknown;
 }
 export interface LoadedBook {
+  version?: string;
+  imageVersion?: string;
+  complete: boolean;
   manifest: BookManifest;
   pathToKey: Map<string, string>;
   pages: Map<string, string>;
@@ -66,7 +71,7 @@ export function validateManifest(value: unknown): BookManifest | null {
 
 export function newBook(manifest: BookManifest): LoadedBook {
   const pathToKey = new Map(Object.entries(manifest.entries).map(([key, entry]) => [entry.path, key]));
-  return { manifest, pathToKey, pages: new Map(), memo: {} };
+  return { manifest, pathToKey, pages: new Map(), memo: {}, complete: false };
 }
 
 export function parseBook(value: unknown): BookPayload | null {
@@ -78,5 +83,9 @@ export function parseBook(value: unknown): BookPayload | null {
     if (!KEY.test(key) || typeof html !== 'string') return null;
     pages[key] = html;
   }
-  return { manifest, pages, timeline: value.timeline ?? null, people: value.people ?? null, images: value.images ?? null };
+  const keys = Object.keys(manifest.entries);
+  if (!keys.length || keys.some(key => pages[key] === undefined)) return null;
+  return { manifest, pages, timeline: value.timeline ?? null, people: value.people ?? null, images: value.images,
+    version: typeof value.version === 'string' ? value.version : undefined,
+    imageVersion: typeof value.imageVersion === 'string' ? value.imageVersion : undefined };
 }

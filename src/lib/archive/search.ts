@@ -114,7 +114,7 @@ export function mountSearch() {
         : '<div class="search-empty">输入人物、事件或原文里的字词</div>';
       return select(0);
     }
-    list.innerHTML = '<div class="search-empty">搜索中…</div>';
+    list.innerHTML = '<div class="search-empty">搜索准备中…</div>';
     let texts;
     try { texts = await source.texts(); }
     catch { if (run === serial) { list.inert = false; list.innerHTML = '<button type="button" data-retry>搜索失败，点击重试</button>'; } return; }
