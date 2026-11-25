@@ -1,7 +1,7 @@
 // 大纲 tab: choose a Beat, see it in Past / Current / Combined, pick cards in from the library; all grouped by participant.
 export function renderOutline(v) {
   const { CATS, beatNav, beatHeader, boardLane, library, BEAT_IDS, beatLong, UI, esc, BEAT } = v;
-  return `<div class="ol"><label class="mobile-beat">选择 ${v.actOnly ? 'Part' : 'Beat'}<select data-change="choose-beat">${BEAT_IDS.map(id => `<option value="${id}" ${id === UI.beat ? 'selected' : ''}>${beatLong(id)} · ${esc(BEAT[id].title)}</option>`).join('')}</select></label><nav class="ol-side" aria-label="${v.actOnly ? 'Part' : 'Act 与 Beat'}">${beatNav()}</nav>
+  return `<div class="ol"><label class="mobile-beat">选择 ${v.actOnly ? 'Part' : 'Beat'}<select data-change="choose-beat">${BEAT_IDS.map(id => `<option value="${id}" ${id === UI.beat ? 'selected' : ''}>${beatLong(id)} · ${esc(BEAT[id].title)}</option>`).join('')}</select></label><nav class="ol-side" aria-label="${v.actOnly ? 'Part' : 'Part 与 Beat'}">${beatNav()}</nav>
     <main class="ol-main">${beatHeader()}<div class="ol-board">${CATS.map(boardLane).join('')}</div></main>
     <aside class="library" data-keep="library" aria-label="素材库">${library()}</aside></div>`;
 }
@@ -10,15 +10,15 @@ export function beatNav(v) {
   const { DATA, UI, S, BEAT, esc } = v;
   const acts = [...new Set(DATA.beats.map(b => b.act))];
   const beat = b => `<button class="beat ${b.id === UI.beat ? 'active' : ''}" data-act="choose-beat" data-id="${b.id}" aria-current="${b.id === UI.beat ? 'step' : 'false'}">
-    <span class="beat-no">${v.actOnly ? `PART ${b.act}` : `Beat ${b.beat}`}</span><span class="beat-name">${esc(b.title)}</span><small>${S.reveal[b.id].length}</small></button>`;
+    <span class="beat-no">${v.actOnly ? `Part ${b.act}` : `Beat ${b.beat}`}</span><span class="beat-name">${esc(b.title)}</span><small>${S.reveal[b.id].length}</small></button>`;
   if (v.actOnly) return `<div class="side-h">PART</div>` + DATA.beats.map(beat).join('');
-  return `<div class="side-h">ACT / BEAT</div>` + acts.map(a => `<div class="actname">ACT ${a}</div>${DATA.beats.filter(b => b.act === a).map(beat).join('')}`).join('');
+  return `<div class="side-h">PART / BEAT</div>` + acts.map(a => `<div class="actname">PART ${a}</div>${DATA.beats.filter(b => b.act === a).map(beat).join('')}`).join('');
 }
 
 export function beatHeader(v) {
   const { UI, BEAT, beatLong, esc } = v;
   const b = BEAT[UI.beat];
-  return `<header class="beatbar"><h2>${esc(beatLong(b.id).toUpperCase())}</h2>
+  return `<header class="beatbar"><h2>${esc(beatLong(b.id))}</h2>
     <div class="beat-title">${esc(b.title) || '<span class="muted">（未命名）</span>'}</div><label class="field">本 ${v.actOnly ? 'Part' : 'Beat'} 备注<textarea id="beat-note" data-input="beat-note" rows="2">${esc(b.note)}</textarea></label></header>`;
 }
 
