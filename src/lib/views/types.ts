@@ -6,6 +6,7 @@ import type { NovelTimelineData } from '../novelTimelineModel.ts';
 import type { NovelRoute } from '../novelArchiveRoute.ts';
 import type { OutlineSyncState } from './outline/sync.ts';
 import type { ToastAction } from '../archive/ui.ts';
+import type { OwnerImages } from './reader/image-schema.ts';
 
 export interface PageEntry { path: string; title: string; section: string; }
 
@@ -27,6 +28,7 @@ export interface NovelViewHost {
   uid: string;
   /** The book's people table, read once; null when not synced. */
   people(): Promise<NovelPeopleData | null | undefined>;
+  images(): Promise<OwnerImages | null | undefined>;
   /** Kept per book and view while signed in, across view switches and book switches. */
   memo: Record<string, unknown>;
   /** A place below households/<id>/ in the household's private database (e.g. proofdesk/<slug>). */

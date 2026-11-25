@@ -5,6 +5,7 @@ import type { FirebaseHouseholdSession } from '../householdSession.ts';
 import { parseTimelineData } from '../novelTimelineModel.ts';
 import type { OutlineSyncState } from '../views/outline/sync.ts';
 import { parsePeopleData } from '../novelPeopleModel.ts';
+import { parseOwnerImages } from '../views/reader/image-schema.ts';
 import { newBook, parseCatalog, parseSearch, validateManifest, type BookInfo, type LoadedBook } from './data.ts';
 
 export function createStore(session: FirebaseHouseholdSession, householdId: string) {
@@ -84,6 +85,12 @@ export function createStore(session: FirebaseHouseholdSession, householdId: stri
       return book.peopleRead.then(
         (data) => { if (data === undefined) book.peopleRead = undefined; return data; },
         (error: unknown) => { book.peopleRead = undefined; throw error; });
+    },
+    images(slug: string, book: LoadedBook) {
+      book.imagesRead ??= read(`books/${slug}/images`).then(raw => raw === undefined ? undefined : parseOwnerImages(raw));
+      return book.imagesRead.then(
+        data => { if (data === undefined) book.imagesRead = undefined; return data; },
+        (error: unknown) => { book.imagesRead = undefined; throw error; });
     },
     search(slug: string, book: LoadedBook) {
       book.searchRead ??= read(`books/${slug}/search`).then((raw) => (raw === undefined ? undefined : parseSearch(raw)));

@@ -8,6 +8,7 @@ import { addTimelineBits, buildPage, type ReaderPage } from './page.ts';
 import { mountPeek } from './peek.ts';
 import { mountReadingMenu } from './settings.ts';
 import { buildToc, markToc } from './toc.ts';
+import { pathInfo } from '../../labels.ts';
 
 const createReader: CreateNovelView = (host) => {
   const toc = buildToc(host);
@@ -88,12 +89,17 @@ const createReader: CreateNovelView = (host) => {
       if (next !== path || !page) {
         if (path) scrolls[path] = window.scrollY;
         // Assemble metadata and rail links before exposing the new page, avoiding late reflow.
-        const [html, timeline] = await Promise.all([host.read(next), host.timeline().catch(() => undefined)]);
+        const info = pathInfo(next);
+        const ownerPage = ['owner', 'owner-note', 'owner-event'].includes(info.kind) && ['CHARACTER', 'LOCATION'].includes(info.domain ?? '');
+        const [html, timeline, images] = await Promise.all([
+          host.read(next), host.timeline().catch(() => undefined), ownerPage ? host.images() : null,
+        ]);
         if (html === undefined || !ctx.latest()) return false;
         reading.close();
         peek.hide();
         path = next;
-        page = buildPage(host, next, html);
+        page = buildPage(host, next, html, images ?? {});
+        rail.hidden = false;
         doc.replaceChildren(page.inner);
         railBody.innerHTML = outline(); placeRail(); observeHeads();
         markToc(toc, next);

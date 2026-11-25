@@ -4,6 +4,7 @@ import type { PageEntry } from '../views/types.ts';
 import type { NovelTimelineData } from '../novelTimelineModel.ts';
 import type { OutlineSyncState } from '../views/outline/sync.ts';
 import type { NovelPeopleData } from '../novelPeopleModel.ts';
+import type { OwnerImages } from '../views/reader/image-schema.ts';
 
 export interface BookInfo { title: string; scope?: string; pageCount?: number; }
 export interface BookManifest { title: string; scope?: string; entries: Record<string, PageEntry>; }
@@ -17,6 +18,7 @@ export interface LoadedBook {
   outlineHeadRead?: Promise<OutlineSyncState['head'] | null | undefined>;
   outlineSyncRead?: Promise<OutlineSyncState | null | undefined>;
   peopleRead?: Promise<NovelPeopleData | null | undefined>;
+  imagesRead?: Promise<OwnerImages | null | undefined>;
   memo: Record<string, Record<string, unknown>>;
 }
 
