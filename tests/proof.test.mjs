@@ -81,14 +81,15 @@ test('the watcher CLI prints a task, reads a reply, and refuses an empty draft',
   assert.equal(run([], '').status, 2);
 });
 
-test('a new request queues both checks and keeps only its own source', () => {
+test('paste queues only open; Drive queues both checks and keeps only its own source', () => {
   const base = { id: 'x', title: 'T', createdAt: 5, draft: '甲', driveName: '第22章' };
   assert.deepEqual(queuedRecord({ ...base, source: 'paste' }), {
     id: 'x', title: 'T', createdAt: 5, updatedAt: 5, source: 'paste', draft: '甲', status: 'queued',
-    checks: { manuscript: { status: 'queued' }, open: { status: 'queued' } },
+    checks: { open: { status: 'queued' } },
   });
   const drive = queuedRecord({ ...base, source: 'drive' });
   assert.equal(drive.driveName, '第22章');
+  assert.deepEqual(drive.checks, { manuscript: { status: 'queued' }, open: { status: 'queued' } });
   assert.equal('draft' in drive, false);
   for (const source of ['paste', 'drive']) for (const skipProse of [false, true]) {
     assert.equal(queuedRecord({ ...base, source, skipProse }).skipProse, skipProse);

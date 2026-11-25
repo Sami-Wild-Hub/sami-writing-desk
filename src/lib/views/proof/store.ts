@@ -1,7 +1,4 @@
-// 校稿 requests in the household's private database. The page writes a queued request and
-// re-queues checks; the host watcher (Protocols proofdesk) does the rest — fetches a Drive
-// draft, sends both checks, writes each report under reports/<check>-<attempt> — and the
-// page follows the book's records live. The newest records come first.
+// Store source-specific requests, requeue their saved checks, and follow watcher reports live.
 // Reads: households/<id>/proofdesk/<slug> (RTDB, records by id, live)
 // Writes: households/<id>/proofdesk/<slug>/<id> (RTDB, {id,title,createdAt,updatedAt,source,draft|driveName,status,checks})
 import { child, onValue, remove, set, update, type DatabaseReference } from 'firebase/database';
@@ -48,7 +45,7 @@ export interface ProofRecord {
   status: Status;
   error?: string;
   fetch?: Step;
-  checks: Record<Check, Step>;
+  checks: { open: Step; manuscript?: Step };
   reports?: Record<string, ProofReport>;
 }
 
@@ -63,10 +60,12 @@ export const reportsOf = (record: ProofRecord, check?: Check) => Object.values(r
   .filter((r) => !check || r.check === check)
   .sort((a, b) => a.createdAt - b.createdAt);
 
-/** A new request: both checks queued. */
+export const checksOf = (record: ProofRecord) => CHECKS.filter(c => record.checks[c]);
+
+/** Paste requests queue open only; Drive requests queue both checks. */
 export function queuedRecord(fields: Pick<ProofRecord, 'id' | 'title' | 'createdAt' | 'source' | 'draft' | 'driveName' | 'skipProse'>): ProofRecord {
   const record: ProofRecord = { ...fields, updatedAt: fields.createdAt, status: 'queued', checks: { manuscript: { status: 'queued' }, open: { status: 'queued' } } };
-  if (record.source === 'paste') delete record.driveName; else delete record.draft;
+  if (record.source === 'paste') { delete record.driveName; delete record.checks.manuscript; } else delete record.draft;
   return record;
 }
 
@@ -81,8 +80,8 @@ export function proofStore(householdRef: (path: string) => DatabaseReference, sl
       }, fail);
     },
     create: (record: ProofRecord) => set(child(book, record.id), record),
-    /** Sends the given checks again (all when none is given); the watcher picks them up. */
-    resend: (id: string, now: number, checks: readonly Check[] = CHECKS) => update(child(book, id), {
+    /** Sends the given saved checks again; the watcher picks them up. */
+    resend: (id: string, now: number, checks: readonly Check[]) => update(child(book, id), {
       status: 'queued', updatedAt: now, ...Object.fromEntries(checks.map((c) => [`checks/${c}/status`, 'queued'])),
     }),
     remove: (id: string) => remove(child(book, id)),

@@ -4,10 +4,11 @@
 // it. placeItems ties items to the draft.
 import { findQuote, paraNumber, type Para } from './paragraphs.ts';
 import { KINDS, LEVELS } from './task.ts';
+import { fixProblem } from './diff.ts';
 
 export interface ReportItem {
   para: string; quote: string; kind: string; level?: string; issue: string;
-  evidence: string[]; suggestion: string;
+  evidence: string[]; suggestion: string; fix?: string;
   /** What does not match the format; empty when the item is well-formed. */
   problems: string[];
 }
@@ -65,9 +66,14 @@ function readItem(raw: unknown): ReportItem {
   const evidence = Array.isArray(r.evidence) ? r.evidence : typeof r.evidence === 'string' ? [r.evidence] : [];
   need('evidence', Array.isArray(r.evidence) && r.evidence.every((e) => typeof e === 'string'), '应是字符串列表');
   need('suggestion', r.suggestion === undefined || typeof r.suggestion === 'string', '应是文字');
+  if (r.fix !== undefined) {
+    const problem = fixProblem(text(r.quote), r.fix);
+    if (problem) problems.push(problem);
+  }
   return {
     para: text(r.para), quote: text(r.quote), kind: text(r.kind), ...(r.level === undefined ? {} : { level: text(r.level) }), issue: text(r.issue),
-    evidence: evidence.map(text).filter(Boolean), suggestion: text(r.suggestion), problems,
+    evidence: evidence.map(text).filter(Boolean), suggestion: text(r.suggestion),
+    ...(r.fix === undefined ? {} : { fix: typeof r.fix === 'string' ? r.fix : text(r.fix) }), problems,
   };
 }
 

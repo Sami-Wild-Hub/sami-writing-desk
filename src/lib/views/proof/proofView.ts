@@ -9,11 +9,11 @@ import type { NovelRoute } from '../../novelArchiveRoute.ts';
 import type { CreateNovelView, NovelViewHost, ShowContext } from '../types.ts';
 import { splitParagraphs } from './paragraphs.ts';
 import { historyHtml, resultHtml, statusHtml, when, type Filter, type KindFilter } from './render.ts';
-import { ENDED, newId, proofStore, queuedRecord, reportsOf, type ProofRecord } from './store.ts';
-import { CHECKS, type Check } from './task.ts';
+import { checksOf, ENDED, newId, proofStore, queuedRecord, reportsOf, type ProofRecord } from './store.ts';
 import { chapterName, nextTitle } from './compose.ts';
 import { proofDraft, fields, signature, type DraftFields } from './draft.ts';
 import { updateResult } from './result.ts';
+import { ProofEditor } from './editor.ts';
 
 const ID = /^\d{8}-\d{6}-[0-9a-z]{4}$/;
 interface ProofMemo {
@@ -45,6 +45,7 @@ class ProofPanel {
   private context: ShowContext | null = null;
   private disposed = false;
   private returnItem = '';
+  private editor: ProofEditor | null = null;
 
   constructor(host: NovelViewHost) {
     this.host = host;
@@ -119,6 +120,7 @@ class ProofPanel {
   }
 
   private renderCompose() {
+    this.editor?.dispose(); this.editor = null;
     const drive = this.st.source === 'drive';
     this.prefillTitle();
     const seg = (source: ProofMemo['source'], label: string) => `<button type="button" data-source="${source}" aria-pressed="${this.st.source === source}">${label}</button>`;
@@ -134,7 +136,7 @@ class ProofPanel {
       '<label class="poption"><input type="checkbox" name="skipProse">不验语病</label>' +
       `<div class="prow-tools">${drive ? '' : '<label class="btn file">上传文件<input type="file" accept=".txt,.md,text/plain,text/markdown"></label><span class="count" data-count></span>'}` +
       '<span class="sp"></span><button type="button" class="btn primary" data-send>发送校稿</button></div>' +
-      '<p class="hint">发出后自动做两项校验：① 对照正文（本机 Luna 读已写各章）、② 开放式（ChatGPT 读资料库）。结果回来自动显示，不用复制粘贴。</p>' +
+      `<p class="hint">${drive ? '发出后自动做两项校验：① 对照正文（本机 Luna 读已写各章）、② 开放式（ChatGPT 读资料库）。' : '贴入或上传的稿子只做② 开放式（ChatGPT 读资料库）。'}结果回来自动显示。</p>` +
       '<p class="perr" role="alert" data-err hidden></p>';
     const bind = (name: 'title' | 'draft' | 'driveName', after = () => {}) => {
       const field = this.main.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name=${name}]`);
@@ -230,7 +232,12 @@ class ProofPanel {
 
   private renderRecord() {
     const record = this.open!;
-    const paras = splitParagraphs(record.draft ?? '');
+    if (!this.editor || this.editor.id !== record.id || this.editor.source !== (record.draft ?? '')) {
+      this.editor?.dispose();
+      this.editor = new ProofEditor(this.main, record, `${this.host.outlineDraftKey}:proof-edit:${record.id}`, text => this.host.toast(text), () => this.renderRecord());
+    }
+    this.editor.record = record;
+    const paras = this.editor.paras;
     const from = record.source === 'drive' ? `Drive：${esc(record.driveName ?? '')}` : '贴入';
     const meta = `${esc(when(record.createdAt))} · ${from} · ${paras.length ? `${paras.length} 段` : '待取稿'}${record.skipProse ? ' · 不验语病' : ''}`;
     // While the watcher works on a record it is not deleted (its writes would bring parts back).
@@ -245,7 +252,7 @@ class ProofPanel {
     const heading = this.head(record.title, meta, tools), status = statusHtml(record);
     if (head.dataset.html !== heading) { head.innerHTML = heading; head.dataset.html = heading; }
     if (progress.dataset.html !== status) { progress.innerHTML = status; progress.dataset.html = status; }
-    updateResult(this.main.querySelector('.result')!, resultHtml(paras, record, this.st.report[record.id] ?? {}, this.st.filter[record.id] ?? 'all', this.st.kind[record.id] ?? 'all'));
+    updateResult(this.main.querySelector('.result')!, resultHtml(paras, record, this.st.report[record.id] ?? {}, this.st.filter[record.id] ?? 'all', this.st.kind[record.id] ?? 'all', this.editor.state.accepted));
     if (this.returnItem && !this.main.querySelector(`.plist .pitem[data-key="${CSS.escape(this.returnItem)}"]`)) {
       this.returnItem = ''; this.main.querySelector('[data-back-note]')?.remove();
     }
@@ -254,7 +261,7 @@ class ProofPanel {
 
   private async resend(check: string) {
     const record = this.open!;
-    const checks = (CHECKS as readonly string[]).includes(check) ? [check as Check] : CHECKS;
+    const checks = checksOf(record).filter(c => !check || c === check);
     try {
       await this.store.resend(record.id, Date.now(), checks);
     } catch (error) {
@@ -299,6 +306,7 @@ class ProofPanel {
   private onClick(event: MouseEvent) {
     const target = event.target as Element;
     const button = target.closest<HTMLButtonElement>('button');
+    if (button?.matches('[data-accept], [data-copy-body], [data-reset-body]')) return;
     const id = this.open?.id ?? '';
     if (button?.matches('[data-drawer]')) return this.host.setDrawer(true);
     if (button?.dataset.source) {
@@ -324,6 +332,7 @@ class ProofPanel {
     }
     const card = target.closest<HTMLElement>('.pitem');
     if (card) return this.locate(card);
+    if (target.closest('.pedit')) return;
     const mark = target.closest<HTMLElement>('.pv mark[data-key]');
     const key = mark?.dataset.key ?? (button?.matches('[data-back-note]') ? this.returnItem : '');
     const note = key && [...this.main.querySelectorAll<HTMLElement>(`.pitem[data-key="${CSS.escape(key)}"]`)].find(el => el.getClientRects().length);
@@ -335,7 +344,7 @@ class ProofPanel {
     this.st.y = window.scrollY;
     this.visible = false;
   }
-  dispose() { this.disposed = true; this.stop(); }
+  dispose() { this.disposed = true; this.stop(); this.editor?.dispose(); }
   label() { return this.open?.title ?? '校稿台'; }
 }
 

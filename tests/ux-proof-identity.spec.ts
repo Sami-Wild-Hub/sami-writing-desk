@@ -4,7 +4,8 @@ import { stubFirebase } from './stub.ts';
 
 const book = 'households/novel-stub-house/proofdesk/maritime-story';
 const id = '20260101-010101-abcd';
-const record = { id, title: '报告身份', createdAt: 1, source: 'paste', draft: '第一段原文。\n第二段原文。', skipProse: false, status: 'sent' };
+const record = { id, title: '报告身份', createdAt: 1, source: 'paste', draft: '第一段原文。\n第二段原文。', skipProse: false, status: 'sent',
+  checks: { manuscript: { status: 'sent' }, open: { status: 'sent' } } };
 const report = (check: string, text: string) => ({ id: `${check}-1`, check, attempt: 1, createdAt: 1, report: text });
 const good = (issue: string, para: string, quote: string) => JSON.stringify({ title: '报告身份', items: [{ para, quote, issue, kind: '人物', evidence: [] }] });
 

@@ -25,6 +25,17 @@ const items = (page: Page) => view(page).locator('.pv .pnotes .pitem');
 const step = (page: Page, name: string) => view(page).locator('.pstep', { hasText: name });
 type Stub = Awaited<ReturnType<typeof stubFirebase>>;
 
+/** Existing pasted records with both checks are kept exactly as stored. */
+async function legacy(page: Page, stub: Stub, skipProse = false) {
+  const id = '20261121-153012-abcd';
+  stub.server(`${book}/${id}`, { id, title: 'C23 初稿', source: 'paste', draft, skipProse,
+    createdAt: Date.now(), updatedAt: Date.now(), status: 'queued',
+    checks: { manuscript: { status: 'queued' }, open: { status: 'queued' } } });
+  await page.goto(`book/?book=maritime-story&view=proof&doc=${id}`);
+  await expect(view(page).locator('.phead h2')).toHaveText('C23 初稿');
+  return id;
+}
+
 async function create(page: Page, title = 'C23 初稿', skipProse = false) {
   await page.goto('book/?book=maritime-story&view=proof');
   await expect(view(page).getByRole('heading', { name: '新校稿' })).toBeVisible();
@@ -61,12 +72,11 @@ function done(stub: Stub, id: string) {
   stub.server(`${book}/${id}/status`, 'done');
 }
 
-test('send a pasted draft, follow its status, read both checks beside the draft', async ({ page }) => {
+test('an existing paste record retains both checks beside the draft', async ({ page }) => {
   const errors = watchErrors(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   const stub = await stubFirebase(page);
-  const id = await create(page);
-  expect(stub).toContain(`${book}/${id}`);
+  const id = await legacy(page, stub);
   expect(stub.at(`${book}/${id}`)).toMatchObject({ id, title: 'C23 初稿', source: 'paste', skipProse: false, status: 'queued', draft, checks: { manuscript: { status: 'queued' }, open: { status: 'queued' } } });
   expect(stub.at(`${book}/${id}/driveName`)).toBeNull();
   await expect(view(page).locator('.pstatus-head .pst')).toHaveText('排队');
@@ -122,7 +132,7 @@ test('send a pasted draft, follow its status, read both checks beside the draft'
 test('a failed check says why; resending it queues it again and keeps the old report', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   const stub = await stubFirebase(page);
-  const id = await create(page, 'C23 初稿', true);
+  const id = await legacy(page, stub, true);
   expect(stub.at(`${book}/${id}/skipProse`)).toBe(true);
   await expect(view(page).locator('.phead .meta')).toContainText('不验语病');
   sent(stub, id);
@@ -201,7 +211,7 @@ test('a Drive request names the chapter; the fetched draft shows when it arrives
 
 test('on a phone the items come first and tapping one jumps to its quote', async ({ page }) => {
   const stub = await stubFirebase(page);
-  const id = await create(page);
+  const id = await legacy(page, stub);
   done(stub, id);
   const list = view(page).locator('.plist .pitem');
   await expect(list).toHaveCount(3);
@@ -211,7 +221,9 @@ test('on a phone the items come first and tapping one jumps to its quote', async
   await expect(mark).toHaveClass(/flash/);
   await expect(mark).toBeInViewport();
   await view(page).locator('[data-back-note]').click(); await expect(list.nth(2)).toBeInViewport();
-  await list.nth(2).click(); await mark.click(); await expect(list.nth(2)).toBeInViewport();
+  await list.nth(2).click(); await mark.click();
+  await expect(page.getByRole('textbox', { name: 'P4 正文', exact: true })).toBeFocused();
+  await view(page).locator('[data-back-note]').click(); await expect(list.nth(2)).toBeInViewport();
   await view(page).getByRole('button', { name: '历史' }).click();
   await expect(view(page).locator('.side')).toHaveClass(/show/);
   await expect(view(page).locator('.hist-list a')).toContainText('C23 初稿');
@@ -254,7 +266,7 @@ test.describe('proof screens', () => {
       await view(page).getByLabel('标题').fill('C23 初稿');
       await view(page).getByLabel('新稿').fill(draft);
       await shot('compose');
-      const id = await create(page);
+      const id = await legacy(page, stub);
       sent(stub, id);
       await expect(view(page).locator('.pstatus-head .pst')).toHaveText('已发送');
       await shot('sent');

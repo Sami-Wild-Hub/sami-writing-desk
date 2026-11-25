@@ -3,10 +3,12 @@
 // ① or ②) beside its paragraph on the right, the quote marked in the text. Phones get the
 // items as a list above the text instead.
 import { esc } from '../../archive/ui.ts';
-import type { Para } from './paragraphs.ts';
+import { paraNumber, type Para } from './paragraphs.ts';
 import { parseReport, placeItems, type PlacedItem, type ReportItem, type ReportResult } from './report.ts';
-import { ENDED, reportsOf, type ProofRecord, type ProofReport, type Status, type Step } from './store.ts';
+import { checksOf, ENDED, reportsOf, type ProofRecord, type ProofReport, type Status, type Step } from './store.ts';
 import { CHECKS, KINDS, LEVELS, type Check } from './task.ts';
+import { sentenceDiff } from './diff.ts';
+import { replacement } from './edit.ts';
 
 export type Filter = 'all' | Check;
 export type KindFilter = 'all' | (typeof KINDS)[number];
@@ -42,15 +44,25 @@ export function statusHtml(record: ProofRecord) {
   const ended = ENDED.includes(record.status);
   const steps = [
     record.source === 'drive' && record.fetch ? stepHtml(`取稿：${record.driveName ?? ''}`, ABOUT.fetch, record.fetch, '') : '',
-    ...CHECKS.map((c) => stepHtml(`${MARK[c]} ${NAME[c]}`, ABOUT[c], record.checks?.[c] ?? { status: 'queued' }, ended ? c : '')),
+    ...checksOf(record).map((c) => stepHtml(`${MARK[c]} ${NAME[c]}`, ABOUT[c], record.checks[c]!, ended ? c : '')),
   ];
   const all = ended ? '<button type="button" class="btn" data-resend="">全部重新发送</button>' : '';
   return `<section class="pstatus" aria-label="校稿进度" aria-live="polite"><div class="pstatus-head">${badge(record.status)}` +
-    `<span class="hint">${record.status === 'done' ? '两项校验都已完成。' : record.status === 'failed' ? '有一项没完成，见下面的原因。' : '后台处理中，结果回来会自动显示。'}</span><span class="sp"></span>${all}</div>` +
+    `<span class="hint">${record.status === 'done' ? '校验已完成。' : record.status === 'failed' ? '有一项没完成，见下面的原因。' : '后台处理中，结果回来会自动显示。'}</span><span class="sp"></span>${all}</div>` +
     `${record.error ? `<p class="perr" role="alert">${esc(record.error)}</p>` : ''}<ol>${steps.join('')}</ol></section>`;
 }
 
-type Tagged = ReportItem & { check: Check; key: string };
+type Tagged = ReportItem & { check: Check; key: string; accepted: boolean; disabled: string };
+
+function fixHtml(item: Tagged, at: number) {
+  if (item.fix === undefined) return '';
+  const diff = sentenceDiff(item.quote, item.fix).map(c => c.kind === 'same' ? esc(c.text)
+    : `<${c.kind === 'add' ? 'ins' : 'del'}>${esc(c.text)}</${c.kind === 'add' ? 'ins' : 'del'}>`).join('');
+  const invalid = item.problems.some(p => p.startsWith('fix '));
+  return `<p class="pfix"><b>建议</b>${diff}</p>` + (invalid ? '' :
+    `<div class="pfix-tools"><button type="button" class="btn small" data-accept="${esc(item.key)}" data-at="${at}"${item.disabled ? ' disabled' : ''}>${item.accepted ? '撤销' : '接受'}</button>` +
+    `${item.disabled ? `<span class="hint">${esc(item.disabled)}</span>` : ''}</div>`);
+}
 
 function itemHtml({ item, at, range }: PlacedItem<Tagged>) {
   const level = item.level && (LEVELS as readonly string[]).includes(item.level) ? item.level : '';
@@ -60,7 +72,8 @@ function itemHtml({ item, at, range }: PlacedItem<Tagged>) {
     `<div class="tags"><span class="src" title="${NAME[item.check]}">${MARK[item.check]} ${NAME[item.check]}</span>${level ? `<span class="lv">${esc(level)}</span>` : ''}` +
     `${item.kind ? `<span class="pill">${esc(item.kind)}</span>` : ''}${item.para ? `<span class="pill">${esc(item.para)}</span>` : ''}${off ? `<span class="pill warn">${off}</span>` : ''}</div>` +
     `<p class="issue">${esc(item.issue)}</p>` +
-    (item.suggestion ? `<p class="sugg"><b>建议</b>${esc(item.suggestion)}</p>` : '') +
+    fixHtml(item, at) +
+    (item.suggestion ? `<p class="sugg"><b>${item.fix === undefined ? '建议' : '说明'}</b>${esc(item.suggestion)}</p>` : '') +
     (item.evidence.length ? `<p class="ev"><b>依据</b>${item.evidence.map((e) => `<code>${esc(e)}</code>`).join('')}</p>` : '') +
     (item.problems.length ? `<p class="prob">格式问题：${esc(item.problems.join('；'))}</p>` : '') +
     '</article>';
@@ -87,7 +100,7 @@ export function proofHtml(paras: Para[], placed: PlacedItem<Tagged>[]) {
     if (p.range) marks.set(p.at, [...marks.get(p.at) ?? [], { range: p.range, key: p.item.key }]);
   });
   const rows = paras.map((para, at) => `<div class="prow${byPara.has(at) ? ' has' : ''}" id="pp-${para.n}" data-at="${at}">` +
-    `<p class="ptext"><span class="pn">${para.label}</span>${markedText(para.text, marks.get(at) ?? [])}</p>` +
+    `<p class="ptext"><span class="pn" contenteditable="false">${para.label}</span><span class="pedit" contenteditable="plaintext-only" role="textbox" aria-label="${para.label} 正文" data-edit="${at}" spellcheck="false">${markedText(para.text, marks.get(at) ?? [])}</span></p>` +
     `<div class="pnotes">${(byPara.get(at) ?? []).join('')}</div></div>`);
   if (byPara.has(-1)) rows.push(`<div class="prow has orphan"><p class="ptext muted">这些反馈指的段落不在这份稿里：</p><div class="pnotes">${byPara.get(-1)!.join('')}</div></div>`);
   return `<div class="plist">${placed.map(itemHtml).join('')}</div><div class="pv">${rows.join('')}</div>`;
@@ -108,7 +121,7 @@ function attemptsHtml(record: ProofRecord, shown: Partial<Record<Check, ProofRep
 }
 
 /** Each check's shown report (the chosen one, else the newest) read against the draft, filtered. */
-export function resultHtml(paras: Para[], record: ProofRecord, chosen: Record<string, string>, filter: Filter, kind: KindFilter = 'all') {
+export function resultHtml(paras: Para[], record: ProofRecord, chosen: Record<string, string>, filter: Filter, kind: KindFilter = 'all', accepted: Record<string, boolean> = {}) {
   if (!paras.length) return '<p class="muted pnote">新稿还没取到，取到后会显示在这里。</p>';
   const shown: Partial<Record<Check, ProofReport>> = {};
   const items: Tagged[] = [];
@@ -118,13 +131,18 @@ export function resultHtml(paras: Para[], record: ProofRecord, chosen: Record<st
     const report = shown[c] = reports.find((r) => r.id === chosen[c]) ?? reports.at(-1);
     if (!report) continue;
     const read = readReport(report);
-    if (read.ok) items.push(...read.report.items.map((item, index) => ({ ...item, check: c, key: JSON.stringify([c, report.id, index]) })));
+    if (read.ok) items.push(...read.report.items.map((item, index) => {
+      const key = JSON.stringify([c, report.id, index]);
+      return { ...item, check: c, key, accepted: !!accepted[key], disabled: item.fix === undefined ? ''
+        : replacement(paras[paraNumber(item.para) - 1]?.text, item, !!accepted[key]).reason };
+    }));
     else errors.push(`<div class="perr" role="alert"><b>${MARK[c]} 第 ${report.attempt} 次的回复读不出来：</b>${esc(read.error)}</div>` +
       `<details class="raw" data-report="${esc(report.id)}"><summary>${MARK[c]} 收到的原文</summary><pre>${esc(report.report)}</pre></details>`);
   }
-  if (!shown.manuscript && !shown.open) return `<p class="muted pnote">结果回来后会自动显示在这里。下面是分好段的原文。</p>${proofHtml(paras, [])}`;
+  const tools = '<div class="pedit-tools"><span class="hint">可直接修改正文 · 改动仅存此浏览器</span><span class="sp"></span><button type="button" class="btn" data-reset-body>还原原稿</button><button type="button" class="btn primary" data-copy-body>复制正文</button></div>';
+  if (!shown.manuscript && !shown.open) return `${tools}<p class="muted pnote">结果回来后会自动显示在这里。下面是分好段的原文。</p>${proofHtml(paras, [])}`;
   const count = (f: Filter) => items.filter((i) => f === 'all' || i.check === f).length;
-  const filters = `<div class="seg pfilter" role="group" aria-label="按来源筛选">${(['all', ...CHECKS] as Filter[]).map((f) =>
+  const filters = `<div class="seg pfilter" role="group" aria-label="按来源筛选">${(['all', ...checksOf(record)] as Filter[]).map((f) =>
     `<button type="button" data-filter="${f}" aria-pressed="${f === filter}">${f === 'all' ? '全部' : `${MARK[f]} ${NAME[f]}`} ${count(f)}</button>`).join('')}</div>`;
   const sourceItems = items.filter((i) => filter === 'all' || i.check === filter);
   const kinds = `<div class="seg pfilter" role="group" aria-label="按 Tag 筛选">${(['all', ...KINDS] as KindFilter[]).map((k) =>
@@ -133,6 +151,6 @@ export function resultHtml(paras: Para[], record: ProofRecord, chosen: Record<st
   const bad = placed.filter((p) => p.item.problems.length).length;
   const sums = CHECKS.map((c) => [c, shown[c] && readReport(shown[c]!)] as const)
     .map(([c, read]) => (read && read.ok && read.report.summary && (filter === 'all' || filter === c) ? `<p class="psum"><b>${MARK[c]}</b> ${esc(read.report.summary)}</p>` : '')).join('');
-  return filters + kinds + attemptsHtml(record, shown) + errors.join('') + countsHtml(placed) + sums +
+  return tools + filters + kinds + attemptsHtml(record, shown) + errors.join('') + countsHtml(placed) + sums +
     (bad ? `<div class="perr" role="alert">有 ${bad} 条格式不对，已照样列出并注明问题。</div>` : '') + proofHtml(paras, placed);
 }

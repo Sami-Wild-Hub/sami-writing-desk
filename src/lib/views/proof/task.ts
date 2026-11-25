@@ -11,13 +11,14 @@ interface TaskInput { slug: string; title: string; paras: Para[]; skipProse?: bo
 const trigger = '请按 leahthemule/novel-knowledge-base（main 分支）的 contracts/shared/kb-use/manuscript-check.md 入口及 contracts/manuscript-check/semantic.md 核心合同执行 Manuscript Check（MC）。';
 
 const format = (title: string) => `回复格式覆盖：用以下 JSON 代替 report.md，只回一个 JSON 代码块，代码块外不要写别的。
-{"title": ${JSON.stringify(title)}, "items": [{"para": "P12", "quote": "…", "kind": "人物", "issue": "…", "evidence": ["…"], "suggestion": "…"}], "summary": "…"}
+{"title": ${JSON.stringify(title)}, "items": [{"para": "P12", "quote": "…", "kind": "人物", "issue": "…", "evidence": ["…"], "suggestion": "…", "fix": "…"}], "summary": "…"}
 - para：位置，用新稿段号
 - quote：MC 要求的完整原句，逐字照抄
 - kind：MC 的一个主 Tag，${KINDS.join(' / ')}
 - issue：内容与关键依据
 - evidence：证据及出处，写相关原文位置、Event/K/AN、R-ID 或外部资料出处
 - suggestion：合同要求的最小修正或简短建议，可不写
+- fix：可选，把 quote 改好后的完整句子，只改需要改的字，其余逐字照抄。能直接写出确定改法时才给：字词、语法、标点这类文字问题基本都有，人物、连续性、世界设定里明确写错的名字、数字等也可以给；需要作者决定的（推演、资料补充、设定是否成立）不给，只写 suggestion。不按 Tag 限制，有确定改法就给。
 - level：可选，冲突 / 存疑 / 提示；MC 不要求区分确定程度，可省略
 - summary：注明受检范围、正文版本、所用历史 KB 及尚未完成的核查
 items 按受检原文顺序排列；没有报告项就回 "items": []。`;

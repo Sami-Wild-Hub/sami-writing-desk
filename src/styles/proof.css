@@ -55,6 +55,17 @@
 
 /* result head */
 .result { margin-top: 1.5rem; scroll-margin-top: calc(var(--bar-h) + .75rem); }
+.pedit-tools { position: sticky; top: var(--bar-h); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem;
+  padding: .6rem 0; margin-bottom: .75rem; border-bottom: 1px solid var(--line); background: var(--bg, var(--surface)); }
+.pedit-tools .hint { margin: 0; font-size: .8125rem; }
+.pedit-tools .sp { flex: 1; }
+.pedit { display: block; min-height: 1.9em; border-radius: 4px; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+.pedit:focus { outline: 2px solid var(--accent); outline-offset: 3px; }
+.pfix b { margin-right: .45rem; color: var(--ink-3); font-size: .8125rem; }
+.pfix ins { background: #e2efe3; color: #24552d; text-decoration: none; }
+.pfix del { background: #fbe4df; color: #8a2a1c; }
+.pfix-tools { display: flex; align-items: center; gap: .5rem; margin-top: .5rem; }
+.pfix-tools .hint { margin: 0; }
 .pfilter, .rtabs { flex-wrap: wrap; margin: 0 .5rem .75rem 0; }
 .seg-label { display: inline-flex; align-items: center; padding: 0 .5rem; color: var(--ink-3); font-size: .875rem; font-weight: 700; }
 .pitem .src { display: inline-flex; align-items: center; min-height: 1.6rem; padding: 0 .55rem; border-radius: 999px;
@@ -62,7 +73,7 @@
 .pitem[data-check="open"] .src { background: #ece6f3; color: #4b3a6b; }
 .pcount { margin: 0 0 .5rem; font-size: 1rem; font-weight: 600; }
 .pcount .warn, .pitem .warn { color: #8a2a1c; }
-.psum { max-width: 60rem; margin: 0 0 .75rem; color: var(--ink-2); }
+.psum { max-width: 60rem; margin: 0 0 .75rem; color: var(--ink-2); overflow-wrap: anywhere; }
 .pnote { margin: 0 0 .75rem; }
 .raw { max-width: 60rem; margin-bottom: 1rem; }
 .raw summary { color: var(--ink-3); font-size: .875rem; }
@@ -112,6 +123,8 @@
   .prow.orphan { display: none; }
   .ptext { padding-left: 0; }
   .ptext .pn { position: static; display: inline-block; width: auto; margin-right: .4em; vertical-align: 1px; }
+  .pedit { display: inline; }
+  .pedit-tools > .hint { flex-basis: 100%; }
   .plist .pitem { scroll-margin-top: calc(var(--bar-h) + 1rem); }
 }
 @media (prefers-reduced-motion: reduce) { .pst.st-sent::before { animation: none; } }

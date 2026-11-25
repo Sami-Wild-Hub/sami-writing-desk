@@ -1,6 +1,6 @@
 # 校稿台
 
-书页的第三个视图（`?book=<slug>&view=proof`）。交一份新稿，后台自动做两项 Manuscript Check（MC），结果回到网站，逐条显示在原文旁边。不用复制粘贴。
+书页的第三个视图（`?book=<slug>&view=proof`）。交一份新稿，后台自动做 Manuscript Check（MC）：贴入或上传只做②开放式，Drive 仍做①②。结果逐条显示在原文旁边，可直接改稿、接受建议并复制正文。
 
 - **① 对照正文**：本机的 Luna（`delegate.py --agent luna-medium`）在 Novel Archivist 仓库（`leahthemule/novel-knowledge-base`）的只读副本里，拿新稿和 `novels/<slug>/manuscript/` 的已写各章对照。
 - **② 开放式**：在 ChatGPT 项目（默认「Novel Archivist 维护」）里新开一个对话，读同一仓库的 `novels/<slug>/` 资料库。
@@ -13,7 +13,9 @@
    - 「贴入或上传」：写标题（如「C23 初稿」），贴入新稿，或上传 `.txt` / `.md`；
    - 「从 Drive 取」：先填标题上面的「章节」。`22`、`c22`、`第22章`、`22章`、`第二十二章` 统一存为现有字段 `driveName: C22`；其他名字照填照存。标题自动建议如 `C22 第2稿`：本书历史里同章标题的最大稿次加一，`初稿` 算 1，没有历史从 1 开始，取稿失败的记录不算。历史稍后到达也更新建议；手改标题后保留手改，清空标题恢复自动填。后台让本机 Luna 用 Google Drive plugin 只读扫描并取回正文。
 2. 「不验语病」默认不勾，执行完整 MC。勾选后跳过 Tag `文字`（字词、语法、标点校勘），其他按合同执行。点「发送校稿」后，记录马上存进历史，页面跟着显示进度：排队 → 发送中 → 已发送（附对话链接或 Luna 任务号）→ 完成 / 失败（写明原因）。
-3. 结果回来就自动显示：左边是分段编号的原文、完整原句标黄，右边每条反馈对齐它的段落，标 ①/②，可按来源及 MC Tag（文字、连续性、人物、世界设定、推演、资料补充）组合筛选；手机上反馈列在上面，点一条跳到原文。
+3. 新 paste 记录只有 `checks.open`，只建、只发、只显示②；Drive 仍做①②。已有的旧 paste 记录带①的照旧显示，不迁移。左边是分段编号的原文、完整原句标黄，右边每条反馈对齐段落，标①/②，可按来源及 MC Tag 组合筛选；手机上反馈列在上面，点一条跳到原文。
+4. 每段正文可直接编辑，段号不变。有 `fix` 的反馈显示逐字增删高亮的「建议」句，可「接受」或「撤销」；原句手改、找不到或重复出现无法确定位置时按钮不可用并写明原因。
+5. 随滚动可见的「复制正文」复制当前全文，每段一行、不带段号。「还原原稿」确认后清除本条记录的本机修改。改动按账号、书和记录 id 存本浏览器 localStorage，刷新保留，不回写数据库或 data repo 的 `draft.md`。
 
 一项失败可以单独「重新发送」，也可以「全部重新发送」；沿用本条记录创建时的「不验语病」选项，每次发送的报告都留着，用「第 1 次 / 第 2 次」切换，新的不覆盖旧的。历史在左栏（手机点「历史」），最新的在上；历史和记录标题旁都显示「不验语病：是/否」。排队中或已结束的记录可以删除（删除前确认；data 仓库里的文件不删）。
 
@@ -27,6 +29,7 @@
 - 读不出来（没有 JSON、JSON 有错、被截断、没有 `items` 列表）时照样存下原文，并写明哪里不对；可以重新发送这一项。
 - 某一条缺字段或值不对（如 `level` 不是 冲突/存疑/提示），这一条照样列出并注明格式问题。
 - `kind` 只接受 MC 的六个 Tag，不兼容旧分类；`quote` 是完整、逐字的受检原句。`level` 可省略，缺少它不算格式问题，也不显示确定程度标记。
+- `fix` 可省略；有确定改法就给，不按 Tag 决定显示。相同句、空值、非文字，或逐字 LCS 保留不到较长句一半的改写，照样列出并注明格式问题，不显示接受按钮。
 - 引文在它那一段里找不到（空白差异不算），这一条照样显示，标「未对上原文」；段号不在这份稿里的放在最后。
 
 网页和后台用的是同一套规则：后台通过 `src/lib/views/proof/cli.ts` 调用这里的 `report.ts`。
@@ -40,14 +43,14 @@ households/<householdId>/proofdesk/<slug>/<id>
   { id, title, createdAt, updatedAt, source: "paste" | "drive", draft?, driveName?, skipProse?: boolean,
     status: queued | sending | sent | done | failed, error?,
     fetch?: Step,                                   // 只有 Drive 来源
-    checks: { manuscript: Step, open: Step },
+    checks: { manuscript?: Step, open: Step },
     reports?: { "<check>-<n>": { id, check, attempt, createdAt, report, parsed?, path } } }
 Step = { status, attempt?, chat?, job?, error?, at? }
 ```
 
 - `id` 形如 `20261121-153012-1a2b`（UTC 时间 + 4 位随机），既是键也按时间排。
 - 新请求存 `skipProse: false | true`；缺省按完整 MC 处理。成员只可在新建记录时选择此字段，之后不可添加、更改或移除，重发保留原值。后台把保存的值经 `cli.ts` 传给两项任务模板。
-- 网页只写两种东西：新请求（两项都是 `queued`），和重新发送（把整条或某一项的 `status` 改回 `queued`）。其余字段都由后台用服务账号写；数据库规则（FamilyHub 的 `database.rules.json`）不许成员写 `sending` 以后的状态、`fetch`、`error`、`reports`，也不许改已存的新稿。
+- 网页只向数据库写新请求（paste 只有 `open`，Drive 有两项，都是 `queued`），和重新发送（只把记录里已有的检查改回 `queued`）。其余字段由后台用服务账号写；FamilyHub 规则要求 Drive 两项、paste 至少有 `open`，且不许重发时增删检查、不许成员写 `sending` 以后的状态、`fetch`、`error`、`reports` 或修改已存新稿。网页改稿只写 localStorage。
 - `report` 是收到的回复原文，`parsed` 是读出的结果（JSON 字符串；读不出来时没有）。页面显示时以原文为准重新读一遍。
 
 **后台留档的** 私有仓库 `Sami-Wild-Hub/sami-writing-desk-data` 分支 `main` 的 `proofdesk/<slug>/<id>/`：
@@ -55,7 +58,7 @@ Step = { status, attempt?, chat?, job?, error?, at? }
 | 文件 | 内容 |
 | --- | --- |
 | `draft.md` | 新稿（贴入的，或 Luna 从 Drive 取回本机、由 watcher 发布的） |
-| `task-open.md`、`task-manuscript.md` | 两项的任务全文（下面的模板） |
+| `task-open.md`、`task-manuscript.md` | 记录里已有检查的任务全文（paste 只存 `task-open.md`） |
 | `report-open-<n>.json`、`report-manuscript-<n>.json` | 第 n 次发送收到的回复原文 |
 
 ## 后台
@@ -64,9 +67,9 @@ Step = { status, attempt?, chat?, job?, error?, at? }
 
 1. 先把记录标成 `sending`，这样同一请求不会被取两次。
 2. Drive 来源经 `delegate.py --agent <luna_agent>` 起 Luna，`fetch.job` 记录任务号。只读扫描本书相关文件夹和最近改动，按内容认章（独立文件、合订文档章节或 tab）；编辑确认 `ChatGPT Manuscript` 的现行稿优先，那里没有才用别处，不能确定时列出候选并失败。Luna 将正文原样写到本机，重新读取 Drive 核对段数、首尾和逐段文字；watcher 等任务成功结束后发布 `draft.md` 并回写 `draft`。plugin 不可用、找不到、没读全、核对失败或进程结束却没产出时，立即写明 `fetch.error`，不等 60 分钟。
-3. 两项并行发送，各自记 `checks.<check>`（对话链接或 Luna 任务号）；取稿和①共用一个 Luna 并发位，②独占一个 GPT 并发位。
+3. 只推进记录里已有的检查；paste 只发②，Drive 两项并行发送，各自记 `checks.<check>`；取稿和①共用一个 Luna 并发位，②独占一个 GPT 并发位。
 4. 等报告出现在 data 仓库（默认最多 60 分钟），用和网页相同的规则读，把原文和读出的结果写进 `reports`。
-5. 两项都结束：都完成为 `done`；有一项失败为 `failed`，`error` 写明是哪一项、为什么。
+5. 记录里已有的步骤都结束：都完成为 `done`；有一项失败为 `failed`，`error` 写明是哪一项、为什么。
 
 后台重启后从数据库的状态接着做，同一 Luna job 的本机输出标记阻止重复启动，保存的进程号用于判断无输出退出。取稿及①显示 Luna 任务号，②显示对话链接。仍在运行的任务保留默认 60 分钟超时。
 
@@ -85,13 +88,14 @@ Seed：novels/maritime-story/seeds/。
 受检范围仅为本份新稿，版本以文末标题和分段编号（P1、P2……）的正文为准。
 
 回复格式覆盖：用以下 JSON 代替 report.md，只回一个 JSON 代码块，代码块外不要写别的。
-{"title": "C23 初稿", "items": [{"para": "P12", "quote": "…", "kind": "人物", "issue": "…", "evidence": ["…"], "suggestion": "…"}], "summary": "…"}
+{"title": "C23 初稿", "items": [{"para": "P12", "quote": "…", "kind": "人物", "issue": "…", "evidence": ["…"], "suggestion": "…", "fix": "…"}], "summary": "…"}
 - para：位置，用新稿段号
 - quote：MC 要求的完整原句，逐字照抄
 - kind：MC 的一个主 Tag，文字 / 连续性 / 人物 / 世界设定 / 推演 / 资料补充
 - issue：内容与关键依据
 - evidence：证据及出处，写相关原文位置、Event/K/AN、R-ID 或外部资料出处
 - suggestion：合同要求的最小修正或简短建议，可不写
+- fix：可选，把 quote 改好后的完整句子，只改需要改的字，其余逐字照抄。能直接写出确定改法时才给：字词、语法、标点这类文字问题基本都有，人物、连续性、世界设定里明确写错的名字、数字等也可以给；需要作者决定的（推演、资料补充、设定是否成立）不给，只写 suggestion。不按 Tag 限制，有确定改法就给。
 - level：可选，冲突 / 存疑 / 提示；MC 不要求区分确定程度，可省略
 - summary：注明受检范围、正文版本、所用历史 KB 及尚未完成的核查
 items 按受检原文顺序排列；没有报告项就回 "items": []。
@@ -116,13 +120,14 @@ Seed：novels/maritime-story/seeds/。
 受检范围仅为本份新稿，版本以文末标题和分段编号（P1、P2……）的正文为准。
 
 回复格式覆盖：用以下 JSON 代替 report.md，只回一个 JSON 代码块，代码块外不要写别的。
-{"title": "C23 初稿", "items": [{"para": "P12", "quote": "…", "kind": "人物", "issue": "…", "evidence": ["…"], "suggestion": "…"}], "summary": "…"}
+{"title": "C23 初稿", "items": [{"para": "P12", "quote": "…", "kind": "人物", "issue": "…", "evidence": ["…"], "suggestion": "…", "fix": "…"}], "summary": "…"}
 - para：位置，用新稿段号
 - quote：MC 要求的完整原句，逐字照抄
 - kind：MC 的一个主 Tag，文字 / 连续性 / 人物 / 世界设定 / 推演 / 资料补充
 - issue：内容与关键依据
 - evidence：证据及出处，写相关原文位置、Event/K/AN、R-ID 或外部资料出处
 - suggestion：合同要求的最小修正或简短建议，可不写
+- fix：可选，把 quote 改好后的完整句子，只改需要改的字，其余逐字照抄。能直接写出确定改法时才给：字词、语法、标点这类文字问题基本都有，人物、连续性、世界设定里明确写错的名字、数字等也可以给；需要作者决定的（推演、资料补充、设定是否成立）不给，只写 suggestion。不按 Tag 限制，有确定改法就给。
 - level：可选，冲突 / 存疑 / 提示；MC 不要求区分确定程度，可省略
 - summary：注明受检范围、正文版本、所用历史 KB 及尚未完成的核查
 items 按受检原文顺序排列；没有报告项就回 "items": []。
@@ -138,7 +143,8 @@ items 按受检原文顺序排列；没有报告项就回 "items": []。
 
 ## 代码
 
-- `src/lib/views/proof/`：`proofView.ts`（视图）、`compose.ts`（章节归一化、标题稿次）、`task.ts`（两份任务模板）、`paragraphs.ts`（分段、找引文）、`report.ts`（读回复、对齐段落）、`render.ts`（HTML）、`store.ts`（读写 RTDB）、`cli.ts`（后台调用模板和读回复的入口）。
+- `src/lib/views/proof/`：`proofView.ts`（视图）、`compose.ts`（章节归一化、标题稿次）、`task.ts`（两份任务模板）、`paragraphs.ts`（分段、找引文）、`report.ts`（读回复、对齐段落）、`render.ts`（HTML）、`store.ts`（RTDB）、`cli.ts`（后台入口）、`diff.ts`（逐字 LCS）、`edit.ts`（替换规则）、`editor.ts`（本机改稿）。
 - `src/styles/proof.css`。
-- 测试：`tests/proof.test.mjs`（分段、两份任务、cli、回复的各种情况、新请求的形状、本页任务全文），`tests/proof.spec.ts`（贴稿发送 → 排队 → 已发送带链接 → 两项报告逐条显示、筛选 → 一项失败、单独重发、多次报告切换 → Drive 来源取稿 → 手机上点一条跳到原文 → 删除；后台的写入在测试里模拟；设 `NOVEL_SHOTS_DIR` 时出 390 / 2560 截图）。
+- 测试：`tests/proof.test.mjs`（分段、任务、cli、回复、新请求形状及模板与本文一致），`tests/proof.spec.ts`（旧 paste 两项保留、进度、筛选、重发、Drive 取稿、手机跳转及删除；后台写入在测试里模拟）。
+- `tests/proof-edit.test.mjs`、`tests/proof-edit.spec.ts`：逐字 diff、可选和无效 fix、接受/撤销、手改后禁用、本机保存、复制与确认还原；桌面和手机均覆盖。`tests/proof-edit-screens.spec.ts` 在设 `PROOF_EDIT_SHOTS_DIR` 时只读真实报告、在内存加 fix，输出 1440 / 390 截图。
 - `tests/proof-compose.test.mjs`、`tests/proof-compose.spec.ts`：章节别名、同章最大稿次、失败取稿排除、先章节后标题、晚到历史、手改保护、清空恢复和发送后稿次递增。
