@@ -61,11 +61,15 @@
 .pedit-tools .sp { flex: 1; }
 .pedit { display: block; min-height: 1.9em; border-radius: 4px; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
 .pedit:focus { outline: 2px solid var(--accent); outline-offset: 3px; }
-.pfix b { margin-right: .45rem; color: var(--ink-3); font-size: .8125rem; }
-.pfix ins { background: #e2efe3; color: #24552d; text-decoration: none; }
-.pfix del { background: #fbe4df; color: #8a2a1c; }
-.pfix-tools { display: flex; align-items: center; gap: .5rem; margin-top: .5rem; }
+/* a card's wording fix comes right after its tags, ahead of the reasons, which step back */
+.pfix { margin: .5rem 0 .35rem; padding: .55rem .7rem .6rem; border: 1px solid #cfe0de; border-radius: 8px; background: #f1f7f6; }
+.pitem .pfix-text { margin: 0; color: var(--ink); font-size: 1rem; line-height: 1.75; }
+.pfix-text b { margin-right: .5rem; color: var(--accent-ink); font-size: .8125rem; font-weight: 700; }
+.pfix ins { padding: 0 1px; border-radius: 3px; background: #d2ead5; color: #1d5426; font-weight: 600; text-decoration: none; box-shadow: inset 0 -2px 0 #6fae79; }
+.pfix del { padding: 0 1px; border-radius: 3px; background: #f9dcd5; color: #9a3322; text-decoration: line-through #c2503d; }
+.pfix-tools { display: flex; align-items: center; gap: .5rem; margin-top: .45rem; }
 .pfix-tools .hint { margin: 0; }
+.pitem .pfix ~ :is(.issue, .sugg, .ev) { color: var(--ink-2); font-size: .875rem; }
 .pfilter, .rtabs { flex-wrap: wrap; margin: 0 .5rem .75rem 0; }
 .seg-label { display: inline-flex; align-items: center; padding: 0 .5rem; color: var(--ink-3); font-size: .875rem; font-weight: 700; }
 .pitem .src { display: inline-flex; align-items: center; min-height: 1.6rem; padding: 0 .55rem; border-radius: 999px;
@@ -104,7 +108,7 @@
 .pitem p { margin: .25rem 0 0; font-size: .9375rem; line-height: 1.65; }
 .pitem .issue { color: var(--ink); }
 .pitem .sugg, .pitem .ev { color: var(--ink-2); }
-.pitem .sugg b, .pitem .ev b { margin-right: .45rem; color: var(--ink-3); font-size: .8125rem; }
+.pitem .issue b, .pitem .sugg b, .pitem .ev b { margin-right: .45rem; color: var(--ink-3); font-size: .8125rem; }
 .pitem .ev code { display: inline-block; margin: 0 .3rem .2rem 0; padding: 0 .35rem; border-radius: 5px; background: var(--sunk); font: .8125rem/1.6 var(--sans); }
 .pitem .prob { color: #8a2a1c; font-size: .8125rem; }
 .orphan .ptext { padding-left: 0; font-size: .9375rem; }

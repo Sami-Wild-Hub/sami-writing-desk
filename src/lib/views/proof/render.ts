@@ -59,9 +59,9 @@ function fixHtml(item: Tagged, at: number) {
   const diff = sentenceDiff(item.quote, item.fix).map(c => c.kind === 'same' ? esc(c.text)
     : `<${c.kind === 'add' ? 'ins' : 'del'}>${esc(c.text)}</${c.kind === 'add' ? 'ins' : 'del'}>`).join('');
   const invalid = item.problems.some(p => p.startsWith('fix '));
-  return `<p class="pfix"><b>建议</b>${diff}</p>` + (invalid ? '' :
+  return `<div class="pfix"><p class="pfix-text"><b>建议</b>${diff}</p>` + (invalid ? '' :
     `<div class="pfix-tools"><button type="button" class="btn small" data-accept="${esc(item.key)}" data-at="${at}"${item.disabled ? ' disabled' : ''}>${item.accepted ? '撤销' : '接受'}</button>` +
-    `${item.disabled ? `<span class="hint">${esc(item.disabled)}</span>` : ''}</div>`);
+    `${item.disabled ? `<span class="hint">${esc(item.disabled)}</span>` : ''}</div>`) + '</div>';
 }
 
 function itemHtml({ item, at, range }: PlacedItem<Tagged>) {
@@ -71,8 +71,8 @@ function itemHtml({ item, at, range }: PlacedItem<Tagged>) {
     `<blockquote>${esc(item.quote || '（没有引文）')}</blockquote>` +
     `<div class="tags"><span class="src" title="${NAME[item.check]}">${MARK[item.check]} ${NAME[item.check]}</span>${level ? `<span class="lv">${esc(level)}</span>` : ''}` +
     `${item.kind ? `<span class="pill">${esc(item.kind)}</span>` : ''}${item.para ? `<span class="pill">${esc(item.para)}</span>` : ''}${off ? `<span class="pill warn">${off}</span>` : ''}</div>` +
-    `<p class="issue">${esc(item.issue)}</p>` +
     fixHtml(item, at) +
+    `<p class="issue">${item.fix === undefined ? '' : '<b>理由</b>'}${esc(item.issue)}</p>` +
     (item.suggestion ? `<p class="sugg"><b>${item.fix === undefined ? '建议' : '说明'}</b>${esc(item.suggestion)}</p>` : '') +
     (item.evidence.length ? `<p class="ev"><b>依据</b>${item.evidence.map((e) => `<code>${esc(e)}</code>`).join('')}</p>` : '') +
     (item.problems.length ? `<p class="prob">格式问题：${esc(item.problems.join('；'))}</p>` : '') +
