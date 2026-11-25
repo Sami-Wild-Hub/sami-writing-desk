@@ -64,11 +64,6 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
   bar.setReady(false);
   if (!session || !config.householdId) return;
   const store = createStore(session, config.householdId, config.projectId, (slug) => {
-    if (current?.slug !== slug || !connected()) return;
-    toast('小说已更新', { label: '更新阅读', action: () => {
-      if (current?.slug === slug && connected()) { dropBook(); void render('load'); }
-    } });
-  }, (slug) => {
     if (connected()) toast('小说后台下载失败，可继续阅读', { label: '重试', action: () => store.refresh(slug) });
   });
   const search = mountSearch();
@@ -154,11 +149,8 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
   };
 
   const loadCatalog = async () => {
-    const slug = parseNovelRoute(url()).book;
-    const cached = slug ? await store.restore(slug) : undefined;
     if (!connected()) return;
-    if (cached) await render('load');
-    else message('正在加载小说目录…');
+    message('正在加载小说目录…');
     try {
       const catalog = await store.loadCatalog();
       if (!catalog) return;
@@ -168,10 +160,9 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
         message('');
         return;
       }
-      if (!cached || !catalog[slug]) await render('load');
+      await render('load');
     } catch (error) {
-      if (cached) toast('小说版本检查失败', { label: '重试', action: () => void loadCatalog() });
-      else failure(error instanceof Error ? `读取小说目录失败：${error.message}` : '读取小说目录失败', () => void loadCatalog());
+      failure(error instanceof Error ? `读取小说目录失败：${error.message}` : '读取小说目录失败', () => void loadCatalog());
     }
   };
 

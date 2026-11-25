@@ -11,7 +11,7 @@ import { readArchiveCache, writeArchiveCache } from './cache.ts';
 import { ArchiveBooks, cacheKey } from './books.ts';
 
 export function createStore(session: FirebaseHouseholdSession, householdId: string, projectId = '',
-  updated: (slug: string) => void = () => {}, failed: (slug: string, error: unknown) => void = () => {}) {
+  failed: (slug: string, error: unknown) => void = () => {}) {
   const root = `households/${householdId}/novelArchive`;
   const syncRoot = `households/${householdId}/outlineSync`;
   let generation = 0;
@@ -28,19 +28,13 @@ export function createStore(session: FirebaseHouseholdSession, householdId: stri
     const snapshot = await get(ref(session.database, `${syncRoot}/${path}`));
     return at === generation && session.getStatus().connection === 'connected' ? snapshot.val() as unknown : undefined;
   };
-  const books = new ArchiveBooks(read, `${projectId}:${householdId}`, () => catalog, updated, failed);
+  const books = new ArchiveBooks(read, `${projectId}:${householdId}`, () => catalog, failed);
 
   return {
     clear() { generation += 1; catalog = {}; books.clear(); },
     catalog: () => catalog,
     peek: (slug: string) => books.peek(slug),
     refresh: (slug: string) => books.refresh(slug),
-    async restore(slug: string) {
-      const book = await books.restore(slug);
-      if (book) catalog[slug] = { title: book.manifest.title, scope: book.manifest.scope, version: book.version,
-        imageVersion: book.imageVersion };
-      return book;
-    },
     async loadCatalog() {
       const data = await read('catalog');
       if (data === undefined) return undefined;
@@ -49,7 +43,6 @@ export function createStore(session: FirebaseHouseholdSession, householdId: stri
         const book = books.peek(slug);
         if (book?.complete && book.version === info.version && book.imageVersion !== info.imageVersion) {
           book.imagesRead = undefined; book.imagesValue = undefined; book.imagesRaw = undefined;
-          updated(slug);
         }
         books.refresh(slug);
       });

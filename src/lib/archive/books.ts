@@ -1,4 +1,4 @@
-// Restore complete books first, read uncached pages on demand, and refresh in the background.
+// Reuse matching cached books, read fresh pages on demand, and download complete books in the background.
 // Reads: novelArchive/books and IndexedDB/archive (Firebase JSON / structured clone).
 // Writes: IndexedDB/archive (complete, versioned book snapshots).
 import { readArchiveCache, writeArchiveCache } from './cache.ts';
@@ -21,12 +21,12 @@ export class ArchiveBooks {
 
   constructor(private read: (path: string) => Promise<unknown>, private identity: string,
     private info: () => Record<string, BookInfo>,
-    private updated: (slug: string) => void, private failed: (slug: string, error: unknown) => void) {}
+    private failed: (slug: string, error: unknown) => void) {}
 
   clear() { this.generation++; this.books.clear(); this.downloads.clear(); }
   peek(slug: string) { return this.books.get(slug); }
 
-  async restore(slug: string) {
+  private async restore(slug: string) {
     const at = this.generation;
     const row = await readArchiveCache(cacheKey('book', this.identity, slug));
     if (at !== this.generation || !row) return undefined;
@@ -50,7 +50,7 @@ export class ArchiveBooks {
     const at = this.generation;
     const cached = this.books.get(slug) ?? await this.restore(slug);
     if (at !== this.generation) return undefined;
-    if (cached) { this.refresh(slug); return cached; }
+    if (cached && cached.version === this.info()[slug]?.version) { this.refresh(slug); return cached; }
     const raw = await this.read(`books/${slug}/manifest`);
     if (at !== this.generation || raw === undefined) return undefined;
     const manifest = validateManifest(raw);
@@ -97,7 +97,6 @@ export class ArchiveBooks {
     if (payload.imageVersion && payload.images !== undefined) {
       void writeArchiveCache(cacheKey('images', this.identity, slug), payload.imageVersion, payload.images);
     }
-    if (previous && previous !== book) this.updated(slug);
     return book;
   }
 
