@@ -23,10 +23,10 @@ test('Owner images display and open at full size', async ({ page }) => {
   await tab.click();
   const gallery = page.getByRole('region', { name: '图片', exact: true });
   await expect(gallery).toBeVisible();
-  await expect(gallery.locator('img')).toHaveCount(privatePayload ? 9 : 1);
+  await expect(gallery.locator('img')).toHaveCount(privatePayload ? 10 : 1);
   const first = gallery.locator('img').first();
   await expect.poll(() => first.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
-  await expect(gallery.locator('figcaption').first()).toHaveText(privatePayload ? 'ChatGPT Image Oct 27, 2026, 07_51_10 AM-2.png' : 'Harbor plan-old.png');
+  await expect(gallery.locator('figcaption').first()).toHaveText(privatePayload ? '示意平面图（试点）' : 'Harbor plan-old.png');
   if (env.NOVEL_SHOTS_DIR) await page.screenshot({ path: `${env.NOVEL_SHOTS_DIR}/location-images.png`, fullPage: false });
   await gallery.locator('button').first().click();
   const dialog = page.getByRole('dialog');
