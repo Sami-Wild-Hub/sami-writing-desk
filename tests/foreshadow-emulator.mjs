@@ -60,9 +60,8 @@ async function scenario(h, db, git) {
   await page.goto(`${h.baseURL}/book/?book=${slug}&view=foreshadow`);
   const root = page.locator('[data-view="foreshadow"]');
   await root.locator('tbody tr').first().waitFor();
-  await root.getByRole('button', { name: '编辑', exact: true }).first().click();
-  await root.getByLabel('备注', { exact: true }).fill('Browser to Git');
-  await root.getByRole('button', { name: '保存修改' }).click();
+  const note = root.locator('tbody tr').first().locator('[data-col="备注"]');
+  await note.fill('Browser to Git'); await note.press('Tab');
   await eventually('real rules accept the third document', async () => JSON.parse(await unpack((await db.read(slug)).live.foreshadow)).rows[0].author['备注'] === 'Browser to Git');
   await eventually('browser edit publishes through existing lease/CAS', async () => {
     await once({}, { git, rtdb: db });

@@ -29,13 +29,19 @@ No table is created for a book without the file. File-level merges, conflicts,
 `Outline-Sync` trailers, the coordinator lease and RTDB CAS cover all three files.
 The RTDB adapter and watcher need no separate storage or scheduling path.
 
-The 伏笔表 tab follows 大纲. It supports status/chapter filters, row editing,
-addition/deletion, scoped local drafts, and the existing repository/cloud conflict
-choices. Planting chapter cells are direct links such as `C1P10-11`; there is no
-separate 埋设链接 field. Recovery chapter links remain explicitly editable.
-Source-row numbers are internal; the author’s 伏笔ID cell is freely editable.
-Phones show each row as a card. The default view hides recovered rows, and filter
-selection is stored locally per account and book.
+The 伏笔表 tab follows 大纲. Cells are edited in place like a spreadsheet and save
+on leaving the cell (or after a short pause); 是否已收 is a dropdown with 未收 / 已收 /
+部分回收 / 不需要. Rows are archived with 不需要 instead of deleted. The quote in
+伏笔／线索内容 links to its 埋设章节 paragraph, and each `Cn` in 实际回收章节 links in
+place; `derived.recovery_chapters` is recomputed from that cell when it is edited.
+重要程度 and 回收方式／揭示内容 stay in the file but are not shown. 埋设章节 shows
+chapter numbers only (`C1P10-11` → `1`); stored paragraphs still steer the quote
+link until the cell is retyped, and a plain number is read as a chapter. Shortcuts: Enter / Shift+Enter
+move down / up, Alt+Enter inserts a line break, Alt+0–3 set the status, Alt+S opens it,
+Ctrl/⌘+Enter adds a row below. Source-row numbers are internal; the author’s 伏笔ID
+cell is freely editable and new rows continue numeric IDs. Phones show each row as a
+card. The default view hides 已收 and 不需要 rows, and filter selection is stored
+locally per account and book.
 
 Private visual verification uses `tests/foreshadow.spec.ts` with
 `FORESHADOW_SHOTS_DIR`, `FORESHADOW_DATA_REPO` and `FORESHADOW_SOURCE_ROOT`

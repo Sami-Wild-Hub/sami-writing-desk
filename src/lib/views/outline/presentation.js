@@ -13,8 +13,9 @@ export function presentation(model, UI) {
   for (const p of model.placedList()) D.placedIn[p.unit_id] = { beat: p.beat_id };
   for (const u of model.visibleUnits()) S.cards[u.unit_id] = { id: u.unit_id, line: u.storyline_group_id, cat: u.category, text: cardText(u), details: u.details, refs: u.source_refs, origins: (u.source_unit_ids || []).map(id => cardText(model.unitMap[id])), status: u.status === 'WRITTEN' ? '已写' : D.placedIn[u.unit_id] ? '已排' : '未排' };
   const v = { DATA, UI, S, D, CATS: CATEGORIES, CAT_LABEL: { past: 'Past', current: 'Current', combined: 'Combined' }, BEAT_IDS: model.beatIds, BEAT: Object.fromEntries(DATA.beats.map(b => [b.id, b])), KB_TYPE: Object.fromEntries(DATA.kb.map(p => [p.name, p.type])), undoStack: model.undoHistory, esc: escapeHtml, statusClass: { 已写: 'written', 已排: 'placed', 未排: 'unplaced' } };
-  v.beatShort = id => `A${v.BEAT[id].act}·B${v.BEAT[id].beat}`;
-  v.beatLong = id => `Act ${v.BEAT[id].act} · Beat ${v.BEAT[id].beat}`;
+  v.actOnly = new Set(DATA.beats.map(b => b.act)).size === DATA.beats.length;
+  v.beatShort = id => v.actOnly ? `Part ${v.BEAT[id].act}` : `A${v.BEAT[id].act}·B${v.BEAT[id].beat}`;
+  v.beatLong = id => v.actOnly ? `Part ${v.BEAT[id].act}` : `Act ${v.BEAT[id].act} · Beat ${v.BEAT[id].beat}`;
   v.rankOf = name => S.ranking.indexOf(name);
   v.lineOf = id => S.lines.find(l => l.id === id);
   v.partsOf = line => [...line.parts].sort((a, b) => v.rankOf(a) - v.rankOf(b));

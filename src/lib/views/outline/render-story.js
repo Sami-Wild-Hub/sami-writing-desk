@@ -21,7 +21,7 @@ export function picker(v, line) {
 // Parts 2 and 3 share one grid: a row per Beat category, so both sides line up.
 export function beatsGrid(v, line) {
   const { S, CATS, CAT_LABEL, BEAT_IDS, BEAT, beatLong, esc, cardMini, refChip } = v;
-  const head = `<div class="bg-head"><span>Beat</span><span>其他故事线 · 已排（只读）</span><span>本线 · 揭示顺序</span></div>`;
+  const head = `<div class="bg-head"><span>${v.actOnly ? 'Part' : 'Beat'}</span><span>其他故事线 · 已排（只读）</span><span>本线 · 揭示顺序</span></div>`;
   const rows = BEAT_IDS.map(b => `<div class="bg-beat"><b>${beatLong(b)}</b><span>${esc(BEAT[b].title)}</span></div>` + CATS.map(cat => {
     const ids = S.reveal[b].filter(id => S.cards[id].cat === cat);
     const others = ids.filter(id => S.cards[id].line !== line.id), mine = ids.filter(id => S.cards[id].line === line.id);

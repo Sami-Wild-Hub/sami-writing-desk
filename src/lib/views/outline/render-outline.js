@@ -1,7 +1,7 @@
 // 大纲 tab: choose a Beat, see it in Past / Current / Combined, pick cards in from the library; all grouped by participant.
 export function renderOutline(v) {
   const { CATS, beatNav, beatHeader, boardLane, library, BEAT_IDS, beatLong, UI, esc, BEAT } = v;
-  return `<div class="ol"><label class="mobile-beat">选择 Beat<select data-change="choose-beat">${BEAT_IDS.map(id => `<option value="${id}" ${id === UI.beat ? 'selected' : ''}>${beatLong(id)} · ${esc(BEAT[id].title)}</option>`).join('')}</select></label><nav class="ol-side" aria-label="Act 与 Beat">${beatNav()}</nav>
+  return `<div class="ol"><label class="mobile-beat">选择 ${v.actOnly ? 'Part' : 'Beat'}<select data-change="choose-beat">${BEAT_IDS.map(id => `<option value="${id}" ${id === UI.beat ? 'selected' : ''}>${beatLong(id)} · ${esc(BEAT[id].title)}</option>`).join('')}</select></label><nav class="ol-side" aria-label="${v.actOnly ? 'Part' : 'Act 与 Beat'}">${beatNav()}</nav>
     <main class="ol-main">${beatHeader()}<div class="ol-board">${CATS.map(boardLane).join('')}</div></main>
     <aside class="library" data-keep="library" aria-label="素材库">${library()}</aside></div>`;
 }
@@ -10,7 +10,8 @@ export function beatNav(v) {
   const { DATA, UI, S, BEAT, esc } = v;
   const acts = [...new Set(DATA.beats.map(b => b.act))];
   const beat = b => `<button class="beat ${b.id === UI.beat ? 'active' : ''}" data-act="choose-beat" data-id="${b.id}" aria-current="${b.id === UI.beat ? 'step' : 'false'}">
-    <span class="beat-no">Beat ${b.beat}</span><span class="beat-name">${esc(b.title)}</span><small>${S.reveal[b.id].length}</small></button>`;
+    <span class="beat-no">${v.actOnly ? `PART ${b.act}` : `Beat ${b.beat}`}</span><span class="beat-name">${esc(b.title)}</span><small>${S.reveal[b.id].length}</small></button>`;
+  if (v.actOnly) return `<div class="side-h">PART</div>` + DATA.beats.map(beat).join('');
   return `<div class="side-h">ACT / BEAT</div>` + acts.map(a => `<div class="actname">ACT ${a}</div>${DATA.beats.filter(b => b.act === a).map(beat).join('')}`).join('');
 }
 
@@ -18,7 +19,7 @@ export function beatHeader(v) {
   const { UI, BEAT, beatLong, esc } = v;
   const b = BEAT[UI.beat];
   return `<header class="beatbar"><h2>${esc(beatLong(b.id).toUpperCase())}</h2>
-    <div class="beat-title">${esc(b.title) || '<span class="muted">（未命名）</span>'}</div><label class="field">本 Beat 备注<textarea id="beat-note" data-input="beat-note" rows="2">${esc(b.note)}</textarea></label></header>`;
+    <div class="beat-title">${esc(b.title) || '<span class="muted">（未命名）</span>'}</div><label class="field">本 ${v.actOnly ? 'Part' : 'Beat'} 备注<textarea id="beat-note" data-input="beat-note" rows="2">${esc(b.note)}</textarea></label></header>`;
 }
 
 export function lineHead(v, l) {
@@ -31,7 +32,7 @@ export function lineHead(v, l) {
 export function moveSelect(v, id) {
   const { D, BEAT_IDS, BEAT, beatShort, esc } = v;
   const opts = BEAT_IDS.filter(b => b !== D.placedIn[id]?.beat).map(b => `<option value="${b}">${beatShort(b)}${BEAT[b].title ? ' · ' + esc(BEAT[b].title) : ''}</option>`).join('');
-  return `<select data-change="move-beat" data-id="${id}" aria-label="移到其他 Beat"><option value="">移到…</option>${opts}</select>`;
+  return `<select data-change="move-beat" data-id="${id}" aria-label="移到其他 ${v.actOnly ? 'Part' : 'Beat'}"><option value="">移到…</option>${opts}</select>`;
 }
 
 // One category of the active Beat: participant section → storyline → cards in reveal order.
@@ -43,7 +44,7 @@ export function boardLane(v, cat) {
     `<div class="ol-line">${lineHead(l)}${ids.filter(id => S.cards[id].line === l.id).map(id => cardFull(S.cards[id], {
       where: false, actions: `<button class="btn tiny" data-act="unplace" data-id="${id}">移出</button>${moveSelect(id)}` })).join('')}</div>`).join('')).join('');
   return `<section class="lane ${cat}"><div class="col-head"><span class="era">${CAT_LABEL[cat]}</span><span class="n">${ids.length} 张</span></div>
-    ${body || '<div class="empty">这一拍还没有这一类的卡</div>'}</section>`;
+    ${body || `<div class="empty">${v.actOnly ? '本 Part' : '这一拍'}还没有这一类的卡</div>`}</section>`;
 }
 
 export function matches(v, c, l, q) {
@@ -63,7 +64,7 @@ export function library(v) {
     total += n;
     const pick = id => {
       const p = D.placedIn[id];
-      return `<button class="btn tiny pick" data-act="pick" data-id="${id}">${p ? `从 ${beatShort(p.beat)} 移入本拍` : '＋ 选入本拍'}</button>`;
+      return `<button class="btn tiny pick" data-act="pick" data-id="${id}">${p ? `从 ${beatShort(p.beat)} 移入${v.actOnly ? '本 Part' : '本拍'}` : `＋ 选入${v.actOnly ? '本 Part' : '本拍'}`}</button>`;
     };
     const sub = ([cat, xs]) => `<div class="sub ${cat}"><span class="era">${CAT_LABEL[cat]}</span><span class="n">${xs.length}</span></div>
       ${xs.map(id => cardFull(S.cards[id], { actions: pick(id) })).join('') || '<div class="empty">没有可选的卡</div>'}`;
