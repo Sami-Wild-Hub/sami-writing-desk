@@ -16,8 +16,8 @@ export function validateForeshadow(data) {
   return data;
 }
 
-const PLANTING = /^C([1-9]\d*)(?:P([1-9]\d*)(?:-[1-9]\d*)?)?$/;
-// Split the author's 埋设章节 cell (C1P8, C1P10-11, C3; several joined by ，) into pieces, separators kept;
+const PLANTING = /^C?([1-9]\d*)(?:P([1-9]\d*)(?:-[1-9]\d*)?)?$/;
+// Split the author's 埋设章节 cell (C1P8, C1P10-11, C3 or just 3; several joined by ，) into pieces, separators kept;
 // recognized pieces carry the chapter and first paragraph (0 = whole chapter).
 /** @param {string} text @returns {{ text: string, chapter?: number, paragraph?: number }[]} */
 export function plantingParts(text) {
@@ -25,6 +25,14 @@ export function plantingParts(text) {
     const m = PLANTING.exec(part);
     return m ? { text: part, chapter: Number(m[1]), paragraph: Number(m[2] ?? 0) } : { text: part };
   });
+}
+
+// The table shows 埋设章节 as chapter numbers only ("C1P10-11，C3P2" → "1，3"); the stored cell keeps any paragraphs,
+// so the quote still links to its exact paragraph until the cell is retyped.
+/** @param {string} text */
+export function plantingChapterText(text) {
+  const chapters = [...new Set(plantingParts(text).filter(p => p.chapter).map(p => String(p.chapter)))];
+  return chapters.length ? chapters.join('，') : text;
 }
 
 export function plantingChapters(row) {
@@ -36,7 +44,7 @@ export function plantingChapters(row) {
 export const STATUSES = ['已收', '部分回收', '不需要'];
 const CLOSED = new Set(['已收', '不需要']);
 // Columns kept in the data (and in sync) but not shown in the table.
-export const HIDDEN_COLUMNS = new Set(['回收方式／揭示内容']);
+export const HIDDEN_COLUMNS = new Set(['回收方式／揭示内容', '重要程度']);
 /** @param {{ columns: { header: string, source_column: string }[] }} data */
 export const visibleColumns = data => data.columns.filter(c => !HIDDEN_COLUMNS.has(c.header));
 

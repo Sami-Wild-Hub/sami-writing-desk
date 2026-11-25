@@ -5,7 +5,7 @@ import type { CreateNovelView, NovelViewHost } from '../types.ts';
 import { esc } from '../../archive/ui.ts';
 import { ForeshadowCloud } from './cloud.ts';
 import { OPEN, addRow, filterRows, findRow, plantingChapters, rowKey, setCell, validateForeshadow, visibleColumns } from './model.js';
-import { STATUS_LABEL, cellClass, columnClass, rowHtml, statusOptions, viewHtml } from './render.ts';
+import { STATUS_LABEL, cellClass, cellValue, columnClass, rowHtml, statusOptions, viewHtml } from './render.ts';
 import { keptWorkspace } from '../outline/sync.ts';
 import './style.css';
 import type { ForeshadowData, ForeshadowRow } from './schema.ts';
@@ -68,14 +68,14 @@ class ForeshadowPanel {
       this.q('thead').replaceChildren(); this.tbody.replaceChildren(); this.head = ''; return;
     }
     this.q('.fsh-keys').hidden = false;
-    const select = (header: string, value: string, values: string[], fixed: [string, string][]) => {
+    const select = (header: string, value: string, values: string[], fixed: [string, string][], label = (v: string) => v) => {
       const options = [...new Set([...values, value].filter(v => v && !fixed.some(([f]) => f === v)))].sort((a, b) => a.localeCompare(b, 'zh', { numeric: true }));
       return `<label>${header}<select aria-label="按${header}筛选" data-filter="${header}">` + [...fixed, ...options.map(v => [v, v])]
-        .map(([v, text]) => `<option${v === value ? ' selected' : ''} value="${esc(v)}">${esc(text)}</option>`).join('') + '</select></label>';
+        .map(([v, text]) => `<option${v === value ? ' selected' : ''} value="${esc(v)}">${esc(label(text))}</option>`).join('') + '</select></label>';
     };
     const rows = filterRows(data, this.status, this.chapter);
     this.q('.fsh-tools').innerHTML = select('是否已收', this.status, data.rows.map(r => r.author['是否已收'] || '未标注'), [[OPEN, '未收和部分回收'], ['', '全部']]) +
-      select('埋设章节', this.chapter, data.rows.flatMap(plantingChapters), [['', '全部']]) +
+      select('埋设章节', this.chapter, data.rows.flatMap(plantingChapters), [['', '全部']], v => v.replace(/^C(\d+)$/, '$1')) +
       `<span>${rows.length} / ${data.rows.length} 条</span><button data-add title="${MOD}Enter">加行 <kbd>${MOD}Enter</kbd></button>`;
     this.q<HTMLButtonElement>('[data-add]').disabled = this.cloud.replacing;
     const columns = visibleColumns(data), head = JSON.stringify(columns.map(c => c.header));
@@ -134,7 +134,7 @@ class ForeshadowPanel {
       input.dataset.src = value;
       // Someone else changed this cell: take their text unless this cell holds unsaved typing.
       if (document.activeElement === input && input.value !== input.dataset.saved) continue;
-      if (input instanceof HTMLSelectElement) input.innerHTML = statusOptions(value); else input.value = value;
+      if (input instanceof HTMLSelectElement) input.innerHTML = statusOptions(value); else input.value = cellValue(header, value);
       input.dataset.saved = input.value;
       if (input instanceof HTMLTextAreaElement) this.fit([input]);
     }
@@ -292,7 +292,7 @@ class ForeshadowPanel {
     this.host.root.querySelectorAll<Input>('tbody .fsh-input').forEach(input => { if (this.timers.has(input)) this.commit(input); });
     const next = structuredClone(this.cloud.data!), after = tr ? findRow(next, tr.dataset.key!) ?? null : null;
     const preset: Record<string, string> = {};
-    if (this.chapter && this.chapter !== '未标注') preset['埋设章节'] = this.chapter;
+    if (this.chapter && this.chapter !== '未标注') preset['埋设章节'] = this.chapter.replace(/^C/, '');
     if (this.status && this.status !== OPEN && this.status !== '未标注') preset['是否已收'] = this.status;
     const row = addRow(next, after, preset);
     this.cloud.edit(validateForeshadow(next));

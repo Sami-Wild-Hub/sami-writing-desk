@@ -3,7 +3,7 @@
 import { esc } from '../../archive/ui.ts';
 import type { NovelViewHost } from '../types.ts';
 import type { ForeshadowData, ForeshadowRow } from './schema.ts';
-import { STATUSES, plantingParts, rowKey, visibleColumns } from './model.js';
+import { STATUSES, plantingChapterText, plantingParts, rowKey, visibleColumns } from './model.js';
 
 // Card role and short card label per known column; other columns render as labelled long text.
 const ROLE: Record<string, string> = { 伏笔ID: 'id', '伏笔／线索内容': 'content', 埋设章节: 'meta', 重要程度: 'meta', 是否已收: 'state', 实际回收章节: 'meta' };
@@ -46,6 +46,9 @@ export function statusOptions(value: string) {
     `<option value="${esc(v)}"${v === value ? ' selected' : ''}>${esc(STATUS_LABEL[v] ?? v)}</option>`).join('');
 }
 
+// What a cell's input shows for the stored text: 埋设章节 shows chapter numbers only.
+export const cellValue = (header: string, text: string) => header === '埋设章节' ? plantingChapterText(text) : text;
+
 // A textarea's content loses one leading newline when parsed, so one is added to keep the author's text exact.
 const textarea = (header: string, text: string) =>
   `<textarea class="fsh-input" rows="1" data-col="${esc(header)}" aria-label="${esc(header)}" spellcheck="false">\n${esc(text)}</textarea>`;
@@ -54,7 +57,7 @@ export function cellHtml(header: string, row: ForeshadowRow, host: NovelViewHost
   const text = row.author[header];
   if (header === '是否已收') return `<select class="fsh-input" data-col="是否已收" aria-label="是否已收">${statusOptions(text)}</select>`;
   if (LINKED.has(header)) return `<div class="fsh-view" aria-hidden="true">${viewHtml(header, row, host)}</div>${textarea(header, text)}`;
-  return textarea(header, text);
+  return textarea(header, cellValue(header, text));
 }
 
 export function cellClass(header: string, row: ForeshadowRow) {

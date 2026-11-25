@@ -18,13 +18,15 @@ test('signed-out access reads no private data, and an absent table shows its emp
 
 test('optional absence, column order, line breaks, filters and links on the quote and recovery text', async ({ page }) => {
   const { root, db } = await setup(page);
-  expect(await root.locator('th').allTextContents()).toEqual(foreshadowFixture().columns.map(c => c.header).filter(h => h !== '回收方式／揭示内容'));
+  expect(await root.locator('th').allTextContents()).toEqual(['伏笔ID', '埋设章节', '伏笔／线索内容', '是否已收', '实际回收章节', '回收场景／位置', '备注']);
+  await expect(cell(root, 1, '埋设章节')).toHaveValue('2');
   await expect(root.getByRole('button', { name: '编辑', exact: true })).toHaveCount(0);
   await expect(root.getByRole('button', { name: '删除', exact: true })).toHaveCount(0);
   await expect(root.locator('tbody tr').first().locator('td.fsh-content .fsh-view')).toHaveText('A clue\nSecond line');
   await expect(root.locator('tbody tr').nth(1).locator('script')).toHaveCount(0);
   await root.getByLabel('按是否已收筛选').selectOption('部分回收');
   await expect(root.locator('tbody tr')).toHaveCount(1);
+  await expect(root.getByLabel('按埋设章节筛选').locator('option')).toHaveText(['全部', '1', '2']);
   await root.getByLabel('按埋设章节筛选').selectOption('C2');
   await expect(root.locator('tbody tr')).toHaveCount(0);
   await root.getByLabel('按是否已收筛选').selectOption('');
