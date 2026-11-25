@@ -8,7 +8,8 @@ export const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => 
 export function presentation(model, UI) {
   const DATA = { beats: model.data.beats.map(b => ({ ...b, id: b.beat_id, note: model.state.beat_notes[b.beat_id] || '' })), kb: model.data.participants };
   const S = { ranking: model.data.participant_order, lines: model.data.storyline_groups.map(g => ({ id: g.id, title: g.title, parts: g.participants, lead: g.lead_participant })), time: Object.fromEntries(model.data.storyline_groups.map(g => [g.id, g.time_order])), cards: {}, reveal: {} };
-  const D = { placedIn: {}, marks: model.marks() };
+  // Keep reveal order independent of chronological order; do not show mismatch warnings on cards.
+  const D = { placedIn: {}, marks: {} };
   for (const b of model.beatIds) S.reveal[b] = model.placedList().filter(p => p.beat_id === b).map(p => p.unit_id);
   for (const p of model.placedList()) D.placedIn[p.unit_id] = { beat: p.beat_id };
   for (const u of model.visibleUnits()) S.cards[u.unit_id] = { id: u.unit_id, line: u.storyline_group_id, cat: u.category, text: cardText(u), details: u.details, refs: u.source_refs, origins: (u.source_unit_ids || []).map(id => cardText(model.unitMap[id])), status: u.status === 'WRITTEN' ? '已写' : D.placedIn[u.unit_id] ? '已排' : '未排' };
