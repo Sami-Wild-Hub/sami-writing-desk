@@ -35,9 +35,9 @@ async function dropAt(page: Page, target: Locator, dy: (b: { y: number; height: 
 test('delete a card and a storyline, undo both, and the deletions survive a refresh', async ({ page }) => {
   const { root, reads, errors } = await open(page), initial = await workspace(page, root);
   const id = line(initial, 'G01').time_order.current[0];
-  await card(root, id).locator('.card-menu summary').click(); await card(root, id).getByRole('button', { name: '删除', exact: true }).click(); await expect(card(root, id)).toHaveCount(0);
+  await card(root, id).getByRole('button', { name: '删除', exact: true }).click(); await expect(card(root, id)).toHaveCount(0);
   await root.locator('#undo').click(); await expect(card(root, id)).toHaveCount(1);
-  await card(root, id).locator('.card-menu summary').click(); await card(root, id).getByRole('button', { name: '删除', exact: true }).click(); await expect(card(root, id)).toHaveCount(0);
+  await card(root, id).getByRole('button', { name: '删除', exact: true }).click(); await expect(card(root, id)).toHaveCount(0);
 
   await root.locator('[data-act="toggle-picker"]').click(); await root.locator('.pick-line[data-id="G11"]').click();
   await root.locator('.self-line.current [data-act="edit-line"]').click();
