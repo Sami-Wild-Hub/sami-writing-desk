@@ -33,3 +33,16 @@ export function findQuote(text: string, quote: string): [number, number] | null 
   const at = squeezed.indexOf(wanted);
   return at < 0 ? null : [kept[at], kept[at + wanted.length - 1] + 1];
 }
+
+/** Build a new draft from the editor without losing headings, blank lines or unchanged lines. */
+export function revisionDraft(original: string, edits: readonly string[]): string {
+  const paragraphs = splitParagraphs(original);
+  if (paragraphs.length !== edits.length) throw new Error('段落数不一致，不能生成复校稿');
+  let i = 0;
+  return original.split(/(\r\n|\r|\n)/).map((line, index) => {
+    if (index % 2 || !line.trim() || /^#{1,6}\s/.test(line.trim())) return line;
+    const replacement = edits[i++];
+    if (replacement === line.trim()) return line;
+    return replacement;
+  }).join('');
+}
