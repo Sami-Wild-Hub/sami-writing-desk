@@ -96,3 +96,42 @@ test('move cards by dropdown and by dragging onto the picker; drop into blank co
   expect([unit(w, x).storyline_group_id, unit(w, y).storyline_group_id, unit(w, free).content, unit(w, free).element_title || '']).toEqual(['G03', 'G03', long, '']);
   expect(w.plan.placements.find((p: any) => p.unit_id === free).beat_id).toBe('A2-B1'); expect(errors).toEqual([]);
 });
+
+
+test('placed cards edit in the left pane and return to the original storyline without deletion', async ({ page }) => {
+  const { root, errors } = await open(page), initial = await workspace(page, root);
+  const p = initial.plan.placements.find((p: any) => unit(initial, p.unit_id).status !== 'WRITTEN' && unit(initial, p.unit_id).storyline_group_id !== 'G01');
+  const id = p.unit_id, original = unit(initial, id), left = root.locator(`.beats-pane [data-card="${id}"]`);
+  await left.getByRole('button', { name: '编辑卡片' }).click();
+  const editor = root.locator('.beats-pane [data-form="card"]');
+  await expect(editor).toHaveCount(1);
+  await expect(root.locator('.self-pane [data-form="card"]')).toHaveCount(0);
+  await editor.locator('[name="text"]').fill('左侧修改后的卡片');
+  await editor.locator('[name="details"]').fill('保留细节');
+  await editor.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(left.locator('.mini-text')).toHaveText('左侧修改后的卡片');
+  await left.getByRole('button', { name: '移出大纲，退回故事线' }).click();
+  await expect(left).toHaveCount(0);
+  await expect(card(root, id).locator('.c-text')).toHaveText('左侧修改后的卡片');
+  let w = await workspace(page, root);
+  expect(w.plan.placements.some((q: any) => q.unit_id === id)).toBe(false);
+  expect(unit(w, id).storyline_group_id).toBe(original.storyline_group_id);
+  expect(line(w, original.storyline_group_id).time_order[original.category]).toEqual(line(initial, original.storyline_group_id).time_order[original.category]);
+  expect(unit(w, id).details).toEqual(['保留细节']);
+  await root.locator('#undo').click();
+  await expect(left).toHaveCount(1);
+  await root.locator('[data-act="tab"][data-tab="outline"]').click();
+  await root.locator(`.beat[data-id="${p.beat_id}"]`).click();
+  const placed = root.locator(`.ol-board [data-card="${id}"]`);
+  await placed.getByRole('button', { name: '编辑卡片' }).click();
+  const boardEditor = root.locator('.ol-board [data-form="card"]');
+  await boardEditor.locator('[name="text"]').fill('大纲内修改');
+  await boardEditor.getByRole('button', { name: '保存', exact: true }).click();
+  await placed.getByRole('button', { name: '移出大纲，退回故事线' }).click();
+  await expect(placed).toHaveCount(0);
+  await expect(root.locator(`.library [data-card="${id}"] .c-text`)).toHaveText('大纲内修改');
+  w = await workspace(page, root);
+  expect(unit(w, id).content).toBe('大纲内修改');
+  expect(w.plan.placements.some((q: any) => q.unit_id === id)).toBe(false);
+  expect(errors).toEqual([]);
+});
