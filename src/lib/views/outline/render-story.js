@@ -79,7 +79,7 @@ export function selfCol(v, line, cat) {
   const all = S.time[line.id][cat], ids = UI.onlyUnplaced ? all.filter(id => S.cards[id].status === '未排') : all;
   const hidden = all.length - ids.length;
   const actions = id => `<button class="btn tiny" data-act="edit-card" data-id="${id}">编辑</button>${lineSelect(S.cards[id])}${v.moveSelect(id)}<details class="card-menu"><summary class="btn tiny" aria-label="更多卡片操作">更多</summary><button class="btn tiny danger" data-act="delete-card" data-id="${id}">删除</button></details>`;
-  const card = id => (UI.editing === id ? cardEditor(S.cards[id]) : cardFull(S.cards[id], { drag: true, mark: false, actions: actions(id) }));
+  const card = id => (UI.editing === id && UI.editingPane !== 'left' ? cardEditor(S.cards[id]) : cardFull(S.cards[id], { drag: true, mark: false, actions: actions(id) }));
   return `<section class="self-col ${cat}"><div class="col-head"><span class="era">${CAT_LABEL[cat]}</span><span class="n">${UI.onlyUnplaced ? `${ids.length} / ${all.length}` : all.length} 张</span>
     <button class="inline-plus" data-act="compose" data-cat="${cat}" data-line="${line.id}">＋ 新增</button></div>
     <div class="col-body" data-zone-area><div class="col-list" data-zone="time" data-accept="card" data-cat="${cat}" data-line="${line.id}">${ids.map(card).join('')}</div>
