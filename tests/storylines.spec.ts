@@ -1,3 +1,4 @@
+import { OUTLINE_ARCHIVED } from '../src/lib/views/outline/view-state.js';
 // Canonical v7 outline controls exercised with actual mouse drags at the approved desktop size.
 import { expect, test, type Page, type Locator } from '@playwright/test';
 import { stubFirebase, watchErrors } from './stub.ts';
@@ -44,7 +45,12 @@ test('picker, aligned reference, three categories and both tabs', async ({ page 
  await expect(root.locator('.bgrid .badge.unplaced')).toHaveCount(0);
  const own = await root.locator('.ri.mine .ri-line').allTextContents(), title = await root.locator('.self-line.current h3').textContent();
  expect(own.every(t => t === title)).toBe(true); expect(await root.locator('.ri:not(.mine) .ri-line').allTextContents()).not.toContain(title);
+ if (OUTLINE_ARCHIVED) {
+   await expect(root.locator('[data-tab="outline"]')).toHaveCount(0);
+   await expect(root.locator('.self-pane')).toBeVisible();
+ } else {
  await root.locator('[data-act="tab"][data-tab="outline"]').click(); await expect(root.locator('.lane')).toHaveCount(3); await expect(root.locator('[data-filter-state]')).toHaveCount(3);
+ }
  expect(errors).toEqual([]);
 });
 test('real drags: independent orders, inversions, category change, cross Beat and combined', async ({ page }) => {
