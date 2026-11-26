@@ -22,7 +22,7 @@ export function badge(v, c) {
 }
 
 // Full card: badge, where it is placed, text, details and origins, actions.
-export function cardFull(v, c, { actions = '', where = true, drag = false, mark = true } = {}) {
+export function cardFull(v, c, { actions = '', where = true, drag = false, mark = true, headerActions = '' } = {}) {
   const { D, beatShort, esc, list, markBlock, badge, fold } = v;
   const p = D.placedIn[c.id], m = mark && D.marks[c.id];
   const place = where && p ? `<span class="where placed">排在 ${beatShort(p.beat)}</span>` : '';
@@ -32,7 +32,7 @@ export function cardFull(v, c, { actions = '', where = true, drag = false, mark 
     c.refs ? `<span class="refs">出处 ${esc(c.refs)}</span>` : '',
   ].join('');
   return `<article class="card ${c.cat} ${m ? 'marked' : ''}" ${drag ? `data-drag="card" data-id="${c.id}"` : ''} data-card="${c.id}">
-    <div class="c-head">${drag ? '<span class="drag-grip" data-drag-handle title="拖动卡片排序" aria-hidden="true">⋮⋮</span>' : ''}${badge(c)}${place}</div>
+    <div class="c-head">${drag ? '<span class="drag-grip" data-drag-handle title="拖动卡片排序" aria-hidden="true">⋮⋮</span>' : ''}${badge(c)}${place}${headerActions ? `<span class="sp"></span>${headerActions}` : ''}</div>
     <div class="c-text">${esc(c.text)}</div>${m ? markBlock(c) : ''}
     <div class="c-foot">${foot}<span class="c-actions">${actions}</span></div></article>`;
 }
@@ -43,12 +43,13 @@ export function cardMore(v, c) {
   return [nd ? list(c.details) : '', no ? `<div class="mini-sub">并入的原纲</div>${list(c.origins)}` : '', c.refs ? `<span class="refs">出处 ${esc(c.refs)}</span>` : ''].join('');
 }
 
-// One card in a Beat (any storyline). Written cards are one-line rows inside a person's fold (not draggable); only this storyline's cards drag or leave.
+// One card in a Beat (any storyline). All placed cards can be edited or unplaced; only cards in the selected section can be dragged.
 export function revealItem(v, c, mine) {
-  const { UI, CAT_LABEL, esc, nameOf, lineOf, badge, cardMore } = v;
+  const { UI, CAT_LABEL, esc, nameOf, lineOf, badge, cardMore, cardEditor, placedActions } = v;
+  if (UI.editing === c.id && UI.editingPane === 'left') return cardEditor(c);
   const tag = `<span class="cat-tag ${c.cat}">${CAT_LABEL[c.cat]}</span><span class="ri-line">${esc(nameOf(lineOf(c.line)))}</span>`;
   const grip = mine ? '<span class="drag-grip" data-drag-handle title="拖动调整揭示顺序" aria-hidden="true">⋮⋮</span>' : '';
-  const x = mine ? `<button class="x" data-act="unplace" data-id="${c.id}" title="移出这一拍" aria-label="移出这一拍">×</button>` : '';
+  const x = placedActions(c.id);
   const attrs = `data-drag="card" data-id="${c.id}" data-card="${c.id}"`;
   if (c.status === '已写') {
     const open = UI.open.has('w:' + c.id);
@@ -62,6 +63,10 @@ export function revealItem(v, c, mine) {
 }
 
 // Move a card to another storyline; it keeps its category and Beat placement.
+export function placedActions(v, id) {
+  return `<button type="button" class="btn tiny quiet" data-act="edit-card" data-edit-pane="left" data-id="${id}" title="编辑卡片" aria-label="编辑卡片">✎</button><button type="button" class="x" data-act="unplace" data-id="${id}" title="移出大纲，退回故事线" aria-label="移出大纲，退回故事线">×</button>`;
+}
+
 export function lineSelect(v, c) {
   const { S, sections, nameOf, esc } = v;
   const groups = sections(S.lines.filter(l => l.id !== c.line)).map(s => `<optgroup label="${esc(s.name)}">${s.lines.map(l => `<option value="${l.id}">${esc(nameOf(l))}</option>`).join('')}</optgroup>`).join('');
