@@ -87,6 +87,10 @@ test('paste queues only open; Drive queues both checks and keeps only its own so
     id: 'x', title: 'T', createdAt: 5, updatedAt: 5, source: 'paste', draft: '甲', status: 'queued',
     checks: { open: { status: 'queued' } },
   });
+  const full = queuedRecord({ ...base, source: 'paste' }, true);
+  assert.deepEqual(full.checks, { manuscript: { status: 'queued' }, open: { status: 'queued' } });
+  assert.equal(full.draft, '甲');
+  assert.equal('driveName' in full, false);
   const drive = queuedRecord({ ...base, source: 'drive' });
   assert.equal(drive.driveName, '第22章');
   assert.deepEqual(drive.checks, { manuscript: { status: 'queued' }, open: { status: 'queued' } });
