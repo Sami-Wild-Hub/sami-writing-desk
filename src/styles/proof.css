@@ -133,3 +133,10 @@
 }
 @media (prefers-reduced-motion: reduce) { .pst.st-sent::before { animation: none; } }
 .proof-back { position:fixed; right:1rem; bottom:1rem; z-index:40; background:var(--surface); }
+
+/* Chapter-version navigation and the automatic-review guide. */
+.proof .pversion-filter { display: grid; gap: .25rem; margin: .4rem .5rem .75rem; color: var(--ink-3); font-size: .8125rem; }
+.proof .pversion-filter select { width: 100%; min-width: 0; padding: .45rem .55rem; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font: inherit; }
+.proof-guide { max-width: 60rem; margin: 0 0 1rem; color: var(--ink-2); font-size: .875rem; }
+.proof-guide summary { cursor: pointer; color: var(--accent-ink); font-weight: 600; }
+.proof-guide p { margin: .5rem 0; line-height: 1.65; }
