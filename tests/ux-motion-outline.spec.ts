@@ -1,3 +1,4 @@
+import { OUTLINE_ARCHIVED } from '../src/lib/views/outline/view-state.js';
 // Exercise interrupted outline layers and view changes on both supported layout widths.
 import { expect, test } from '@playwright/test';
 import { hasOutline } from './outline-fixture.mjs';
@@ -36,7 +37,8 @@ for (const width of [390, 1440]) {
     await root.locator('.self-line.current [data-act="edit-line"]').click();
     await expect(root.locator('.modal [name="title"]')).toBeFocused();
     await page.keyboard.press('Escape'); await expect(root.locator('.modal-back')).toHaveCount(0);
-    await root.locator('[data-tab="outline"]').click();
+    if (OUTLINE_ARCHIVED) await expect(root.locator('[data-tab="outline"]')).toHaveCount(0);
+    else await root.locator('[data-tab="outline"]').click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await root.locator('.file-recovery summary').click();
     await expect(root.locator('#export-data')).toBeVisible();
