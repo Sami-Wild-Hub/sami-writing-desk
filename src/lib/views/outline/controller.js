@@ -37,7 +37,11 @@ class OutlinePanel extends OutlineCloud {
       else if (zone.zone === 'beat') {
         // The Beat list shows only unwritten cards; turn the drop spot into a place among all of the Beat's cards.
         const m = this.model, ids = m.placedList().filter(p => p.beat_id === zone.beat).map(p => p.unit_id);
-        m.placeAt(id, zone.beat, fullTimeIndex(ids, id, x => m.unitMap[x].status !== 'WRITTEN', index));
+        const v = zone.pillar ? presentation(m, this.UI) : null;
+        const shown = x => m.unitMap[x].status !== 'WRITTEN' && (!v || v.partsOf(v.lineOf(m.unitMap[x].storyline_group_id))[0] === zone.pillar);
+        const at = zone.pillar || !this.UI.open.has('group-planned:' + m.data.beats.find(b => b.beat_id === zone.beat)?.act)
+          ? fullTimeIndex(ids, id, shown, index) : Infinity;
+        m.placeAt(id, zone.beat, at);
       }
       else if (zone.zone === 'line') this.moveToLine(id, zone.line);
     });
@@ -208,6 +212,22 @@ class OutlinePanel extends OutlineCloud {
       }
       case 'toggle-unplaced': u.onlyUnplaced = !u.onlyUnplaced; break;
       case 'toggle-row': if (!u.open.delete('w:' + id)) u.open.add('w:' + id); break;
+      case 'toggle-planned-group': {
+        this.finishInline();
+        const key = 'group-planned:' + t.dataset.actNo;
+        if (!u.open.delete(key)) {
+          u.open.add(key);
+          const beats = m.data.beats.filter(b => String(b.act) === t.dataset.actNo).map(b => b.beat_id);
+          for (const k of u.open) if (beats.some(b => k.startsWith('planned-shut:' + b + ':'))) u.open.delete(k);
+        }
+        break;
+      }
+      case 'toggle-planned-pillar': {
+        this.finishInline();
+        const key = t.dataset.keyName;
+        if (!u.open.delete(key)) u.open.add(key);
+        break;
+      }
       case 'toggle-part': {
         const a = t.dataset.actNo, v = presentation(m, u), key = (v.partState(a).done ? 'part-open:' : 'part-shut:') + a;
         if (!u.open.delete(key)) u.open.add(key); break;
