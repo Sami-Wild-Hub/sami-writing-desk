@@ -37,7 +37,7 @@ export function partOpen(v, act) {
 // Left pane, per Part: 已写 cards folded by main character, then the 已排 cards of every storyline in reveal order; 未排 cards are not here.
 export function beatsGrid(v, line) {
   const { S, BEAT_IDS, BEAT, beatLong, esc, revealItem } = v, own = new Set(v.sectionOf(line).lines.map(l => l.id));
-  const head = `<div class="bg-head"><b>各 ${v.actOnly ? 'Part' : 'Beat'} 已排的卡</b><span>所有故事线 · 已写按人物收起 · 待写按揭示顺序，右侧人物的卡可拖动</span></div>`;
+  const head = `<div class="bg-head"><b>各 ${v.actOnly ? 'Part' : 'Beat'} 已排的卡</b><span>所有故事线 · 已写按人物收起 · 已排可按人物归档或按揭示顺序，右侧人物的卡可拖动</span></div>`;
   const acts = [...new Set(BEAT_IDS.map(b => BEAT[b].act))];
   const partHead = a => {
     const st = v.partState(a), open = v.partOpen(a), only = v.actOnly && BEAT_IDS.find(b => BEAT[b].act === a);
@@ -58,9 +58,29 @@ export function beatsGrid(v, line) {
     };
     return `<div class="bg-written"><div class="bw-cap">✓ 已写 ${ids.length} 张 · 按主要人物</div>${names.map(pillar).join('')}</div>`;
   };
-  const beatList = b => (v.actOnly ? '' : `<div class="bg-beat"><b>${beatLong(b)}</b><span>${esc(BEAT[b].title)}</span></div>`) + written(b) +
-    `<div class="bg-list" data-zone="beat" data-accept="card" data-beat="${b}">${S.reveal[b].filter(id => S.cards[id].status !== '已写').map(id => revealItem(S.cards[id], own.has(S.cards[id].line))).join('')}</div>`;
-  const parts = acts.map(a => partHead(a) + (v.partOpen(a) ? BEAT_IDS.filter(b => BEAT[b].act === a).map(beatList).join('') : '')).join('');
+  const grouped = a => v.UI.open.has(`group-planned:${a}`);
+  const planned = b => {
+    const ids = S.reveal[b].filter(id => S.cards[id].status !== '已写');
+    const zone = `data-zone="beat" data-accept="card" data-beat="${b}"`;
+    const cards = xs => xs.map(id => revealItem(S.cards[id], own.has(S.cards[id].line))).join('');
+    if (!grouped(BEAT[b].act) || !ids.length) return `<div class="bg-list" ${zone}>${cards(ids)}</div>`;
+    const names = [...new Set(ids.map(pillarOf))].sort((x, y) => v.rankOf(x) - v.rankOf(y));
+    const pillar = name => {
+      const mine = ids.filter(id => pillarOf(id) === name), key = `planned-shut:${b}:${name}`, open = !v.UI.open.has(key);
+      const ours = mine.some(id => own.has(S.cards[id].line));
+      return `<section class="pillar planned-pillar ${ours ? 'own' : ''}">
+        <button type="button" class="planned-pillar-head" data-act="toggle-planned-pillar" data-key-name="${esc(key)}" aria-expanded="${open}"><span class="chev" aria-hidden="true"></span><span class="pl-name">${esc(name)}</span><small>${mine.length} 张已排</small></button>
+        ${open ? `<div class="pl-body bg-list" ${zone} data-pillar="${esc(name)}">${cards(mine)}</div>` : ''}</section>`;
+    };
+    return `<div class="bg-list bg-planned" ${zone}>${names.map(pillar).join('')}</div>`;
+  };
+  const beatList = b => (v.actOnly ? '' : `<div class="bg-beat"><b>${beatLong(b)}</b><span>${esc(BEAT[b].title)}</span></div>`) + written(b) + planned(b);
+  const controls = a => {
+    const st = v.partState(a);
+    if (!st.total || st.done) return '';
+    return `<div class="planned-controls"><span>已排 ${st.total - st.written} 张 · ${grouped(a) ? '按主要人物' : '按揭示顺序'}</span><button type="button" class="btn tiny" data-act="toggle-planned-group" data-act-no="${esc(a)}" aria-pressed="${grouped(a)}">${grouped(a) ? '恢复揭示顺序' : '按人物归档'}</button></div>`;
+  };
+  const parts = acts.map(a => partHead(a) + (v.partOpen(a) ? controls(a) + BEAT_IDS.filter(b => BEAT[b].act === a).map(beatList).join('') : '')).join('');
   return `<div class="bgrid">${head}${parts}</div>`;
 }
 
