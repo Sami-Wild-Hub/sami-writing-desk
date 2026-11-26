@@ -9,7 +9,7 @@ import { completePlan, completeWorkspace } from './workspace.js';
 import { subscribe } from './sync.ts';
 import { mountManualSync } from './manual-sync.js';
 import { fullTimeIndex } from './ordering.js';
-import { viewStore } from './view-state.js';
+import { viewStore, OUTLINE_ARCHIVED } from './view-state.js';
 import { editorDrafts } from './editor-drafts.js';
 import { searchInput } from '../../archive/input.ts';
 import { updateLayers } from './layers.ts';
@@ -142,7 +142,7 @@ class OutlinePanel extends OutlineCloud {
   restoreView = () => {
     this.views = viewStore(this.draftKey + ':view');
     const { beat, scroll = {}, y = 0, ...ui } = this.views.load(this.model);
-    Object.assign(this.UI, ui); if (beat) this.model.activeBeat = beat;
+    Object.assign(this.UI, ui); if (OUTLINE_ARCHIVED) this.UI.tab = 'story'; if (beat) this.model.activeBeat = beat;
     this.scroll = scroll; this.y = y; this.viewTimer = null;
     this.onScroll = e => {
       const key = e.target.dataset?.keep;
@@ -163,7 +163,7 @@ class OutlinePanel extends OutlineCloud {
   action = t => {
     const u = this.UI, id = t.dataset.id, m = this.model;
     switch (t.dataset.act) {
-      case 'tab': this.finishInline(); u.tab = t.dataset.tab; u.picker = false; break;
+      case 'tab': this.finishInline(); u.tab = OUTLINE_ARCHIVED ? 'story' : t.dataset.tab; u.picker = false; break;
       case 'undo': m.undo(); return;
       case 'toggle-rank': u.rank = !u.rank; break;
       case 'toggle-picker': u.picker = !u.picker; break;
