@@ -303,6 +303,15 @@ class ProofPanel {
     flash(target);
   }
 
+  /** 上一条 / 下一条: brings the shown card with `key` into view; beside the draft it then
+   * flashes its quote as a tap would, in the phone list it flashes the card itself. */
+  private step(key: string) {
+    const card = [...this.main.querySelectorAll<HTMLElement>(`.pitem[data-key="${CSS.escape(key)}"]`)].find(el => el.getClientRects().length);
+    if (!card) return;
+    jumpTo(card, 'center'); card.focus({ preventScroll: true });
+    if (card.closest('.plist')) flash(card); else this.locate(card);
+  }
+
   private onClick(event: MouseEvent) {
     const target = event.target as Element;
     const button = target.closest<HTMLButtonElement>('button');
@@ -330,6 +339,7 @@ class ProofPanel {
       this.st.report[id] = { ...this.st.report[id], [report.check]: report.id };
       return this.renderRecord();
     }
+    if (button?.dataset.go) return this.step(button.dataset.go);
     const card = target.closest<HTMLElement>('.pitem');
     if (card) return this.locate(card);
     if (target.closest('.pedit')) return;

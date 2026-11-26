@@ -64,7 +64,13 @@ function fixHtml(item: Tagged, at: number) {
     `${item.disabled ? `<span class="hint">${esc(item.disabled)}</span>` : ''}</div>`) + '</div>';
 }
 
-function itemHtml({ item, at, range }: PlacedItem<Tagged>) {
+/** 上一条 / 下一条 under a card: the keys of its neighbours in reading order, if any. */
+function navHtml(prev?: string, next?: string) {
+  const go = (key: string | undefined, label: string, cls: string) => key ? `<button type="button" class="pgo ${cls}" data-go="${esc(key)}">${label}</button>` : '';
+  return prev || next ? `<div class="pnav">${go(prev, '上一条', 'prev')}${go(next, '下一条', 'next')}</div>` : '';
+}
+
+function itemHtml({ item, at, range }: PlacedItem<Tagged>, index: number, placed: PlacedItem<Tagged>[]) {
   const level = item.level && (LEVELS as readonly string[]).includes(item.level) ? item.level : '';
   const off = at < 0 ? '没有这一段' : range ? '' : '未对上原文';
   return `<article class="pitem${level ? ` lv-${level}` : ''}${off ? ' off' : ''}" data-key="${esc(item.key)}" data-check="${item.check}"${at >= 0 ? ` data-at="${at}"` : ''} tabindex="0">` +
@@ -76,7 +82,7 @@ function itemHtml({ item, at, range }: PlacedItem<Tagged>) {
     (item.suggestion ? `<p class="sugg"><b>${item.fix === undefined ? '建议' : '说明'}</b>${esc(item.suggestion)}</p>` : '') +
     (item.evidence.length ? `<p class="ev"><b>依据</b>${item.evidence.map((e) => `<code>${esc(e)}</code>`).join('')}</p>` : '') +
     (item.problems.length ? `<p class="prob">格式问题：${esc(item.problems.join('；'))}</p>` : '') +
-    '</article>';
+    navHtml(placed[index - 1]?.item.key, placed[index + 1]?.item.key) + '</article>';
 }
 
 /** Paragraph text with the placed quotes marked; overlapping quotes keep the first mark. */
@@ -95,15 +101,17 @@ function markedText(text: string, marks: { range: [number, number]; key: string 
 export function proofHtml(paras: Para[], placed: PlacedItem<Tagged>[]) {
   const byPara = new Map<number, string[]>();
   const marks = new Map<number, { range: [number, number]; key: string }[]>();
-  placed.forEach(p => {
-    byPara.set(p.at, [...byPara.get(p.at) ?? [], itemHtml(p)]);
+  // placed is in reading order (paragraph, then quote; orphans last), as both columns show it.
+  const cards = placed.map(itemHtml);
+  placed.forEach((p, i) => {
+    byPara.set(p.at, [...byPara.get(p.at) ?? [], cards[i]]);
     if (p.range) marks.set(p.at, [...marks.get(p.at) ?? [], { range: p.range, key: p.item.key }]);
   });
   const rows = paras.map((para, at) => `<div class="prow${byPara.has(at) ? ' has' : ''}" id="pp-${para.n}" data-at="${at}">` +
     `<p class="ptext"><span class="pn" contenteditable="false">${para.label}</span><span class="pedit" contenteditable="plaintext-only" role="textbox" aria-label="${para.label} 正文" data-edit="${at}" spellcheck="false">${markedText(para.text, marks.get(at) ?? [])}</span></p>` +
     `<div class="pnotes">${(byPara.get(at) ?? []).join('')}</div></div>`);
   if (byPara.has(-1)) rows.push(`<div class="prow has orphan"><p class="ptext muted">这些反馈指的段落不在这份稿里：</p><div class="pnotes">${byPara.get(-1)!.join('')}</div></div>`);
-  return `<div class="plist">${placed.map(itemHtml).join('')}</div><div class="pv">${rows.join('')}</div>`;
+  return `<div class="plist">${cards.join('')}</div><div class="pv">${rows.join('')}</div>`;
 }
 
 export function countsHtml(placed: PlacedItem<Tagged>[]) {

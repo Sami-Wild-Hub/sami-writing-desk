@@ -110,6 +110,11 @@
 .pitem .issue b, .pitem .sugg b, .pitem .ev b { margin-right: .45rem; color: var(--ink-3); font-size: var(--fs-sm); }
 .pitem .ev code { display: inline-block; margin: 0 .3rem .2rem 0; padding: 0 .35rem; border-radius: var(--r-1); background: var(--sunk); font: var(--fs-sm)/1.6 var(--sans); }
 .pitem .prob { color: var(--danger); font-size: var(--fs-sm); }
+/* 上一条 / 下一条: quiet text links at the card's foot, next on the right */
+.pnav { display: flex; gap: .25rem; margin-top: .35rem; }
+.pgo { min-height: 1.75rem; padding: 0 .4rem; border: 0; border-radius: var(--r-1); background: none; color: var(--ink-3); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.pgo:hover, .pgo:focus-visible { background: var(--sunk); color: var(--ink); }
+.pgo.next { margin-left: auto; }
 .orphan .ptext { padding-left: 0; font-size: var(--fs-ui); }
 
 @media (min-width: 1800px) { .prow { gap: 3rem; } }
