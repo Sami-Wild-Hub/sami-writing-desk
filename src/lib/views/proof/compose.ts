@@ -24,6 +24,23 @@ export function chapterName(input: string): string {
   return Number.isSafeInteger(n) && n > 0 ? `C${n}` : input;
 }
 
+/** Chapter identity for submitted versions; not a confirmation of the canonical manuscript. */
+export function submittedChapter(title: string, driveName?: string): string {
+  const match = TITLE_CHAPTER.exec(title.trim());
+  if (match) return chapterName(match[1]);
+  if (driveName) {
+    const chapter = chapterName(driveName);
+    if (/^C\d+$/.test(chapter)) return chapter;
+  }
+  return '';
+}
+
+/** Start a new review without mutating the original submitted version or its reports. */
+export function revisionTitle(record: ProofRecord, records: ProofRecord[]): string {
+  const chapter = submittedChapter(record.title, record.driveName);
+  return chapter ? nextTitle(chapter, records) : `${record.title.slice(0, 94)} 复校`;
+}
+
 export function nextTitle(input: string, records: ProofRecord[]): string {
   const chapter = chapterName(input).trim();
   if (!chapter) return '';
