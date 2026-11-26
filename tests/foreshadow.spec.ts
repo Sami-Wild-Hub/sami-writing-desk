@@ -97,10 +97,11 @@ test('cells edit in place, keyboard moves like a spreadsheet, rows and statuses 
   const beforeOutline = db.at(`${path}/live/foreshadow`);
   await page.goto('book/?book=maritime-story&view=outline');
   const outline = page.locator('[data-view="outline"]');
-  await expect(outline.locator('#overall')).toBeVisible();
+  await expect(outline.locator('.self-pane')).toBeVisible();
   const live = db.at(`${path}/live`) as { rev: string };
   // Use the outline's actual edit form, then wait for its existing autosave.
-  await outline.locator('[data-act="edit-card"]').first().click();
+  await outline.locator('.self-pane .card-menu > summary').first().click();
+  await outline.locator('.self-pane [data-act="edit-card"]').first().click();
   const form = outline.locator('[data-form="card"]');
   await form.locator('[name="text"]').fill('Outline changed');
   await form.locator('button[type="submit"]').click();

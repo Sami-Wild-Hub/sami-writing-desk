@@ -81,9 +81,11 @@ test('deleting a card removes it with its merged originals and placement; undo r
   m.undo(); assert.deepEqual(m.exportWorkspace(), before);
 });
 test('deleting a line removes its cards, keeps originals merged into other lines, and keeps one line', () => {
-  const m = setup(), before = m.exportWorkspace(), units = Object.fromEntries(before.plot_data.plot_units.map(u => [u.unit_id, u]));
-  const owner = before.plot_data.plot_units.find(u => (u.source_unit_ids || []).some(s => units[s].storyline_group_id !== u.storyline_group_id));
-  const src = owner.source_unit_ids.find(s => units[s].storyline_group_id !== owner.storyline_group_id), line = units[src].storyline_group_id, cards = m.lineCards(line);
+  const m = setup(), owner = m.visibleUnits().find(u => u.source_unit_ids?.length);
+  const src = owner.source_unit_ids[0], line = m.unitMap[src].storyline_group_id;
+  const target = m.data.storyline_groups.find(g => g.id !== line).id;
+  m.moveToLine(owner.unit_id, target);
+  const before = m.exportWorkspace(), cards = m.lineCards(line);
   m.deleteLine(line);
   assert.equal(m.storyMap[line], undefined); assert.ok(cards.every(id => !m.unitMap[id] && !m.used(id)));
   assert.equal(m.unitMap[src].storyline_group_id, owner.storyline_group_id);

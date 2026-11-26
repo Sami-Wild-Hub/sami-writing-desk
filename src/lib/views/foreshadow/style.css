@@ -1,75 +1,72 @@
 /* Foreshadow grid styles, scoped to the view: cells are inputs styled as plain text; at phone widths each row becomes a card. */
-.fsh { padding: 24px; max-width: 100%; color: var(--ink); }
-.fsh header { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; margin-bottom: 18px; }
-.fsh h2 { margin: 0; }
-.fsh .fsh-status { color: var(--muted); font-size: .85em; }
-.fsh-tools { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 14px 0 6px; }
-.fsh label { display: flex; align-items: center; gap: 8px; }
-.fsh-tools select { font: inherit; color: inherit; background: var(--surface, #fff); border: 1px solid var(--line, #ddd); border-radius: 6px; padding: 7px; }
-.fsh button { font: inherit; cursor: pointer; padding: 6px 10px; border: 1px solid var(--line, #ddd); border-radius: 6px; background: var(--surface, #fff); color: inherit; }
-.fsh button:hover { background: var(--wash, #f4f1ea); }
-.fsh kbd { margin-left: 4px; color: var(--ink-3, #888); font: inherit; font-size: .75em; }
-.fsh-keys { margin: 0 0 12px; color: var(--ink-3, #888); font-size: .8125rem; line-height: 1.6; }
-.fsh-scroll { overflow: auto; max-height: 72vh; border: 1px solid var(--line, #ddd); border-radius: 8px; }
-.fsh table { border-collapse: separate; border-spacing: 0; min-width: 1360px; width: 100%; font-size: .9em; }
-.fsh th { position: sticky; top: 0; z-index: 2; text-align: left; background: var(--paper, #faf8f2); white-space: nowrap; }
-.fsh th, .fsh td { padding: 10px 12px; border-bottom: 1px solid var(--line, #ddd); vertical-align: top; min-width: 90px; }
-.fsh th.fsh-id, .fsh td.fsh-id { min-width: 0; width: 2.5em; padding-right: 4px; color: var(--ink-3); font-size: .8125rem; }
-.fsh td.fsh-content { min-width: 380px; max-width: 520px; }
+.fsh { padding: 1.5rem; max-width: 100%; color: var(--ink); }
+.fsh header { display: flex; gap: 1rem; align-items: baseline; flex-wrap: wrap; margin-bottom: 1.125rem; }
+.fsh h2 { margin: 0; font-size: var(--fs-xl); font-weight: 700; line-height: 1.35; }
+.fsh .fsh-status { color: var(--ink-3); font-size: var(--fs-sm); line-height: 1.6; }
+.fsh-tools { display: flex; gap: 0.875rem; align-items: center; flex-wrap: wrap; padding: 0.875rem 0 0.375rem; }
+.fsh label { display: flex; align-items: center; gap: 0.5rem; }
+.fsh kbd { margin-left: 0.25rem; color: var(--ink-3, #888); font: inherit; font-size: var(--fs-xs); }
+.fsh-keys { position: relative; margin-left: auto; font-size: var(--fs-xs); color: var(--ink-3); }
+.fsh-keys ul { position: absolute; right: 0; top: 100%; z-index: 10; width: 18rem; padding: .75rem 1rem .75rem 1.8rem; border: 1px solid var(--line); border-radius: var(--r-4); background: var(--surface); box-shadow: var(--shadow-pop); }
+.fsh-keys kbd { padding: 0 .25rem; border-radius: var(--r-1); background: var(--sunk); }
+.fsh-scroll { overflow: auto; max-height: 72vh; border: 1px solid var(--line); border-radius: var(--r-2); }
+.fsh table { border-collapse: separate; border-spacing: 0; min-width: 85rem; width: 100%; font-size: var(--fs-md); }
+.fsh th { position: sticky; top: 0; z-index: 2; text-align: left; background: var(--surface); white-space: nowrap; }
+.fsh th, .fsh td { padding: .45rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; min-width: 5.625rem; }
+.fsh th.fsh-id, .fsh td.fsh-id { min-width: 0; width: 2.5em; padding-right: 0.25rem; color: var(--ink-3); font-size: var(--fs-sm); }
+.fsh td.fsh-content { min-width: 23.75rem; max-width: 32.5rem; }
 .fsh tr[data-state="不需要"] td { color: var(--ink-3, #888); }
-.fsh th.fsh-meta, .fsh td.fsh-meta { min-width: 70px; }
+.fsh th.fsh-meta, .fsh td.fsh-meta { min-width: 4.375rem; }
 
-/* Every cell is editable in place; rows alternate paper and a faint teal wash, and the focused cell gets a spreadsheet-style frame. */
-.fsh { --fsh-band: color-mix(in srgb, var(--accent-soft, #e3edec) 88%, var(--surface, #fffdf8)); }
-.fsh td { position: relative; cursor: text; background: var(--surface, #fffdf8); border-bottom-color: color-mix(in srgb, var(--line, #e5dfd3) 70%, transparent); transition: background-color .12s; }
-.fsh tbody tr:nth-child(even) td { background: var(--fsh-band); }
-.fsh tbody tr:hover td { background: color-mix(in srgb, var(--accent, #1d5c68) 9%, var(--accent-soft, #e3edec)); }
+/* Every cell is editable in place; row lines and a focus frame keep the table quiet. */
+.fsh td { position: relative; cursor: text; background: var(--surface); border-bottom-color: color-mix(in srgb, var(--line) 70%, transparent); transition: background-color var(--dur-1); }
+.fsh tbody tr:hover td { background: color-mix(in srgb, var(--accent) 9%, var(--accent-soft)); }
 .fsh tbody tr:last-child td { border-bottom: 0; }
 .fsh th { border-bottom: 1px solid var(--line-2, #d5cdbf); }
-.fsh td:has(.fsh-input:focus) { box-shadow: inset 0 0 0 2px var(--accent, #1d5c68); background: #fff; z-index: 1; }
-.fsh-input { display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 0; border: 0; outline: 0; background: transparent;
+.fsh td:has(.fsh-input:focus) { box-shadow: inset 0 0 0 2px var(--accent); background: var(--surface); z-index: 1; }
+textarea.fsh-input { display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 0; border: 0; outline: 0; background: transparent;
   color: inherit; font: inherit; line-height: 1.55; }
 textarea.fsh-input { resize: none; overflow: hidden; min-height: 1.55em; field-sizing: content; white-space: pre-wrap; overflow-wrap: anywhere; }
-select.fsh-input { cursor: pointer; padding: 2px 0; min-width: 6em; }
+select.fsh-input { cursor: pointer; min-width: 6em; width: 100%; }
 .fsh-view { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; min-height: 1.55em; }
 /* Linked cells show text with links; their input sits underneath and takes over while the cell has focus. */
-.fsh-linked textarea.fsh-input { position: absolute; inset: 10px 12px; width: auto; height: auto; opacity: 0; pointer-events: none; }
+.fsh-linked textarea.fsh-input { position: absolute; inset: .45rem .6rem; width: auto; height: auto; opacity: 0; pointer-events: none; }
 /* Only the input's own focus switches modes: a link takes focus on mousedown and must stay put until its click. */
 .fsh-linked:has(.fsh-input:focus) .fsh-view { display: none; }
 .fsh-linked textarea.fsh-input:focus { position: static; opacity: 1; pointer-events: auto; }
-.fsh-link { color: var(--accent-ink, #2c5a75); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 3px; cursor: pointer; }
+.fsh-link { color: var(--accent-ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 0.1875rem; cursor: pointer; }
 .fsh-link:hover { text-decoration-color: currentColor; }
-.fsh-quote { color: inherit; text-decoration-style: dotted; }
-.fsh-quote:hover { color: var(--accent-ink, #2c5a75); }
-.fsh-unavailable { color: var(--muted); font-size: .8em; }
-.fsh-notice { background: var(--wash, #f4f1ea); padding: 12px; border-radius: 8px; }
+.fsh-quote { color: inherit; text-decoration: none; }
+.fsh-quote:hover, .fsh-quote:focus-visible { text-decoration: underline dotted var(--line-2); text-underline-offset: 0.1875rem; }
+.fsh-quote:hover { color: var(--accent-ink); }
+.fsh-unavailable { color: var(--ink-3); font-size: var(--fs-sm); }
+.fsh-notice { background: var(--hover); padding: 0.75rem; border-radius: var(--r-2); }
 .fsh-notice:empty { display: none; }
-.fsh-notice button { margin: 6px; }
+.fsh-notice button { margin: 0.375rem; }
 
-@media (max-width: 860px) {
-  .fsh { padding: 16px 12px; }
-  .fsh-tools { gap: 10px; }
+@media (max-width: 53.75rem) {
+  .fsh { padding: 1rem 0.75rem; }
+  .fsh-tools { gap: 0.625rem; }
   .fsh label { flex-wrap: wrap; }
-  .fsh-keys, .fsh-tools kbd { display: none; }
+  .fsh-tools kbd { display: none; }
   .fsh-scroll { overflow: visible; max-height: none; border: 0; border-radius: 0; }
-  .fsh table, .fsh tbody { display: block; min-width: 0; font-size: 1rem; }
+  .fsh table, .fsh tbody { display: block; min-width: 0; font-size: var(--fs-base); }
   .fsh thead { display: none; }
-  .fsh tbody tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 0 0 10px; padding: 10px 12px 12px;
-    border: 1px solid var(--line); border-radius: 10px; background: var(--surface, #fffdf8); box-shadow: 0 1px 2px rgb(30 28 25 / .04); }
-  .fsh tbody tr:nth-child(even) { background: var(--fsh-band); border-color: color-mix(in srgb, var(--accent-soft) 60%, var(--line)); }
+  .fsh tbody tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.375rem 0.875rem; margin: 0 0 0.625rem; padding: 0.625rem 0.75rem 0.75rem;
+    border: 1px solid var(--line); border-radius: var(--r-3); background: var(--surface); box-shadow: var(--shadow-card); }
   .fsh tbody tr td, .fsh tbody tr:nth-child(even) td, .fsh tbody tr:hover td { background: none; }
-  .fsh tbody td, .fsh td.fsh-content { display: block; min-width: 0; max-width: none; padding: 2px 4px; border: 0; border-radius: 4px; background: none; }
-  .fsh-linked textarea.fsh-input { inset: 2px 4px; }
-  .fsh td.fsh-id { order: 0; width: 3em; color: var(--ink-3); font-size: .75rem; display: flex; gap: 1px; }
+  .fsh tbody td, .fsh td.fsh-content { display: block; min-width: 0; max-width: none; padding: 2px 0.25rem; border: 0; border-radius: var(--r-1); background: none; }
+  .fsh-linked textarea.fsh-input { inset: 2px 0.25rem; }
+  .fsh td.fsh-id { order: 0; width: 3em; color: var(--ink-3); font-size: var(--fs-xs); display: flex; gap: 1px; }
   .fsh td.fsh-id::before { content: "#"; }
   .fsh td.fsh-state { order: 1; margin-left: auto; }
-  .fsh td.fsh-state select.fsh-input { padding: 0 6px; border-radius: 5px; background: var(--accent-soft); color: var(--accent-ink); font-size: .8125rem; }
+  .fsh td.fsh-state select.fsh-input { cursor: pointer; min-width: 6em; width: 100%; }
   .fsh td.fsh-content { order: 2; flex-basis: 100%; line-height: 1.65; }
-  .fsh td.fsh-meta { order: 3; display: flex; align-items: baseline; gap: 4px; color: var(--ink-2); font-size: .8125rem; }
+  .fsh td.fsh-meta { order: 3; display: flex; align-items: baseline; gap: 0.25rem; color: var(--ink-2); font-size: var(--fs-sm); }
   .fsh td.fsh-meta::before { content: attr(data-label); color: var(--ink-3); white-space: nowrap; }
   .fsh td.fsh-meta textarea.fsh-input { min-width: 4em; }
-  .fsh td.fsh-long { order: 4; flex-basis: 100%; display: grid; grid-template-columns: auto 1fr; gap: 10px; color: var(--ink-2); font-size: .875rem; }
-  .fsh td.fsh-long::before { content: attr(data-label); color: var(--ink-3); font-size: .8125rem; white-space: nowrap; }
+  .fsh td.fsh-long { order: 4; flex-basis: 100%; display: grid; grid-template-columns: auto 1fr; gap: 0.625rem; color: var(--ink-2); font-size: var(--fs-md); }
+  .fsh td.fsh-long::before { content: attr(data-label); color: var(--ink-3); font-size: var(--fs-sm); white-space: nowrap; }
   /* Empty fields stay tappable but share a line, so blank cards stay short. */
   .fsh td.fsh-long.fsh-empty:not(:has(.fsh-input:focus)) { flex-basis: auto; flex-grow: 1; }
   .fsh td.fsh-empty textarea.fsh-input, .fsh td.fsh-empty .fsh-view { min-width: 3em; border-bottom: 1px dashed var(--line); }

@@ -10,7 +10,7 @@ import { pack, unpack } from '../src/lib/views/outline/codec.js';
 import { GitRepo } from '../sync/outline/git.mjs';
 import { reconcileBook } from '../sync/outline/reconcile.mjs';
 
-const source = resolve('..', 'sami-writing-desk-data-outline'), slug = 'maritime-story';
+const source = resolve(process.env.OUTLINE_DATA_REPO || '../sami-writing-desk-data-outline'), slug = 'maritime-story';
 const options = { skip: !existsSync(source) && 'public CI has no sibling data repository' };
 const run = (cwd, ...args) => execFileSync('git', ['-C', cwd, '-c', 'core.autocrlf=false', '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8', maxBuffer: 20e6, stdio: ['ignore', 'pipe', 'pipe'] });
 const canonical = name => readFileSync(join(source, 'outline', slug, name), 'utf8');

@@ -1,8 +1,8 @@
-import { OUTLINE_ARCHIVED } from '../src/lib/views/outline/view-state.js';
 // Canonical v7 outline controls exercised with actual mouse drags at the approved desktop size.
+import { cardAction } from './outline-browser.ts';
 import { expect, test, type Page, type Locator } from '@playwright/test';
 import { stubFirebase, watchErrors } from './stub.ts';
-import { hasOutline, overallText } from './outline-fixture.mjs';
+import { hasOutline, outlineFixture, overallText } from './outline-fixture.mjs';
 import { unpack } from '../src/lib/views/outline/codec.js';
 test.skip(!hasOutline, 'private canonical data is not in public CI');
 test.use({ viewport: { width: 1440, height: 900 } });
@@ -37,27 +37,27 @@ async function drag(page: Page, source: Locator, target: Locator, before = false
 const card = (r: Locator, id: string) => r.locator(`.self-pane [data-card="${id}"]`);
 // One reveal list per Beat across all storylines; the category argument is kept for readability only.
 const cell = (r: Locator, beat: string, _cat?: string) => r.locator(`[data-zone="beat"][data-beat="${beat}"]`);
-test('picker, aligned reference, three categories and both tabs', async ({ page }) => {
+test('picker, section references and three categories', async ({ page }) => {
  const { root, errors } = await open(page);
  await expect(root.locator('.self-line.current .self-col')).toHaveCount(3); await expect(root.locator('.mark')).toHaveCount(0);
- await root.locator('[data-act="toggle-picker"]').click(); await expect(root.locator('.pick-line')).toHaveCount(26);
+ await root.locator('[data-act="toggle-picker"]').click(); await expect(root.locator('.pick-line')).toHaveCount(outlineFixture()!.plot_data.storyline_groups.length);
  await root.locator('[data-act="select-line"][data-id="G11"]').click(); await expect(root.locator('.picker-panel')).toBeHidden(); await select(root, 'G01');
  await expect(root.locator('.bgrid .badge.unplaced')).toHaveCount(0);
- const own = await root.locator('.ri.mine .ri-line').allTextContents(), title = await root.locator('.self-line.current h3').textContent();
- expect(own.every(t => t === title)).toBe(true); expect(await root.locator('.ri:not(.mine) .ri-line').allTextContents()).not.toContain(title);
- if (OUTLINE_ARCHIVED) {
+ const own = await root.locator('.ri.mine .ri-line').allTextContents(), titles = await root.locator('.self-line h3').allTextContents();
+ expect(own.every(t => titles.includes(t))).toBe(true); expect((await root.locator('.ri:not(.mine) .ri-line').allTextContents()).some(t => titles.includes(t))).toBe(false);
+
    await expect(root.locator('[data-tab="outline"]')).toHaveCount(0);
    await expect(root.locator('.self-pane')).toBeVisible();
- } else {
- await root.locator('[data-act="tab"][data-tab="outline"]').click(); await expect(root.locator('.lane')).toHaveCount(3); await expect(root.locator('[data-filter-state]')).toHaveCount(3);
- }
+
  expect(errors).toEqual([]);
 });
 test('real drags: independent orders, inversions, category change, cross Beat and combined', async ({ page }) => {
- const { root, errors } = await open(page), initial = await workspace(page, root);
+ const { root, errors } = await open(page); let initial = await workspace(page, root);
  const group = initial.plot_data.storyline_groups.find((g: any) => g.id === 'G01'), order = group.time_order.current;
  const beatOf = (id: string) => initial.plan.placements.find((p: any) => p.unit_id === id)?.beat_id;
  const i = order.findIndex((id: string, k: number) => k > 0 && beatOf(id) && beatOf(id) === beatOf(order[k-1])), [a,b] = [order[i-1], order[i]], beat = beatOf(a);
+ for (const id of [a, b]) if (initial.plot_data.plot_units.find((u: any) => u.unit_id === id).status === 'WRITTEN') await card(root, id).locator('.badge').click();
+ initial = await workspace(page, root);
  await drag(page, card(root,b), card(root,a), true);
  let current = await workspace(page, root); expect(current.plot_data.storyline_groups.find((g: any) => g.id === 'G01').time_order.current[i-1]).toBe(b);
  expect(current.plan).toEqual(initial.plan); await root.locator('#undo').click();
@@ -78,10 +78,10 @@ test('real drags: independent orders, inversions, category change, cross Beat an
 });
 test('new card, edit, participants, real ranking drag, cloud refresh and undo', async ({ page }) => {
  const { root, reads, errors } = await open(page);
- await root.locator('[data-act="compose"][data-cat="combined"]').click();
+ await root.locator('.self-line.current .col-head [data-act="compose"][data-cat="combined"]').click();
  let form = root.locator('[data-form="new"]'); await expect(form.locator('[name="title"]')).toHaveCount(0); await form.locator('[name="text"]').fill('验证新增 保存往返'); await form.getByRole('button',{name:'添加',exact:true}).click();
  const added = (await workspace(page,root)).plot_data.plot_units.find((u:any)=>u.content==='验证新增 保存往返').unit_id;
- await card(root,added).getByRole('button',{name:'编辑',exact:true}).click(); form=root.locator('[data-form="card"]'); await form.locator('[name="text"]').fill('修改后的内容'); await form.getByRole('button',{name:'保存',exact:true}).click();
+ await cardAction(card(root,added), 'edit-card'); form=root.locator('[data-form="card"]'); await form.locator('[name="text"]').fill('修改后的内容'); await form.getByRole('button',{name:'保存',exact:true}).click();
  await root.locator('.self-line.current [data-act="edit-line"]').click(); form=root.locator('[data-form="line"]'); await form.locator('[name="title"]').fill('更改标题'); await form.locator('[name="part"]').fill('手填参与者'); await form.getByRole('button',{name:'添加',exact:true}).click(); await root.locator('[data-form="line"]').getByRole('button',{name:'保存',exact:true}).click();
  await root.locator('[data-act="toggle-rank"]').click(); const ranking=root.locator('.rank-item'), second=await ranking.nth(1).getAttribute('data-id'); await drag(page,ranking.nth(1),ranking.nth(0),true); await root.locator('.rank-pop [data-act="toggle-rank"]').click(); await expect(root.locator('.self-line.current h3')).toContainText(`${second} ×`);
  await expect.poll(async()=>JSON.parse(await unpack((reads.at('households/novel-stub-house/outlineSync/maritime-story/live') as {plot:string}).plot)).participant_order[0]).toBe(second);
@@ -104,7 +104,7 @@ test('card text can be selected and copied without dragging; paste remains avail
  await expect(root.locator('.drag-ghost')).toHaveCount(0);
  await page.keyboard.press('ControlOrMeta+c');
  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(selected);
- await item.getByRole('button', { name: '编辑', exact: true }).click();
+ await cardAction(item, 'edit-card');
  const editor = root.locator('[data-form="card"] [name="text"]');
  await editor.fill(''); await editor.focus(); await page.keyboard.press('ControlOrMeta+v');
  await expect(editor).toHaveValue(selected);

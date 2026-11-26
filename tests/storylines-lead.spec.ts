@@ -1,7 +1,7 @@
 // Exercise canonical lead sections/persistence and mocked GitHub workflow dispatch.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { stubFirebase, watchErrors } from './stub.ts';
-import { hasOutline, outlineFixture, overallText } from './outline-fixture.mjs';
+import { hasOutline, overallText } from './outline-fixture.mjs';
 import { unpack } from '../src/lib/views/outline/codec.js';
 test.skip(!hasOutline, 'private canonical data is not in public CI');
 test.use({ viewport: { width: 1440, height: 900 } });
@@ -17,31 +17,21 @@ async function open(page: Page) {
 const section = (item: Locator) => item.evaluate(el => {
   let node = el.previousElementSibling;
   while (node && !node.classList.contains('sec-name')) node = node.previousElementSibling;
-  return node?.textContent;
+  return node?.firstChild?.textContent?.trim();
 });
 async function pickerLead(root: Locator, id: string, name: string) {
   await root.locator('[data-act="toggle-picker"]').click();
   expect(await section(root.locator(`.pick-line[data-id="${id}"]`))).toBe(name);
   await root.locator('[data-act="toggle-picker"]').click();
 }
-test('lead sections in both tabs update immediately, survive refresh, and follow removal', async ({ page }) => {
-  const { root, reads, errors } = await open(page), fixture = outlineFixture()!;
+test('lead sections update immediately, survive refresh, and follow removal', async ({ page }) => {
+  const { root, reads, errors } = await open(page);
   for (const [id, name] of [['G03', '赵祈宁'], ['G22', '梁让'], ['G01', '张予安']]) await pickerLead(root, id, name);
-  await root.locator('[data-act="tab"][data-tab="outline"]').click();
-  for (const [id, name] of [['G03', '赵祈宁'], ['G22', '梁让'], ['G01', '张予安']]) {
-    expect(await section(root.locator(`[data-key="lib:${id}"]`))).toBe(name);
-    const ids = fixture.plot_data.plot_units.filter((u: any) => u.storyline_group_id === id).map((u: any) => u.unit_id);
-    const placement = fixture.plan.placements.find((p: any) => ids.includes(p.unit_id));
-    if (placement) {
-      await root.locator(`[data-act="choose-beat"][data-id="${placement.beat_id}"]`).click();
-      expect(await section(root.locator('.ol-line').filter({ has: page.locator(`[data-act="edit-line"][data-id="${id}"]`) }).first())).toBe(name);
-    }
-  }
-  await root.locator('[data-key="lib:G03"] [data-act="edit-line"]').click();
+  await root.locator('[data-act="toggle-picker"]').click(); await root.locator('.pick-line[data-id="G03"]').click();
+  await root.locator('.self-line.current [data-act="edit-line"]').click();
   await root.getByRole('combobox', { name: '标志性参与者', exact: true }).selectOption('周念儿');
   await root.locator('[data-form="line"]').getByRole('button', { name: '保存', exact: true }).click();
-  expect(await section(root.locator('[data-key="lib:G03"]'))).toBe('周念儿');
-  await root.locator('[data-act="tab"][data-tab="story"]').click(); await pickerLead(root, 'G03', '周念儿');
+  await pickerLead(root, 'G03', '周念儿');
   await expect.poll(async () => JSON.parse(await unpack((reads.at('households/novel-stub-house/outlineSync/maritime-story/live') as { plot: string }).plot)).storyline_groups.find((g: any) => g.id === 'G03').lead_participant).toBe('周念儿');
   await page.reload(); await expect(root.locator('#overall')).toBeVisible(); await pickerLead(root, 'G03', '周念儿');
   await root.locator('[data-act="toggle-picker"]').click(); await root.locator('.pick-line[data-id="G03"]').click();

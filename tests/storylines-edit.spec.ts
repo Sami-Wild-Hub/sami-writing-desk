@@ -1,8 +1,8 @@
-import { OUTLINE_ARCHIVED } from '../src/lib/views/outline/view-state.js';
 // Card/storyline deletion with undo, both ways of moving a card to another line, wide drop areas and wrapped card text.
+import { cardAction, cardMenu } from './outline-browser.ts';
 import { expect, test, type Page, type Locator } from '@playwright/test';
 import { stubFirebase, watchErrors } from './stub.ts';
-import { hasOutline, overallText } from './outline-fixture.mjs';
+import { hasOutline, outlineFixture, overallText } from './outline-fixture.mjs';
 import { unpack } from '../src/lib/views/outline/codec.js';
 test.skip(!hasOutline, 'private canonical data is not in public CI');
 test.use({ viewport: { width: 1440, height: 900 } });
@@ -30,33 +30,33 @@ async function grab(page: Page, source: Locator) {
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 7, y + 2, { steps: 3 });
 }
 async function dropAt(page: Page, target: Locator, dy: (b: { y: number; height: number }) => number) {
-  const b = (await target.boundingBox())!; await page.mouse.move(b.x + b.width / 2, dy(b), { steps: 20 }); await page.mouse.up();
+  const b = (await target.boundingBox())!; await page.mouse.move(b.x + b.width / 2, Math.max(170, Math.min(850, dy(b))), { steps: 20 }); await page.mouse.up();
 }
 
 test('delete a card and a storyline, undo both, and the deletions survive a refresh', async ({ page }) => {
   const { root, reads, errors } = await open(page), initial = await workspace(page, root);
   const id = line(initial, 'G01').time_order.current[0];
-  await card(root, id).getByRole('button', { name: '删除', exact: true }).click(); await expect(card(root, id)).toHaveCount(0);
+  await cardAction(card(root, id), 'delete-card'); await expect(card(root, id)).toHaveCount(0);
   await root.locator('#undo').click(); await expect(card(root, id)).toHaveCount(1);
-  await card(root, id).getByRole('button', { name: '删除', exact: true }).click(); await expect(card(root, id)).toHaveCount(0);
+  await cardAction(card(root, id), 'delete-card'); await expect(card(root, id)).toHaveCount(0);
 
   await root.locator('[data-act="toggle-picker"]').click(); await root.locator('.pick-line[data-id="G11"]').click();
   await root.locator('.self-line.current [data-act="edit-line"]').click();
   await root.getByRole('button', { name: '删除故事线', exact: true }).click(); await expect(page.locator('.toast')).toContainText('撤销');
-  await root.locator('[data-act="toggle-picker"]').click(); await expect(root.locator('.pick-line')).toHaveCount(25);
-  await root.locator('#undo').click(); await expect(root.locator('.pick-line')).toHaveCount(26);
+  await root.locator('[data-act="toggle-picker"]').click(); await expect(root.locator('.pick-line')).toHaveCount(outlineFixture()!.plot_data.storyline_groups.length - 1);
+  await root.locator('#undo').click(); await expect(root.locator('.pick-line')).toHaveCount(outlineFixture()!.plot_data.storyline_groups.length);
   await root.locator('.pick-line[data-id="G11"]').click(); await root.locator('.self-line.current [data-act="edit-line"]').click();
   await root.getByRole('button', { name: '删除故事线', exact: true }).click();
   await expect.poll(async () => { const p = await savedPlot(reads); return [Boolean(unit({ plot_data: p }, id)), Boolean(line({ plot_data: p }, 'G11'))]; }).toEqual([false, false]);
   await page.reload(); await expect(root.locator('.self-line.current h3')).toBeVisible();
   const after = await workspace(page, root); expect(unit(after, id)).toBeUndefined(); expect(line(after, 'G11')).toBeUndefined();
-  expect(after.plot_data.storyline_groups).toHaveLength(25); expect(errors).toEqual([]);
+  expect(after.plot_data.storyline_groups).toHaveLength(outlineFixture()!.plot_data.storyline_groups.length - 1); expect(errors).toEqual([]);
 });
 
 test('move cards by dropdown and by dragging onto the picker; drop into blank column and Beat space; text wraps', async ({ page }) => {
   const { root, reads, errors } = await open(page), initial = await workspace(page, root), g01 = line(initial, 'G01');
   const [x, y] = g01.time_order.current.filter((id: string) => !initial.plan.placements.some((p: any) => p.unit_id === id));
-  await card(root, x).locator('[data-change="move-line"]').selectOption('G03'); await expect(card(root, x)).toHaveCount(0);
+  await cardMenu(card(root, x)); await card(root, x).locator('[data-change="move-line"]').selectOption('G03'); await expect(card(root, x)).toHaveCount(0);
   let w = await workspace(page, root); expect(unit(w, x).storyline_group_id).toBe('G03'); expect(line(w, 'G03').time_order.current.at(-1)).toBe(x);
 
   await grab(page, card(root, y)); const strip = (await root.locator('.picker-strip').boundingBox())!;
@@ -76,7 +76,7 @@ test('move cards by dropdown and by dragging onto the picker; drop into blank co
   await expect(root.locator(`[data-beat="A2-B1"] [data-card="${free}"]`)).toHaveCount(1);
 
   const long = '长内容换行验证，'.repeat(40) + '结尾不被截断';
-  await card(root, free).getByRole('button', { name: '编辑', exact: true }).click(); const form = root.locator('[data-form="card"]');
+  await cardAction(card(root, free), 'edit-card'); const form = root.locator('[data-form="card"]');
   await expect(form.locator('[name="title"]')).toHaveCount(0); await form.locator('[name="text"]').fill(long); await form.getByRole('button', { name: '保存', exact: true }).click();
   for (const text of [card(root, free).locator('.c-text'), root.locator(`.bg-list [data-card="${free}"] .mini-text`)]) {
     await expect(text).toHaveText(long);
@@ -84,7 +84,7 @@ test('move cards by dropdown and by dragging onto the picker; drop into blank co
   }
   const badges = root.locator('[data-workbench] .badge');
   await expect(badges).toHaveText(Array(await badges.count()).fill(/^(已写|已排|未排)$/));
-  await expect(root.locator('.self-col.combined .era')).toHaveText('Combined');
+  await expect(root.locator('.self-line.current .self-col.combined .era')).toHaveText('Combined');
   await expect(root.locator(`.bg-list [data-card="${free}"]`)).toBeVisible();
   await root.locator('[data-act="toggle-picker"]').click();
   await expect(root.locator('.pick-line[data-id="G03"] small')).toHaveText(/^\d+\|\d+\|\d+$/);
@@ -121,24 +121,7 @@ test('placed cards edit in the left pane and return to the original storyline wi
   expect(unit(w, id).details).toEqual(['保留细节']);
   await root.locator('#undo').click();
   await expect(left).toHaveCount(1);
-  if (OUTLINE_ARCHIVED) {
-    await expect(root.locator('[data-tab="outline"]')).toHaveCount(0);
-    expect(errors).toEqual([]);
-    return;
-  }
-  await root.locator('[data-act="tab"][data-tab="outline"]').click();
-  await root.locator(`.beat[data-id="${p.beat_id}"]`).click();
-  const placed = root.locator(`.ol-board [data-card="${id}"]`);
-  await placed.getByRole('button', { name: '编辑卡片' }).click();
-  const boardEditor = root.locator('.ol-board [data-form="card"]');
-  await boardEditor.locator('[name="text"]').fill('大纲内修改');
-  await boardEditor.getByRole('button', { name: '保存', exact: true }).click();
-  await placed.getByRole('button', { name: '移出大纲，退回故事线' }).click();
-  await expect(placed).toHaveCount(0);
-  await expect(root.locator(`.library [data-card="${id}"] .c-text`)).toHaveText('大纲内修改');
-  w = await workspace(page, root);
-  expect(unit(w, id).content).toBe('大纲内修改');
-  expect(w.plan.placements.some((q: any) => q.unit_id === id)).toBe(false);
+  await expect(root.locator('[data-tab="outline"]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

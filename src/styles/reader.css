@@ -85,7 +85,7 @@
 .prose a.ev:hover, .prose a.loc:hover { background: var(--accent-soft); color: var(--accent-ink); text-decoration: none; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .6rem; margin-block: .8em 1.2em; padding: 0 !important; list-style: none; }
 .cards li { margin: 0; }
-.cards li > a, .cards li.plain { display: block; height: 100%; padding: .7rem .85rem; border: 1px solid var(--line); border-radius: 10px;
+.cards li > a, .cards li.plain { display: block; height: 100%; padding: .7rem .85rem; border: 1px solid var(--line); border-radius: var(--r-3);
   background: var(--surface); color: inherit; font: .9375rem/1.55 var(--sans); }
 .cards li > a:hover { border-color: var(--accent); text-decoration: none; }
 .cards b { display: block; margin-bottom: 2px; color: var(--ink); font-size: 1.0625rem; }

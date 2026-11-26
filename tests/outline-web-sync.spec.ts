@@ -5,7 +5,8 @@ import { expect, test } from '@playwright/test';
 import { stubFirebase } from './stub.ts';
 import { overallText } from './outline-fixture.mjs';
 
-const dataRepo = resolve(process.cwd(), '..', 'sami-writing-desk-data-outline');
+test.use({ viewport: { width: 1440, height: 900 } });
+const dataRepo = resolve(process.env.OUTLINE_DATA_REPO || '../sami-writing-desk-data-outline');
 
 test('outline web reads canonical maritime-story data and exposes repository conflict choices', async ({ page }) => {
   test.skip(!existsSync(dataRepo), 'public CI has no sibling data repository');
@@ -13,7 +14,7 @@ test('outline web reads canonical maritime-story data and exposes repository con
   await page.goto('book/?book=maritime-story&view=outline');
   const root = page.locator('[data-view="outline"]');
   await expect(root.locator('#overall')).toHaveText(/\d+ 张 · \d+ 已排/);
-  await expect(root.locator('#sync-state')).toHaveText('已保存');
+  await expect(root.locator('#sync-state')).toHaveText('✓ 已保存');
   expect(reads.some(path => path.includes('/novelArchive/books/maritime-story/outline'))).toBe(false);
   expect(reads.some(path => path.includes('/outlineSync/maritime-story/head'))).toBe(true);
 
@@ -36,7 +37,7 @@ test('an unusable default-storyline config does not block cloud data', async ({ 
   const head = reads.at(`${path}/head`) as { repo: object };
   reads.server(`${path}/head`, { ...head, config: '{', repo: { ...head.repo, configError: 'bad JSON' } });
   await expect(root.locator('#sync-state')).toHaveAttribute('title', /config.json 无效/);
-  await expect(root.locator('#sync-state')).toHaveText('已保存');
+  await expect(root.locator('#sync-state')).toHaveText('✓ 已保存');
   await page.reload(); await expect(root.locator('#overall')).toHaveText(overallText());
 });
 

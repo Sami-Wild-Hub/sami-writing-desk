@@ -108,7 +108,7 @@ export function mountHome(config: Partial<FirebaseConfig>) {
     menu.querySelector('.who')!.innerHTML = `${esc(status.displayName ?? '')}<small>${esc(email)}</small>`;
     signIn.hidden = status.connection === 'connected' || status.connection === 'connecting';
     signIn.textContent = status.email ? '重新检查' : status.connection === 'error' ? '重试登录' : '登录';
-    $('home-who').textContent = status.connection === 'connected' ? `${status.displayName ?? ''} · 家庭成员` : access.title;
+    $('home-who').textContent = status.connection === 'connected' ? [status.displayName, '家庭成员'].filter(Boolean).join(' · ') : access.title;
     $('home-who').title = access.text;
     if (status.connection !== 'connected') $('home-lead').textContent = access.text;
     $('home-greet').textContent = status.connection === 'connected' ? `${greeting()}${status.displayName ? `，${status.displayName}` : ''}` : '小离总周报';

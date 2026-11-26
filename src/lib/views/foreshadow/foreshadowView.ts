@@ -35,10 +35,10 @@ class ForeshadowPanel {
       if (typeof saved?.chapter === 'string') this.chapter = saved.chapter;
     } catch { /* unreadable choice: keep the default filters */ }
     this.cloud = new ForeshadowCloud(host, state, () => this.render());
-    host.root.innerHTML = '<main class="fsh"><header><h2>伏笔表</h2><span class="fsh-status" role="status"></span></header>' +
-      '<div class="fsh-notice"></div><div class="fsh-tools"></div><p class="fsh-keys"></p><p class="fsh-empty-state" role="status" hidden></p><div class="fsh-scroll" role="region" aria-label="伏笔表，可横向滚动"><table><thead></thead><tbody></tbody></table></div></main>';
-    this.q('.fsh-keys').textContent = `直接点格子输入，离开格子自动保存 · Enter 下一行 · Shift+Enter 上一行 · ${ALT}Enter 换行 · Esc 撤销本格 · ` +
-      `${ALT}1 已收 · ${ALT}2 部分回收 · ${ALT}3 不需要 · ${ALT}0 未收 · ${ALT}S 选状态 · ${MOD}Enter 在下面加行`;
+    host.root.innerHTML = '<main class="fsh"><header><h2>伏笔表</h2><span class="fsh-status" role="status"></span><details class="fsh-keys"><summary class="btn small">快捷键</summary><ul></ul></details></header>' +
+      '<div class="fsh-notice"></div><div class="fsh-tools"></div><p class="fsh-empty-state" role="status" hidden></p><div class="fsh-scroll" role="region" aria-label="伏笔表，可横向滚动"><table><thead></thead><tbody></tbody></table></div></main>';
+    this.q('.fsh-keys ul').innerHTML = [['Enter', '下一行'], ['Shift+Enter', '上一行'], [`${ALT}Enter`, '换行'], ['Esc', '撤销本格'], [`${ALT}1 / 2 / 3 / 0`, '已收 / 部分回收 / 不需要 / 未收'], [`${ALT}S`, '选状态'], [`${MOD}Enter`, '在下面加行']]
+      .map(([key, text]) => `<li><kbd>${key}</kbd> ${text}</li>`).join('');
     const root = host.root;
     root.addEventListener('click', this.click);
     root.addEventListener('change', this.change);
@@ -65,7 +65,7 @@ class ForeshadowPanel {
       : this.cloud.remote.head?.repo?.error ? `<p>仓库版本无效：${esc(this.cloud.remote.head.repo.error)}</p><button data-action="fix-repo">用网页版修复</button>`
       : this.cloud.error ? '<button data-action="retry">重试保存</button>' : '';
     if (this.cloud.remote.kept) notice.innerHTML += '<button data-action="download-kept">下载被替换的版本</button>';
-    notice.querySelectorAll<HTMLButtonElement>('button').forEach(button => { button.disabled = this.cloud.replacing; });
+    notice.querySelectorAll<HTMLButtonElement>('button').forEach(button => { button.className = 'btn small'; button.disabled = this.cloud.replacing; });
     const empty = this.q('.fsh-empty-state');
     empty.hidden = true;
     if (!data) {
@@ -83,7 +83,7 @@ class ForeshadowPanel {
     empty.textContent = data.rows.length ? '没有符合筛选的伏笔，试试其他筛选。' : '还没有伏笔，点「加行」开始记录。';
     this.q('.fsh-tools').innerHTML = select('是否已收', this.status, data.rows.map(r => r.author['是否已收'] || '未标注'), [[OPEN, '未收和部分回收'], ['', '全部']]) +
       select('埋设章节', this.chapter, data.rows.flatMap(plantingChapters), [['', '全部']], v => v.replace(/^C(\d+)$/, '$1')) +
-      `<span>${rows.length} / ${data.rows.length} 条</span><button data-add title="${MOD}Enter">加行 <kbd>${MOD}Enter</kbd></button>`;
+      `<span>${rows.length} / ${data.rows.length} 条</span><button class="btn small" data-add title="${MOD}Enter">加行 <kbd>${MOD}Enter</kbd></button>`;
     this.q<HTMLButtonElement>('[data-add]').disabled = this.cloud.replacing;
     const columns = visibleColumns(data), head = JSON.stringify(columns.map(c => c.header));
     if (head !== this.head) {

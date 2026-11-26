@@ -14,6 +14,8 @@ import { editorDrafts } from './editor-drafts.js';
 import { searchInput } from '../../archive/input.ts';
 import { updateLayers } from './layers.ts';
 import { invalidateToastAction } from '../../archive/ui.ts';
+import { flash, jumpTo } from '../../archive/motion.ts';
+import { outlineChrome } from './chrome.js';
 export const mountOutline = (root, payload, draftKey, host) => new OutlinePanel(root, payload, draftKey, host);
 class OutlinePanel extends OutlineCloud {
   constructor(root, payload, draftKey, host) {
@@ -45,7 +47,7 @@ class OutlinePanel extends OutlineCloud {
       }
       else if (zone.zone === 'line') this.moveToLine(id, zone.line);
     });
-    this.wire(); this.wireFiles();
+    this.chrome = outlineChrome(this); this.wire(); this.wireFiles();
     this.online = () => { if (this.pendingWorkspace) { this.retrySave = false; this.queueCloudSave(); } };
     window.addEventListener('online', this.online);
     try { const saved = this.draft.load(); if (saved) this.loadSavedDraft(saved); }
@@ -105,8 +107,10 @@ class OutlinePanel extends OutlineCloud {
     const draft = focused?.closest('[data-draft]')?.dataset.draft, name = focused?.name;
     const selection = focused?.selectionStart, end = focused?.selectionEnd;
     const v = presentation(this.model, u);
+    this.chrome.before();
     root.querySelector('[data-bar]').innerHTML = v.renderBar();
     root.querySelector('[data-workbench]').innerHTML = u.tab === 'story' ? v.renderStory() : v.renderOutline();
+    this.chrome.render(v);
     const nextPicker = root.querySelector('.picker-strip');
     if (picker && nextPicker) {
       picker.setAttribute('aria-expanded', String(u.picker));
@@ -127,7 +131,10 @@ class OutlinePanel extends OutlineCloud {
     // Picking a storyline or a main character scrolls the stacked storylines to it (a whole section opens at its top).
     if (this.scrollLine && u.tab === 'story') {
       const box = root.querySelector('.self-lines'), block = root.querySelector(`[data-line-block="${CSS.escape(this.scrollLine)}"]`);
-      if (box && block) box.scrollTo(0, this.scrollTop ? 0 : block.offsetTop - box.offsetTop);
+      if (box && block) {
+        if (matchMedia('(max-width: 860px)').matches) { const title = block.querySelector('.self-line-head'); jumpTo(title); flash(title); }
+        else box.scrollTo(0, this.scrollTop ? 0 : block.offsetTop - box.offsetTop);
+      }
     }
     this.scrollLine = null; this.scrollTop = false;
     this.updateSyncStatus(); this.queueView();
@@ -165,8 +172,10 @@ class OutlinePanel extends OutlineCloud {
     switch (t.dataset.act) {
       case 'tab': this.finishInline(); u.tab = OUTLINE_ARCHIVED ? 'story' : t.dataset.tab; u.picker = false; break;
       case 'undo': m.undo(); return;
+      case 'drawer-rank': this.host.setDrawer(false);
       case 'toggle-rank': u.rank = !u.rank; break;
       case 'toggle-picker': u.picker = !u.picker; break;
+      case 'show-parts': this.chrome.jumpParts(); return;
       case 'select-line': this.finishInline(); u.line = id; u.picker = false; u.editing = u.composing = null; this.scrollLine = id; break;
       case 'select-section': {
         const first = presentation(m, u).sections().find(s => s.name === t.dataset.name)?.lines[0];
@@ -210,6 +219,7 @@ class OutlinePanel extends OutlineCloud {
         u.filters.add(written ? 'written' : m.used(id) ? 'placed' : 'unplaced');
         this.undoToast(written ? '已标为已写' : '已改回未写', () => m.setWritten(id, written)); return;
       }
+      case 'mobile-unplaced':
       case 'toggle-unplaced': u.onlyUnplaced = !u.onlyUnplaced; break;
       case 'toggle-row': if (!u.open.delete('w:' + id)) u.open.add('w:' + id); break;
       case 'toggle-planned-group': {
@@ -262,6 +272,7 @@ class OutlinePanel extends OutlineCloud {
       if (this.renderPending) setTimeout(() => { if (!this.disposed) this.render(); }, 0);
     });
     this.root.addEventListener('click', e => {
+      if (e.target.closest('.ol-person')) { this.chrome.openDrawer(); return; }
       const t = e.target.closest('[data-act]');
       if (t) { e.preventDefault(); this.attempt(() => this.action(t)); }
       else if (this.UI.picker && !e.target.closest('.picker')) { this.UI.picker = false; this.render(); }
@@ -284,6 +295,7 @@ class OutlinePanel extends OutlineCloud {
       if (t.dataset.input === 'beat-note') this.model.setBeatNote(t.value);
     });
     this.root.addEventListener('keydown', e => {
+      if (e.defaultPrevented || (e.key === 'Escape' && e.target.closest('.side.show'))) return;
       if (e.isComposing || this.ime || e.keyCode === 229) return;
       if (e.key === 'Enter' && e.target.name === 'part') { e.preventDefault(); this.addPart(); this.render(); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.target.closest('input,textarea')) { e.preventDefault(); this.model.undo(); }
@@ -337,6 +349,7 @@ class OutlinePanel extends OutlineCloud {
     this.root.prepend(node);
   };
   dispose = () => {
+    this.chrome.dispose();
     this.searchBinding?.dispose();
     this.disposed = true; this.manualSync.dispose(); this.drag.dispose(); this.unsubscribe?.(); window.removeEventListener('online', this.online);
     this.flushView(); window.removeEventListener('pagehide', this.flushView); document.removeEventListener('scroll', this.onScroll);

@@ -5,11 +5,11 @@ export function renderBar(v) {
   const { UI, S, D, undoStack } = v;
   const tab = (id, label) => `<button data-act="tab" data-tab="${id}" aria-current="${UI.tab === id ? 'page' : 'false'}">${label}</button>`;
   return `
-    <nav class="tabs" aria-label="视图">${OUTLINE_ARCHIVED ? '' : tab('outline', '大纲')}${tab('story', '故事线')}</nav>
+    ${OUTLINE_ARCHIVED ? '' : `<nav class="tabs" aria-label="视图">${tab('outline', '大纲')}${tab('story', '故事线')}</nav>`}
     <span class="sp"></span>
     <span id="overall">${Object.keys(S.cards).length} 张 · ${Object.keys(D.placedIn).length} 已排</span>
-    <button class="btn" data-act="toggle-rank" aria-expanded="${UI.rank}">参与者排序</button>
-    <button class="btn" id="undo" data-act="undo" ${undoStack.length ? '' : 'disabled'} title="撤销上一步（Ctrl+Z）">↶ 撤销</button>`;
+    <button class="btn small" data-act="toggle-rank" aria-expanded="${UI.rank}">参与者排序</button>
+    ${undoStack.length ? '<button class="btn small" id="undo" data-act="undo" title="撤销上一步（Ctrl+Z）" aria-label="撤销">↶ <span>撤销</span></button>' : ''}`;
 }
 
 export function fold(v, key, label, body) {
@@ -30,13 +30,14 @@ export function cardFull(v, c, { actions = '', where = true, drag = false, mark 
   const place = where && p ? `<span class="where placed">排在 ${beatShort(p.beat)}</span>` : '';
   const foot = [
     c.details?.length ? fold(`d:${c.id}`, `细节 ${c.details.length}`, list(c.details)) : '',
-    c.origins?.length ? fold(`o:${c.id}`, `并入的原纲 ${c.origins.length}`, list(c.origins)) : '',
+    c.origins?.length ? fold(`o:${c.id}`, `原纲 ${c.origins.length}`, list(c.origins)) : '',
     c.refs ? `<span class="refs">出处 ${esc(c.refs)}</span>` : '',
-  ].join('');
+  ].filter(Boolean).join('<span class="foot-dot" aria-hidden="true">·</span>');
+  const menu = actions ? `<details class="card-menu"><summary aria-label="卡片操作">⋯</summary><div class="menu">${actions}</div></details>` : '';
   return `<article class="card ${c.cat} ${m ? 'marked' : ''}" ${drag ? `data-drag="card" data-id="${c.id}"` : ''} data-card="${c.id}">
-    <div class="c-head">${drag ? '<span class="drag-grip" data-drag-handle title="拖动卡片排序" aria-hidden="true">⋮⋮</span>' : ''}${badge(c)}${place}${headerActions ? `<span class="sp"></span>${headerActions}` : ''}</div>
+    <div class="c-head">${drag ? '<span class="drag-grip" data-drag-handle title="拖动卡片排序" aria-hidden="true">⋮⋮</span>' : ''}${badge(c)}${place}<span class="sp"></span>${headerActions}${menu}</div>
     <div class="c-text">${esc(c.text)}</div>${m ? markBlock(c) : ''}
-    <div class="c-foot">${foot}<span class="c-actions">${actions}</span></div></article>`;
+    <div class="c-foot">${foot}</div></article>`;
 }
 
 // What unfolds under a card in the Beat list: details, merged originals and refs.

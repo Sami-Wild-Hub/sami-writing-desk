@@ -7,7 +7,7 @@ import test from 'node:test';
 import { createOutlineModel } from '../src/lib/views/outline/model.js';
 import { completePlan, completeWorkspace, PLAN_KEYS } from '../src/lib/views/outline/workspace.js';
 
-const repo = resolve('..', 'sami-writing-desk-data-outline');
+const repo = resolve(process.env.OUTLINE_DATA_REPO || '../sami-writing-desk-data-outline');
 const canonical = name => JSON.parse(readFileSync(resolve(repo, 'outline/maritime-story', name), 'utf8'));
 const options = { skip: !existsSync(repo) && 'public CI has no sibling data repository' };
 

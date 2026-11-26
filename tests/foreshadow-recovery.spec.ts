@@ -57,6 +57,7 @@ test('both views download the complete replaced version after repository adoptio
   expect(kept.plan).toEqual(JSON.parse(await unpack(previous.plan)));
   await page.goto('book/?book=maritime-story&view=outline');
   const outline = page.locator('[data-view="outline"]');
+  await outline.locator('.ol-person').click();
   await outline.getByText('文件与恢复', { exact: true }).click();
   expect(await downloadJson(page, outline.getByRole('button', { name: '下载被替换的版本', exact: true }))).toEqual(kept);
 });

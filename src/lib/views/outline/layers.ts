@@ -19,7 +19,9 @@ export function updateLayers(layer: HTMLElement, html: string) {
       incoming.querySelector<HTMLElement>('input, button')?.focus({ preventScroll: true });
     } else if (old) {
       if (old.contains(document.activeElement)) {
-        layer.parentElement?.querySelector<HTMLElement>(selector === '.pop' ? '[data-bar] [data-act="toggle-rank"]' : '.self-head [data-act="edit-line"]')?.focus({ preventScroll: true });
+        const phone = matchMedia('(max-width: 860px)').matches;
+        const opener = phone && selector === '.pop' ? '.ol-person' : selector === '.pop' ? '[data-bar] [data-act="toggle-rank"]' : '.self-line.current [data-act="edit-line"]';
+        layer.parentElement?.querySelector<HTMLElement>(opener)?.focus({ preventScroll: true });
       }
       leave(old, () => old.remove());
     }

@@ -130,7 +130,10 @@ updateSyncStatus = () => {
  else if (info.kind === 'pending') label += info.online ? ' · 同步程序在线' : ' · 等待同步';
  if (this.remote.head?.repo?.configError) label += ' · config.json 无效，沿用可用配置';
  const failed = Boolean(this.localSaveError || this.retrySave), state = this.$('sync-state');
- state.textContent = failed ? '保存失败可重试' : this.pendingWorkspace || this.inFlight ? '正在保存' : '已保存';
+ const saving = Boolean(this.pendingWorkspace || this.inFlight);
+ state.textContent = failed ? '保存失败 · 重试' : saving ? '保存中' : '✓ 已保存';
+ state.className = failed ? 'save-state btn small danger' : 'save-state';
+ state.classList.toggle('saving', saving && !failed);
  state.title = this.localSaveError ? '当前改动尚未保存：' + this.localSaveError.message : label;
  state.classList.toggle('error', failed);
  this.$('save-detail').textContent = state.title;

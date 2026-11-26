@@ -1,4 +1,3 @@
-import { OUTLINE_ARCHIVED } from '../src/lib/views/outline/view-state.js';
 // Exercise interrupted outline layers and view changes on both supported layout widths.
 import { expect, test } from '@playwright/test';
 import { hasOutline } from './outline-fixture.mjs';
@@ -23,23 +22,24 @@ for (const width of [390, 1440]) {
     await page.locator('.who-btn').first().click();
     await expect(page.locator('.who-btn').first()).toHaveAttribute('aria-expanded', 'true');
     await page.locator('#novel-views [data-novel-view="outline"]').click();
-    const root = page.locator('[data-view="outline"]'); await expect(root.locator('.self-head')).toBeVisible();
-    const rank = root.locator('[data-bar] [data-act="toggle-rank"]');
+    const root = page.locator('[data-view="outline"]'); await expect(root.locator(width === 390 ? '.ol-ctx' : '.self-head')).toBeVisible();
+    const rank = root.locator(width === 390 ? '[data-act="drawer-rank"]' : '[data-bar] [data-act="toggle-rank"]');
+    const openRank = async () => { if (width === 390) await root.locator('.ol-person').click(); await rank.click(); };
     for (let i = 0; i < 3; i++) {
-      await rank.evaluate((el: HTMLElement) => el.click());
+      await openRank();
       await root.locator('.rank-pop [data-act="toggle-rank"]').evaluate((el: HTMLElement) => el.click());
     }
-    await rank.evaluate((el: HTMLElement) => el.click());
+    await openRank();
     await expect(root.locator('.rank-pop')).toHaveCount(1);
     expect(await root.locator('.rank-pop').evaluate((el: HTMLElement) => el.inert)).toBe(false);
     await page.keyboard.press('Escape'); await expect(root.locator('.rank-pop')).toHaveCount(0);
-    await expect(rank).toBeFocused();
+    await expect(width === 390 ? root.locator('.ol-person') : rank).toBeFocused();
     await root.locator('.self-line.current [data-act="edit-line"]').click();
     await expect(root.locator('.modal [name="title"]')).toBeFocused();
     await page.keyboard.press('Escape'); await expect(root.locator('.modal-back')).toHaveCount(0);
-    if (OUTLINE_ARCHIVED) await expect(root.locator('[data-tab="outline"]')).toHaveCount(0);
-    else await root.locator('[data-tab="outline"]').click();
+    await expect(root.locator('[data-tab="outline"]')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (width === 390) await root.locator('.ol-person').click();
     await root.locator('.file-recovery summary').click();
     await expect(root.locator('#export-data')).toBeVisible();
     await root.locator('.file-recovery summary').click();
