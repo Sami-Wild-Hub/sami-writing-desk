@@ -1,7 +1,9 @@
 // Where the workbench was left: tab, storyline, Beat, open library groups, filters and scroll.
 // Scoped like the draft (account + book); anything that no longer exists falls back to the default.
 // Reads/Writes: localStorage <outline draft key>:view (JSON)
-const TABS = new Set(['story', 'outline']);
+// Temporarily archive the legacy board; flip this flag to restore its tab.
+export const OUTLINE_ARCHIVED = true;
+const TABS = new Set(OUTLINE_ARCHIVED ? ['story'] : ['story', 'outline']);
 const FILTERS = new Set(['unplaced', 'placed', 'written']);
 const strings = x => Array.isArray(x) ? x.filter(s => typeof s === 'string') : null;
 const finite = x => typeof x === 'number' && Number.isFinite(x) && x >= 0;
