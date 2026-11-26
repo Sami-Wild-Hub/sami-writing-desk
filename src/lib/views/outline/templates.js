@@ -1,9 +1,11 @@
+import { OUTLINE_ARCHIVED } from './view-state.js';
+
 // Shared markup: top bar, cards, folds, participant ranking popover and the storyline dialog.
 export function renderBar(v) {
   const { UI, S, D, undoStack } = v;
   const tab = (id, label) => `<button data-act="tab" data-tab="${id}" aria-current="${UI.tab === id ? 'page' : 'false'}">${label}</button>`;
   return `
-    <nav class="tabs" aria-label="视图">${tab('outline', '大纲')}${tab('story', '故事线')}</nav>
+    <nav class="tabs" aria-label="视图">${OUTLINE_ARCHIVED ? '' : tab('outline', '大纲')}${tab('story', '故事线')}</nav>
     <span class="sp"></span>
     <span id="overall">${Object.keys(S.cards).length} 张 · ${Object.keys(D.placedIn).length} 已排</span>
     <button class="btn" data-act="toggle-rank" aria-expanded="${UI.rank}">参与者排序</button>
