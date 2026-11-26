@@ -178,14 +178,28 @@ class OutlinePanel extends OutlineCloud {
         u.dialog.parts = u.dialog.parts.filter(p => p !== t.dataset.name);
         if (!u.dialog.parts.includes(u.dialog.lead)) u.dialog.lead = u.dialog.parts[0] || '';
         break;
-      case 'edit-card': u.editing = id; break;
+      case 'edit-card': this.finishInline(); u.editing = id; u.editingPane = t.dataset.editPane || 'right'; u.composing = null; break;
       case 'delete-card': if (u.editing === id) u.editing = null; this.undoToast('已删除卡片', () => m.deleteCard(id)); return;
       case 'delete-line': this.deleteLine(id); return;
       case 'cancel-edit': this.editors.drop('card:' + u.editing); u.editing = null; break;
       case 'compose': this.finishInline(); if (t.dataset.line) u.line = t.dataset.line; u.composing = t.dataset.cat; break;
       case 'cancel-compose': this.editors.drop(`new:${u.line}:${u.composing}`); u.composing = null; break;
       case 'choose-beat': m.activeBeat = id; break;
-      case 'unplace': u.filters.add(m.unitMap[id].status === 'WRITTEN' ? 'written' : 'unplaced'); u.open.add('lib:' + m.unitMap[id].storyline_group_id); this.undoToast('已移出本拍', () => m.removeUnit(id)); return;
+      case 'unplace': {
+        const unit = m.unitMap[id], line = unit.storyline_group_id, written = unit.status === 'WRITTEN';
+        this.finishInline(); if (u.editing === id) u.editing = null;
+        u.filters.add(written ? 'written' : 'unplaced'); u.open.add('lib:' + line);
+        if (u.tab === 'story') {
+          u.line = line; u.picker = false; this.scrollLine = line;
+          if (written) u.onlyUnplaced = false;
+        } else if (u.search) {
+          const v = presentation(m, u);
+          if (!v.matches(v.S.cards[id], v.lineOf(line), u.search.trim().toLowerCase())) {
+            u.search = ''; const input = this.root.querySelector('[data-input="search"]'); if (input) input.value = '';
+          }
+        }
+        this.undoToast('已移出大纲，退回故事线', () => m.removeUnit(id)); return;
+      }
       case 'pick': this.undoToast('已选入当前分段', () => m.placeInCell(id, m.activeBeat, m.unitMap[id].category)); return;
       case 'toggle-written': {
         const written = m.unitMap[id].status !== 'WRITTEN';
