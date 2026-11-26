@@ -20,6 +20,7 @@ interface ProofMemo {
   source: 'paste' | 'drive'; title: string; draft: string; driveName: string; skipProse: boolean;
   titleEdited?: boolean;
   historyChapter?: string;
+  compareManuscript?: boolean;
   /** Per record: the report chosen for each check, and the item filter. */
   report: Record<string, Record<string, string>>; filter: Record<string, Filter>; kind: Record<string, KindFilter>; y?: number;
 }
@@ -147,9 +148,10 @@ class ProofPanel {
         : '<label class="field"><span>新稿</span><textarea name="draft" rows="16" placeholder="把新稿贴在这里"></textarea></label>' +
           '<p class="hint">每个非空行算一段，# 开头的标题行不算。</p>') +
       '<label class="poption"><input type="checkbox" name="skipProse">不验语病</label>' +
+      (drive ? '' : '<label class="poption"><input type="checkbox" name="compareManuscript">同时对照已写正文（本机 Luna）</label>') +
       `<div class="prow-tools">${drive ? '' : '<label class="btn file">上传文件<input type="file" accept=".txt,.md,text/plain,text/markdown"></label><span class="count" data-count></span>'}` +
       '<span class="sp"></span><button type="button" class="btn primary" data-send>发送校稿</button></div>' +
-      `<p class="hint">${drive ? '发出后自动做两项校验：① 对照正文（本机 Luna 读已写各章）、② 开放式（ChatGPT 读资料库）。' : '贴入或上传的稿子只做② 开放式（ChatGPT 读资料库）。'}结果回来自动显示，无需手动传递 Prompt 或 JSON。</p>` +
+      `<p class="hint">${drive ? '发出后自动做两项校验：① 对照正文（本机 Luna 读已写各章）、② 开放式（ChatGPT 读资料库）。' : '贴入或上传默认做② 开放式（ChatGPT 读资料库）；勾选后加做① 对照正文。'}结果回来自动显示，无需手动传递 Prompt 或 JSON。</p>` +
       '<p class="perr" role="alert" data-err hidden></p>';
     const bind = (name: 'title' | 'draft' | 'driveName', after = () => {}) => {
       const field = this.main.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name=${name}]`);
@@ -168,6 +170,8 @@ class ProofPanel {
     const skipProse = this.main.querySelector<HTMLInputElement>('[name=skipProse]')!;
     skipProse.checked = this.st.skipProse;
     skipProse.addEventListener('change', () => { this.st.skipProse = skipProse.checked; this.persistDraft(); });
+    const compare = this.main.querySelector<HTMLInputElement>('[name=compareManuscript]');
+    if (compare) { compare.checked = !!this.st.compareManuscript; compare.addEventListener('change', () => { this.st.compareManuscript = compare.checked; this.persistDraft(); }); }
     this.sendState();
     recount();
     this.main.querySelector<HTMLInputElement>('[type=file]')?.addEventListener('change', event => void this.upload(event.target as HTMLInputElement));
@@ -220,7 +224,7 @@ class ProofPanel {
     err.textContent = problem;
     if (problem) return;
     const now = Date.now();
-    const record = queuedRecord({ id: newId(now), title, createdAt: now, source, draft: this.st.draft, driveName, skipProse: this.st.skipProse });
+    const record = queuedRecord({ id: newId(now), title, createdAt: now, source, draft: this.st.draft, driveName, skipProse: this.st.skipProse }, !!this.st.compareManuscript);
     const submitted = signature(this.st), context = this.context;
     this.sending = true;
     button.disabled = true;
@@ -237,7 +241,7 @@ class ProofPanel {
     }
     const unchanged = signature(this.st) === submitted && (!this.disposed || signature(this.local.load() as DraftFields) === submitted);
     if (unchanged) {
-      this.st.title = this.st.draft = this.st.driveName = ''; this.st.titleEdited = false; this.st.skipProse = false; this.persistDraft();
+      this.st.title = this.st.draft = this.st.driveName = ''; this.st.titleEdited = false; this.st.skipProse = false; this.st.compareManuscript = false; this.persistDraft();
     }
     if (unchanged && !this.disposed && this.visible && !this.open && context?.latest()) this.host.go({ view: 'proof', doc: record.id }, 'nav');
     else this.host.toast('校稿已发送', { label: '打开记录', action: () => this.host.go({ view: 'proof', doc: record.id }, 'nav') });
@@ -287,6 +291,7 @@ class ProofPanel {
     this.st.draft = draft;
     this.st.driveName = submittedChapter(record.title, record.driveName);
     this.st.skipProse = !!record.skipProse;
+    this.st.compareManuscript = !!record.checks.manuscript;
     this.st.historyChapter = '';
     this.persistDraft();
     this.host.go({ view: 'proof', doc: '' }, 'nav');
