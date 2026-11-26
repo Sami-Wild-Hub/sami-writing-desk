@@ -273,3 +273,12 @@ button.badge.placed:hover { color: var(--placed); }
   .outline-view .file-recovery > .file-tools { position:absolute; top:calc(100% + 6px); left:.6rem; max-height:60vh; overflow:auto; }
   .outline-view .bg-head { position:static; }
 }
+
+/* Planned cards can be grouped without changing their reveal order or status. */
+.planned-controls { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .2rem; color: var(--ink-3); font-size: .75rem; }
+.bg-planned { gap: 4px; }
+.planned-pillar { background: var(--accent-soft); }
+.planned-pillar-head { display: flex; align-items: center; gap: .5rem; width: 100%; padding: .35rem .55rem; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font-size: .8125rem; text-align: left; cursor: pointer; }
+.planned-pillar-head small { margin-left: auto; color: var(--ink-3); }
+.planned-pillar-head[aria-expanded="true"] .chev { transform: rotate(45deg); }
+.planned-pillar .pl-body { margin: 0 .3rem .3rem; padding: 3px; }
