@@ -11,6 +11,23 @@ function selectTab(bar: HTMLElement, current: string) {
   for (const tab of bar.querySelectorAll<HTMLAnchorElement>('a[data-novel-view]')) {
     if (tab.dataset.novelView === current) tab.setAttribute('aria-current', 'page'); else tab.removeAttribute('aria-current');
   }
+  revealSelectedTab(bar);
+}
+
+function revealSelectedTab(bar: HTMLElement) {
+  const selected = bar.querySelector<HTMLElement>('#novel-views [aria-current="page"]:not([hidden])');
+  const strip = selected?.parentElement;
+  if (!selected || !strip) return;
+  const tab = selected.getBoundingClientRect(), bounds = strip.getBoundingClientRect();
+  strip.scrollLeft += Math.min(0, tab.left - bounds.left) + Math.max(0, tab.right - bounds.right);
+}
+
+function updateTabs(bar: HTMLElement, current: string, hrefFor: (view: string) => string, hasOutline: boolean) {
+  for (const tab of bar.querySelectorAll<HTMLAnchorElement>('a[data-novel-view]')) {
+    tab.hidden = tab.dataset.novelView === 'outline' && !hasOutline;
+    tab.href = hrefFor(tab.dataset.novelView!);
+  }
+  selectTab(bar, current);
 }
 
 export function mountBar(bar: HTMLElement, handlers: BarHandlers) {
@@ -53,7 +70,13 @@ export function mountBar(bar: HTMLElement, handlers: BarHandlers) {
     }
   });
   document.addEventListener('click', (event) => { if (!(event.target as Element).closest('.menu-wrap')) closeMenus(); });
-  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeMenus(); });
+  window.addEventListener('resize', () => revealSelectedTab(bar));
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    const focused = menus.find(menu => isShown(menu) && menu.contains(document.activeElement));
+    closeMenus();
+    (focused?.previousElementSibling as HTMLElement | null)?.focus();
+  });
 
   return {
     /** Book name and scope; the name is public, the scope only shows when signed in. */
@@ -66,14 +89,7 @@ export function mountBar(bar: HTMLElement, handlers: BarHandlers) {
         `<a href="${esc(hrefFor(slug))}" data-book-slug="${esc(slug)}"${slug === current ? ' aria-current="page"' : ''}>${esc(catalog[slug].title)}</a>`).join('') +
         `<a href="${esc(import.meta.env.BASE_URL)}">← 回到书架</a>`;
     },
-    setTabs(current: string, hrefFor: (view: string) => string, hasOutline = false) {
-      for (const tab of bar.querySelectorAll<HTMLAnchorElement>('a[data-novel-view]')) {
-        tab.hidden = tab.dataset.novelView === 'outline' && !hasOutline;
-        tab.href = hrefFor(tab.dataset.novelView!);
-        if (tab.dataset.novelView === current) tab.setAttribute('aria-current', 'page');
-        else tab.removeAttribute('aria-current');
-      }
-    },
+    setTabs: (current: string, hrefFor: (view: string) => string, hasOutline = false) => updateTabs(bar, current, hrefFor, hasOutline),
     select: (current: string) => selectTab(bar, current),
     setDrawerAvailable(available: boolean) { bar.querySelector<HTMLElement>('[data-drawer]')!.hidden = !available; },
     /** Shows the parts that need an open book (tabs, search, drawer) only when ready. */

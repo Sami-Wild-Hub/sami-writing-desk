@@ -50,6 +50,12 @@ export function mountHome(config: Partial<FirebaseConfig>) {
   };
   account.addEventListener('click', () => toggle(!isShown(menu)));
   document.addEventListener('click', (event) => { if (!(event.target as Element).closest('.menu-wrap')) toggle(false); });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented || !isShown(menu)) return;
+    const focused = menu.contains(document.activeElement);
+    toggle(false);
+    if (focused) account.focus();
+  });
   $('home-sign-out').addEventListener('click', () => { toggle(false); void session.signOut(); });
   signIn.addEventListener('click', () => void (session.getStatus().email ? session.refreshAccess() : session.signInWithGoogle()).catch((error) => toast(String(error))));
 

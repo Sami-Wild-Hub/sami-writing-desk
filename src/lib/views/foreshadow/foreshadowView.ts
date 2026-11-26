@@ -36,7 +36,7 @@ class ForeshadowPanel {
     } catch { /* unreadable choice: keep the default filters */ }
     this.cloud = new ForeshadowCloud(host, state, () => this.render());
     host.root.innerHTML = '<main class="fsh"><header><h2>伏笔表</h2><span class="fsh-status" role="status"></span></header>' +
-      '<div class="fsh-notice"></div><div class="fsh-tools"></div><p class="fsh-keys"></p><div class="fsh-scroll" role="region" aria-label="伏笔表，可横向滚动"><table><thead></thead><tbody></tbody></table></div></main>';
+      '<div class="fsh-notice"></div><div class="fsh-tools"></div><p class="fsh-keys"></p><p class="fsh-empty-state" role="status" hidden></p><div class="fsh-scroll" role="region" aria-label="伏笔表，可横向滚动"><table><thead></thead><tbody></tbody></table></div></main>';
     this.q('.fsh-keys').textContent = `直接点格子输入，离开格子自动保存 · Enter 下一行 · Shift+Enter 上一行 · ${ALT}Enter 换行 · Esc 撤销本格 · ` +
       `${ALT}1 已收 · ${ALT}2 部分回收 · ${ALT}3 不需要 · ${ALT}0 未收 · ${ALT}S 选状态 · ${MOD}Enter 在下面加行`;
     const root = host.root;
@@ -55,7 +55,10 @@ class ForeshadowPanel {
 
   render() {
     const { data } = this.cloud;
-    this.q('.fsh-status').textContent = this.cloud.status();
+    const status = this.q('.fsh-status');
+    status.textContent = this.cloud.error ? '保存失败可重试' : this.cloud.conflict ? '云端已有新版本'
+      : this.cloud.dirty || this.cloud.saving ? '正在保存' : data ? '已保存' : '尚未同步';
+    status.title = this.cloud.status();
     const notice = this.q('.fsh-notice');
     notice.innerHTML = this.cloud.conflict ? '<p>云端已有新版本；本机改动仍保留。</p><button data-action="download-local">下载本机版</button><button data-action="load">载入云端版</button><button data-action="use-local">用本机版覆盖</button>'
       : this.cloud.remote.incoming && this.cloud.remote.live?.over !== this.cloud.remote.incoming.tree ? '<p>仓库有新版，请选择要保留的版本。</p><button data-action="keep-web">保留网页版</button><button data-action="use-repo">用仓库版</button>'
@@ -63,6 +66,8 @@ class ForeshadowPanel {
       : this.cloud.error ? '<button data-action="retry">重试保存</button>' : '';
     if (this.cloud.remote.kept) notice.innerHTML += '<button data-action="download-kept">下载被替换的版本</button>';
     notice.querySelectorAll<HTMLButtonElement>('button').forEach(button => { button.disabled = this.cloud.replacing; });
+    const empty = this.q('.fsh-empty-state');
+    empty.hidden = true;
     if (!data) {
       this.q('.fsh-tools').textContent = '这本书的伏笔表尚未同步。'; this.q('.fsh-keys').hidden = true;
       this.q('thead').replaceChildren(); this.tbody.replaceChildren(); this.head = ''; return;
@@ -74,6 +79,8 @@ class ForeshadowPanel {
         .map(([v, text]) => `<option${v === value ? ' selected' : ''} value="${esc(v)}">${esc(label(text))}</option>`).join('') + '</select></label>';
     };
     const rows = filterRows(data, this.status, this.chapter);
+    empty.hidden = rows.length > 0;
+    empty.textContent = data.rows.length ? '没有符合筛选的伏笔，试试其他筛选。' : '还没有伏笔，点「加行」开始记录。';
     this.q('.fsh-tools').innerHTML = select('是否已收', this.status, data.rows.map(r => r.author['是否已收'] || '未标注'), [[OPEN, '未收和部分回收'], ['', '全部']]) +
       select('埋设章节', this.chapter, data.rows.flatMap(plantingChapters), [['', '全部']], v => v.replace(/^C(\d+)$/, '$1')) +
       `<span>${rows.length} / ${data.rows.length} 条</span><button data-add title="${MOD}Enter">加行 <kbd>${MOD}Enter</kbd></button>`;

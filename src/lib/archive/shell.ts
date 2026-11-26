@@ -258,7 +258,7 @@ export function mountNovelArchive(config: Partial<FirebaseConfig>) {
       if (!await view.view.show(route, { latest, via, restore }) || !latest()) return;
       setDrawer(false);
       bar.setReady(true);
-      bar.setDrawerAvailable(route.view !== 'outline');
+      bar.setDrawerAvailable(Boolean(view.root.querySelector('.side')));
       bar.setBooks(catalog, route.book, (slug) => novelRouteHref(url(), { book: slug, view: route.view, doc: '', hash: '' }));
       // Other tabs keep the page that is open, but not a view's own doc (a 校稿 record).
       const keep = (id: string) => id === route.view || opened.book.pathToKey.has(route.doc);

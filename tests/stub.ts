@@ -1,3 +1,5 @@
+// Local Firebase test transport with persisted browser sign-in and an in-memory database.
+// Reads: optional canonical book payload and outline fixture directory (JSON).
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
@@ -95,7 +97,7 @@ function stubBook(title: string, timeline: Timeline): Tree {
 // NOVEL_STUB_DB may name a full private payload ({manifest,pages,timeline,people}) for
 // the first book, e.g. for screenshots with the real data; it is never committed.
 async function canonicalOutline() {
-  const repo = resolve(process.cwd(), '..', 'sami-writing-desk-data-outline');
+  const repo = resolve(env.OUTLINE_DATA_REPO || '../sami-writing-desk-data-outline');
   const [plot, plan] = await Promise.all(['plot-data.json', 'placements.json'].map(name => readFile(resolve(repo, 'outline/maritime-story', name), 'utf8')));
   return { plot, plan, commit: 'workspace-v7' };
 }
