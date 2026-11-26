@@ -135,3 +135,42 @@ test('placed cards edit in the left pane and return to the original storyline wi
   expect(w.plan.placements.some((q: any) => q.unit_id === id)).toBe(false);
   expect(errors).toEqual([]);
 });
+
+
+test('group planned cards by main character, start expanded, and preserve reveal order', async ({ page }) => {
+  const { root, errors } = await open(page), initial = await workspace(page, root);
+  const toggle = root.locator('[data-act="toggle-planned-group"]').first();
+  const part = await toggle.getAttribute('data-act-no');
+  const button = root.locator(`[data-act="toggle-planned-group"][data-act-no="${part}"]`);
+  const beats = initial.plot_data.beats.filter((b: any) => String(b.act) === part);
+  await button.click();
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  for (const beat of beats) {
+    const ids = initial.plan.placements.filter((p: any) => p.beat_id === beat.beat_id && unit(initial, p.unit_id).status !== 'WRITTEN').map((p: any) => p.unit_id);
+    if (!ids.length) continue;
+    const group = root.locator(`.bg-planned[data-beat="${beat.beat_id}"]`);
+    const names = [...new Set(ids.map((id: string) => {
+      const participants = line(initial, unit(initial, id).storyline_group_id).participants;
+      return initial.plot_data.participant_order.find((name: string) => participants.includes(name));
+    }))];
+    await expect(group.locator('.planned-pillar')).toHaveCount(names.length);
+    for (const name of names) {
+      const expected = ids.filter((id: string) => {
+        const participants = line(initial, unit(initial, id).storyline_group_id).participants;
+        return initial.plot_data.participant_order.find((n: string) => participants.includes(n)) === name;
+      });
+      const matching = group.locator(`[data-pillar="${name}"]`);
+      await expect(matching).toBeVisible();
+      expect(await matching.locator('[data-card]').evaluateAll(els => els.map(el => el.getAttribute('data-card')))).toEqual(expected);
+    }
+  }
+  const head = root.locator('.planned-pillar-head').first();
+  await expect(head).toHaveAttribute('aria-expanded', 'true');
+  await head.click(); await expect(head).toHaveAttribute('aria-expanded', 'false');
+  await head.click(); await expect(head).toHaveAttribute('aria-expanded', 'true');
+  expect(await workspace(page, root)).toEqual(initial);
+  await button.click();
+  await expect(root.locator('.bg-planned')).toHaveCount(0);
+  expect(await workspace(page, root)).toEqual(initial);
+  expect(errors).toEqual([]);
+});
