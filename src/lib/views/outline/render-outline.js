@@ -37,12 +37,12 @@ export function moveSelect(v, id) {
 
 // One category of the active Beat: participant section → storyline → cards in reveal order.
 export function boardLane(v, cat) {
-  const { UI, S, CAT_LABEL, sections, esc, cardFull, lineHead, moveSelect } = v;
+  const { UI, S, CAT_LABEL, sections, esc, cardFull, lineHead, moveSelect, cardEditor, placedActions } = v;
   const ids = S.reveal[UI.beat].filter(id => S.cards[id].cat === cat);
   const used = new Set(ids.map(id => S.cards[id].line));
   const body = sections(S.lines.filter(l => used.has(l.id))).map(s => `<div class="sec-name">${esc(s.name)}</div>` + s.lines.map(l =>
-    `<div class="ol-line">${lineHead(l)}${ids.filter(id => S.cards[id].line === l.id).map(id => cardFull(S.cards[id], {
-      where: false, actions: `<button class="btn tiny" data-act="unplace" data-id="${id}">移出</button>${moveSelect(id)}` })).join('')}</div>`).join('')).join('');
+    `<div class="ol-line">${lineHead(l)}${ids.filter(id => S.cards[id].line === l.id).map(id => UI.editing === id && UI.editingPane === 'left' ? cardEditor(S.cards[id]) : cardFull(S.cards[id], {
+      where: false, headerActions: placedActions(id), actions: moveSelect(id) })).join('')}</div>`).join('')).join('');
   return `<section class="lane ${cat}"><div class="col-head"><span class="era">${CAT_LABEL[cat]}</span><span class="n">${ids.length} 张</span></div>
     ${body || `<div class="empty">${v.actOnly ? '本 Part' : '这一拍'}还没有这一类的卡</div>`}</section>`;
 }
