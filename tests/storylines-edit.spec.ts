@@ -1,3 +1,4 @@
+import { OUTLINE_ARCHIVED } from '../src/lib/views/outline/view-state.js';
 // Card/storyline deletion with undo, both ways of moving a card to another line, wide drop areas and wrapped card text.
 import { expect, test, type Page, type Locator } from '@playwright/test';
 import { stubFirebase, watchErrors } from './stub.ts';
@@ -120,6 +121,11 @@ test('placed cards edit in the left pane and return to the original storyline wi
   expect(unit(w, id).details).toEqual(['保留细节']);
   await root.locator('#undo').click();
   await expect(left).toHaveCount(1);
+  if (OUTLINE_ARCHIVED) {
+    await expect(root.locator('[data-tab="outline"]')).toHaveCount(0);
+    expect(errors).toEqual([]);
+    return;
+  }
   await root.locator('[data-act="tab"][data-tab="outline"]').click();
   await root.locator(`.beat[data-id="${p.beat_id}"]`).click();
   const placed = root.locator(`.ol-board [data-card="${id}"]`);
