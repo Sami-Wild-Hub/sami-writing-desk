@@ -62,10 +62,10 @@ export const reportsOf = (record: ProofRecord, check?: Check) => Object.values(r
 
 export const checksOf = (record: ProofRecord) => CHECKS.filter(c => record.checks[c]);
 
-/** Paste requests queue open only; Drive requests queue both checks. */
-export function queuedRecord(fields: Pick<ProofRecord, 'id' | 'title' | 'createdAt' | 'source' | 'draft' | 'driveName' | 'skipProse'>): ProofRecord {
+/** Paste defaults to open; optional manuscript comparison and Drive queue both checks. */
+export function queuedRecord(fields: Pick<ProofRecord, 'id' | 'title' | 'createdAt' | 'source' | 'draft' | 'driveName' | 'skipProse'>, compareManuscript = false): ProofRecord {
   const record: ProofRecord = { ...fields, updatedAt: fields.createdAt, status: 'queued', checks: { manuscript: { status: 'queued' }, open: { status: 'queued' } } };
-  if (record.source === 'paste') { delete record.driveName; delete record.checks.manuscript; } else delete record.draft;
+  if (record.source === 'paste') { delete record.driveName; if (!compareManuscript) delete record.checks.manuscript; } else delete record.draft;
   return record;
 }
 
