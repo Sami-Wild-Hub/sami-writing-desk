@@ -7,10 +7,10 @@ import { esc } from '../../archive/ui.ts';
 import { flash, jumpTo, scrollToY } from '../../archive/motion.ts';
 import type { NovelRoute } from '../../novelArchiveRoute.ts';
 import type { CreateNovelView, NovelViewHost, ShowContext } from '../types.ts';
-import { splitParagraphs } from './paragraphs.ts';
+import { revisionDraft, splitParagraphs } from './paragraphs.ts';
 import { historyHtml, resultHtml, statusHtml, when, type Filter, type KindFilter } from './render.ts';
 import { checksOf, ENDED, newId, proofStore, queuedRecord, reportsOf, type ProofRecord } from './store.ts';
-import { chapterName, nextTitle } from './compose.ts';
+import { chapterName, nextTitle, revisionTitle, submittedChapter } from './compose.ts';
 import { proofDraft, fields, signature, type DraftFields } from './draft.ts';
 import { updateResult } from './result.ts';
 import { ProofEditor } from './editor.ts';
@@ -19,6 +19,7 @@ const ID = /^\d{8}-\d{6}-[0-9a-z]{4}$/;
 interface ProofMemo {
   source: 'paste' | 'drive'; title: string; draft: string; driveName: string; skipProse: boolean;
   titleEdited?: boolean;
+  historyChapter?: string;
   /** Per record: the report chosen for each check, and the item filter. */
   report: Record<string, Record<string, string>>; filter: Record<string, Filter>; kind: Record<string, KindFilter>; y?: number;
 }
@@ -57,12 +58,16 @@ class ProofPanel {
     frame.className = 'proof frame';
     frame.innerHTML = '<aside class="side" aria-label="校稿历史"><div class="side-body">' +
       `<a class="navlink new" href="${esc(host.href({ view: 'proof', doc: '' }))}" data-novel-view="proof">＋ 新校稿</a>` +
-      '<h3>历史</h3><nav class="hist-list" aria-label="校稿历史"></nav></div></aside><div class="pmain"></div>';
+      '<h3>历史</h3><label class="pversion-filter"><span>章节版本</span><select aria-label="按章节筛选校稿历史"></select></label><nav class="hist-list" aria-label="校稿历史"></nav></div></aside><div class="pmain"></div>';
     host.root.append(frame);
     this.side = frame.querySelector('.side')!;
     this.list = frame.querySelector('.hist-list')!;
     this.main = frame.querySelector('.pmain')!;
     this.side.prepend(host.sideHead());
+    this.side.querySelector<HTMLSelectElement>('.pversion-filter select')!.addEventListener('change', event => {
+      this.st.historyChapter = (event.target as HTMLSelectElement).value;
+      this.renderList();
+    });
     this.main.addEventListener('click', (event) => this.onClick(event));
     this.ready = new Promise((resolve) => {
       this.stop = this.store.watch((records) => {
@@ -110,7 +115,14 @@ class ProofPanel {
   }
 
   private renderList() {
-    this.list.innerHTML = historyHtml(this.records, this.open?.id ?? '', (id) => this.host.href({ view: 'proof', doc: id }));
+    const chapterOf = (r: ProofRecord) => submittedChapter(r.title, r.driveName);
+    const chapters = [...new Set(this.records.map(chapterOf).filter(Boolean))].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+    const select = this.side.querySelector<HTMLSelectElement>('.pversion-filter select')!;
+    const selected = chapters.includes(this.st.historyChapter ?? '') ? this.st.historyChapter! : '';
+    select.replaceChildren(new Option('全部章节', ''), ...chapters.map(ch => new Option(ch, ch)));
+    select.value = selected;
+    this.list.innerHTML = historyHtml(selected ? this.records.filter(r => chapterOf(r) === selected) : this.records,
+      this.open?.id ?? '', (id) => this.host.href({ view: 'proof', doc: id }));
     this.side.querySelector('.new')!.toggleAttribute('aria-current', !this.open);
   }
 
@@ -126,8 +138,9 @@ class ProofPanel {
     const seg = (source: ProofMemo['source'], label: string) => `<button type="button" data-source="${source}" aria-pressed="${this.st.source === source}">${label}</button>`;
     delete this.main.dataset.record;
     this.main.innerHTML = this.head('新校稿') +
+      '<details class="proof-guide"><summary>使用说明</summary><p>提交后由后台把任务和原稿保存至私有 GitHub，自动发起 ChatGPT 校稿并回填报告，无需复制 Prompt 或 JSON。后台需要正常运行；可从校稿记录打开对话。每次提交保留独立版本，旧记录可筛选或新建复校。</p></details>' +
       `<div class="seg psource" role="group" aria-label="稿子从哪来">${seg('paste', '贴入或上传')}${seg('drive', '从 Drive 取')}</div>` +
-      (drive ? '<label class="field"><span>章节</span><input type="text" name="driveName" maxlength="200" placeholder="如：第22章" autocomplete="off"></label>' : '') +
+      `<label class="field"><span>${drive ? '章节' : '章节（可选）'}</span><input type="text" name="driveName" maxlength="200" placeholder="如：第22章" autocomplete="off"></label>` +
       '<label class="field"><span>标题</span><input type="text" name="title" maxlength="100" placeholder="如：C23 初稿" autocomplete="off"></label>' +
       (drive
         ? '<p class="hint">后台让本机 Luna 用 Google Drive 只读查找这一章，取到后接着校。</p>'
@@ -136,7 +149,7 @@ class ProofPanel {
       '<label class="poption"><input type="checkbox" name="skipProse">不验语病</label>' +
       `<div class="prow-tools">${drive ? '' : '<label class="btn file">上传文件<input type="file" accept=".txt,.md,text/plain,text/markdown"></label><span class="count" data-count></span>'}` +
       '<span class="sp"></span><button type="button" class="btn primary" data-send>发送校稿</button></div>' +
-      `<p class="hint">${drive ? '发出后自动做两项校验：① 对照正文（本机 Luna 读已写各章）、② 开放式（ChatGPT 读资料库）。' : '贴入或上传的稿子只做② 开放式（ChatGPT 读资料库）。'}结果回来自动显示。</p>` +
+      `<p class="hint">${drive ? '发出后自动做两项校验：① 对照正文（本机 Luna 读已写各章）、② 开放式（ChatGPT 读资料库）。' : '贴入或上传的稿子只做② 开放式（ChatGPT 读资料库）。'}结果回来自动显示，无需手动传递 Prompt 或 JSON。</p>` +
       '<p class="perr" role="alert" data-err hidden></p>';
     const bind = (name: 'title' | 'draft' | 'driveName', after = () => {}) => {
       const field = this.main.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name=${name}]`);
@@ -188,7 +201,7 @@ class ProofPanel {
   }
 
   private prefillTitle() {
-    if (this.st.source !== 'drive' || this.st.titleEdited) return;
+    if (this.st.titleEdited || (this.st.source === 'paste' && !this.st.driveName.trim())) return;
     this.st.title = nextTitle(this.st.driveName, this.records);
     const title = this.main.querySelector<HTMLInputElement>('[name=title]');
     if (title) title.value = this.st.title;
@@ -242,7 +255,8 @@ class ProofPanel {
     const meta = `${esc(when(record.createdAt))} · ${from} · ${paras.length ? `${paras.length} 段` : '待取稿'}${record.skipProse ? ' · 不验语病' : ''}`;
     // While the watcher works on a record it is not deleted (its writes would bring parts back).
     const idle = record.status === 'queued' || ENDED.includes(record.status);
-    const tools = idle ? '<button type="button" class="btn" data-delete>删除</button>' : '';
+    const tools = (ENDED.includes(record.status) && record.draft ? '<button type="button" class="btn primary" data-revision>新建修改稿复校</button>' : '') +
+      (idle ? '<button type="button" class="btn" data-delete>删除</button>' : '');
     if (this.main.dataset.record !== record.id || !this.main.querySelector('.result')) {
       this.returnItem = '';
       this.main.innerHTML = '<div data-record-head></div><div data-progress></div><section class="result" aria-label="校稿结果"></section>';
@@ -257,6 +271,25 @@ class ProofPanel {
       this.returnItem = ''; this.main.querySelector('[data-back-note]')?.remove();
     }
     this.shown = JSON.stringify(record);
+  }
+
+  private startRevision() {
+    const record = this.open;
+    if (!record?.draft || !this.editor) return;
+    if ((this.st.title || this.st.draft || this.st.driveName) &&
+        !confirm('已有未发送的校稿草稿。用当前修改稿替换它？旧校稿记录不会改变。')) return;
+    let draft: string;
+    try { draft = revisionDraft(record.draft, this.editor.state.paragraphs); }
+    catch (error) { return this.host.toast(failed(error)); }
+    this.st.source = 'paste';
+    this.st.title = revisionTitle(record, this.records);
+    this.st.titleEdited = true;
+    this.st.draft = draft;
+    this.st.driveName = submittedChapter(record.title, record.driveName);
+    this.st.skipProse = !!record.skipProse;
+    this.st.historyChapter = '';
+    this.persistDraft();
+    this.host.go({ view: 'proof', doc: '' }, 'nav');
   }
 
   private async resend(check: string) {
@@ -315,6 +348,7 @@ class ProofPanel {
       return this.renderCompose();
     }
     if (button?.matches('[data-send]')) return void this.send(button);
+    if (button?.matches('[data-revision]')) return this.startRevision();
     if (button?.matches('[data-resend]')) return void this.resend(button.dataset.resend!);
     if (button?.matches('[data-delete]')) return void this.remove();
     if (button?.dataset.filter && this.open) {
