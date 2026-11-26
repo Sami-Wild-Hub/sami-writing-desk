@@ -245,8 +245,6 @@ button.badge.placed:hover { color: var(--placed); }
 .outline-view .file-recovery { position:relative; }
 .outline-view .file-recovery > .file-tools { position:absolute; left:0; top:100%; z-index:95; width:min(34rem, 90vw); padding:.75rem; border:1px solid var(--line); border-radius:9px; background:var(--surface); box-shadow:var(--shadow-pop); }
 .outline-view .file-recovery p { flex-basis:100%; margin:.2rem 0; }
-.outline-view .card-menu { position:relative; display:inline-block; }
-.outline-view .card-menu[open] button { position:absolute; right:0; z-index:5; background:var(--surface); }
 @media (min-width:861px) and (max-width:1180px) {
   .outline-view .ol { grid-template-columns:9rem minmax(0,1fr) 18rem; }
   .outline-view .ol-board { grid-template-columns:1fr; }
