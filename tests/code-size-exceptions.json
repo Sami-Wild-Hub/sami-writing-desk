@@ -1,4 +1,5 @@
 {
+  "src/lib/views/proof/proofView.ts": "Existing proof panel exceeds 400 lines; retain its view lifecycle during the scoped model-memory and navigation repair.",
   "src/lib/archive/store.ts:createStore": "Existing authenticated store closure owns read generations and view promises; book download lifecycle is split into ArchiveBooks.",
   "src/lib/archive/search.ts:mountSearch": "Existing mounted overlay closure owns DOM, async search and event handlers; retain that lifecycle boundary for this UX repair.",
   "src/lib/archive/shell.ts:mountNovelArchive": "Existing archive lifecycle closure owns authentication and navigation; a shell refactor is outside this repair.",

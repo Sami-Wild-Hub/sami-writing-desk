@@ -32,11 +32,11 @@ const command = proc.argv[2];
 if (command === 'models') {
   proc.stdout.write(JSON.stringify(MODELS));
 } else if (command === 'task') {
-  const { check, slug, title, draft, skipProse } = JSON.parse(await input()) as { check: Check; slug: string; title: string; draft: string; skipProse?: boolean };
+  const { check, slug, title, draft, skipProse, localSourceRoot } = JSON.parse(await input()) as { check: Check; slug: string; title: string; draft: string; skipProse?: boolean; localSourceRoot?: string };
   const paras = splitParagraphs(draft ?? '');
   if (!(CHECKS.includes(check as typeof CHECKS[number]) || check === 'manuscript')) fail(`unknown check: ${check}`);
   else if (!paras.length) fail('新稿里没有可编号的段落');
-  else proc.stdout.write(TASKS[check]({ slug, title, paras, skipProse }));
+  else proc.stdout.write(TASKS[check]({ slug, title, paras, skipProse, localSourceRoot }));
 } else if (command === 'report') {
   proc.stdout.write(JSON.stringify(parseReport(await input())));
 } else {

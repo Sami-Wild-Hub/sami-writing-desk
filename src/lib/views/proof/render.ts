@@ -89,13 +89,14 @@ function itemHtml({ item, at, range }: PlacedItem<Tagged>, index: number, placed
     navHtml(placed[index - 1]?.item.key, placed[index + 1]?.item.key) + '</article>';
 }
 
-/** Paragraph text with the placed quotes marked; overlapping quotes keep the first mark. */
+/** Quotes sharing a range share a mark associated with every opinion on that sentence. */
 function markedText(text: string, marks: { range: [number, number]; key: string }[]) {
   let out = '';
   let pos = 0;
   for (const { range: [start, end], key } of [...marks].sort((a, b) => a.range[0] - b.range[0])) {
     if (start < pos) continue;
-    out += `${esc(text.slice(pos, start))}<mark data-key="${esc(key)}">${esc(text.slice(start, end))}</mark>`;
+    const keys = marks.filter(m => m.range[0] === start && m.range[1] === end).map(m => m.key);
+    out += `${esc(text.slice(pos, start))}<mark data-key="${esc(key)}" data-keys="${esc(JSON.stringify(keys))}">${esc(text.slice(start, end))}</mark>`;
     pos = end;
   }
   return out + esc(text.slice(pos));

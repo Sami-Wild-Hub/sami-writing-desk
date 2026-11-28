@@ -55,8 +55,8 @@ class ProofPanel {
     this.host = host;
     this.store = proofStore(host.householdRef, host.slug);
     this.local = proofDraft(host.outlineDraftKey + ':proof', text => host.toast(text));
-    this.st = (host.memo.state as ProofMemo | undefined) ?? { source: 'paste', title: '', draft: '', driveName: '', skipProse: false, models: this.rememberedModels(false), ...this.local.load(), report: {}, filter: {}, kind: {} };
-    if (!Array.isArray(this.st.models)) this.st.models = this.rememberedModels(this.st.skipProse);
+    const saved = this.local.load();
+    this.st = (host.memo.state as ProofMemo | undefined) ?? { source: 'paste', title: '', draft: '', driveName: '', skipProse: false, ...saved, models: saved.recheckOf?.length && Array.isArray(saved.models) ? saved.models.filter(isModelId) : this.rememberedModels(!!saved.skipProse), report: {}, filter: {}, kind: {} };
     host.memo.state = this.st;
     const frame = document.createElement('div');
     frame.className = 'proof frame';
@@ -167,7 +167,8 @@ class ProofPanel {
     }
     this.main.querySelectorAll<HTMLInputElement>('[name=model]').forEach((input) => input.addEventListener('change', () => {
       this.st.models = [...this.main.querySelectorAll<HTMLInputElement>('[name=model]:checked')].map((item) => item.value).filter(isModelId);
-      this.rememberModels(this.st.skipProse, this.st.models);
+      if (!recheck) this.rememberModels(this.st.skipProse, this.st.models);
+      this.persistDraft();
     }));
     this.sendState();
     recount();
@@ -242,7 +243,7 @@ class ProofPanel {
     }
     const unchanged = signature(this.st) === submitted && (!this.disposed || signature(this.local.load() as DraftFields) === submitted);
     if (unchanged) {
-      this.st.title = this.st.draft = this.st.driveName = ''; this.st.titleEdited = false; this.st.skipProse = false; delete this.st.recheckOf; this.persistDraft();
+      this.st.title = this.st.draft = this.st.driveName = ''; this.st.titleEdited = false; this.st.skipProse = false; this.st.models = this.rememberedModels(false); delete this.st.recheckOf; this.persistDraft();
     }
     if (unchanged && !this.disposed && this.visible && !this.open && context?.latest()) this.host.go({ view: 'proof', doc: record.id }, 'nav');
     else this.host.toast('校稿已发送', { label: '打开记录', action: () => this.host.go({ view: 'proof', doc: record.id }, 'nav') });
@@ -337,7 +338,7 @@ class ProofPanel {
   /** Tapping an item (phone list or side note) shows its paragraph and flashes the quote. */
   private locate(card: HTMLElement) {
     const key = card.dataset.key!;
-    const mark = this.main.querySelector<HTMLElement>(`.pv mark[data-key="${CSS.escape(key)}"]`);
+    const mark = [...this.main.querySelectorAll<HTMLElement>('.pv mark[data-keys]')].find(el => (JSON.parse(el.dataset.keys!) as string[]).includes(key));
     const row = card.dataset.at ? this.main.querySelector<HTMLElement>(`.pv .prow[data-at="${card.dataset.at}"]`) : null;
     const target = mark ?? row?.querySelector<HTMLElement>('.ptext');
     if (!target) return;
@@ -373,7 +374,7 @@ class ProofPanel {
     }
     if (button?.matches('[data-recheck]')) return this.startRecheck();
     if (button?.matches('[data-cancel-recheck]')) {
-      delete this.st.recheckOf; this.persistDraft(); return this.renderCompose();
+      delete this.st.recheckOf; this.st.models = this.rememberedModels(this.st.skipProse); this.persistDraft(); return this.renderCompose();
     }
     if (button?.matches('[data-send]')) return void this.send(button);
     if (button?.matches('[data-resend]')) return void this.resend(button.dataset.resend!);

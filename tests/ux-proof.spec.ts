@@ -74,7 +74,7 @@ test('status pushes retain result nodes, selection, expanded raw output and scro
   });
   const selection = await page.evaluate(() => getSelection()!.toString());
   stub.server(`${book}/${id}/checks/open/status`, 'sending');
-  await expect(root.locator('.pstep').last().locator('.pst')).toHaveText('发送中');
+  await expect(root.locator('.pstep[data-step="GPT chat"] .pst')).toHaveText('发送中');
   expect(await para.evaluate(el => el === (window as any).proofNode)).toBe(true);
   expect(await page.evaluate(() => getSelection()!.toString())).toBe(selection);
   await expect(raw).toHaveAttribute('open', ''); expect(Math.abs(await page.evaluate(() => scrollY) - y)).toBeLessThan(3);
