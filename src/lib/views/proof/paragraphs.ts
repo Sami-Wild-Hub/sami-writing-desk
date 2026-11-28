@@ -4,8 +4,21 @@
 
 export interface Para { n: number; label: string; text: string; }
 
+// Imported Writing Desk task exports wrap the actual manuscript in matching UUID markers.
+// Keep the stored task intact, but number/edit/copy/send only the explicitly marked body.
+export function manuscriptBody(draft: string): string {
+  const lines = draft.split(/\r\n|\r|\n/);
+  const markers = lines.flatMap((line, index) => {
+    const m = /^<<<\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s+受检正文\s+(开始|结束)\s+>>>$/i.exec(line.trim());
+    return m ? [{ index, id: m[1].toLowerCase(), type: m[2] }] : [];
+  });
+  if (markers.length !== 2 || markers[0].type !== '开始' || markers[1].type !== '结束' ||
+      markers[0].id !== markers[1].id) return draft;
+  return lines.slice(markers[0].index + 1, markers[1].index).join('\n');
+}
+
 export function splitParagraphs(draft: string): Para[] {
-  return draft.split(/\r\n|\r|\n/)
+  return manuscriptBody(draft).split(/\r\n|\r|\n/)
     .map((line) => line.trim())
     .filter((line) => line && !/^#{1,6}\s/.test(line))
     .map((text, i) => ({ n: i + 1, label: `P${i + 1}`, text }));
