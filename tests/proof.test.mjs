@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { findQuote, paraNumber, splitParagraphs } from '../src/lib/views/proof/paragraphs.ts';
 import { parseReport, placeItems } from '../src/lib/views/proof/report.ts';
 import { newId, queuedRecord, reportsOf } from '../src/lib/views/proof/store.ts';
-import { CHECKS, TASKS, manuscriptTask, openTask } from '../src/lib/views/proof/task.ts';
+import { CHECKS, TASKS, manuscriptTask, openTask, recheckTitle, recheckSources, displayTitle } from '../src/lib/views/proof/task.ts';
 
 const cli = fileURLToPath(new URL('../src/lib/views/proof/cli.ts', import.meta.url));
 
@@ -194,4 +194,23 @@ test('items are placed in text order; a quote not in its paragraph is kept unpla
     ['P3', '丙走了', 2, [0, 3]],
     ['P9', '甲', -1, null],
   ]);
+});
+
+
+test('revision recheck routes through one open check and never invokes full MC', () => {
+  const id = '20261128-010151-aa91';
+  const title = recheckTitle('C25 · 修改稿复校', [id]);
+  assert.deepEqual(recheckSources(title), [id]);
+  assert.equal(displayTitle(title), 'C25 · 修改稿复校');
+  const input = { slug: 'maritime-story', title, draft: '甲。\n乙。', check: 'open', skipProse: false };
+  const task = openTask({ ...input, paras: splitParagraphs(input.draft) });
+  assert.match(task, /修改稿复校（仅机械校勘）/);
+  assert.match(task, /旧报告里的任何已讨论问题一律不再报告/);
+  assert.match(task, /proofdesk\/maritime-story\/20261128-010151-aa91\//);
+  assert.doesNotMatch(task, /contracts\/manuscript-check|novels\/maritime-story\/kb\//);
+  const output = spawnSync(process.execPath, [cli, 'task'], { input: JSON.stringify(input), encoding: 'utf8' });
+  assert.equal(output.status, 0);
+  assert.equal(output.stdout, task);
+  const record = queuedRecord({ id: '20261128-010152-aa92', title, createdAt: 1, source: 'paste', draft: input.draft, driveName: '', skipProse: false });
+  assert.deepEqual(Object.keys(record.checks), ['open']);
 });

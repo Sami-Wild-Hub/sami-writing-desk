@@ -6,7 +6,7 @@ import { esc } from '../../archive/ui.ts';
 import { paraNumber, type Para } from './paragraphs.ts';
 import { parseReport, placeItems, type PlacedItem, type ReportItem, type ReportResult } from './report.ts';
 import { checksOf, ENDED, reportsOf, type ProofRecord, type ProofReport, type Status, type Step } from './store.ts';
-import { CHECKS, KINDS, LEVELS, type Check } from './task.ts';
+import { CHECKS, KINDS, LEVELS, displayTitle, recheckSources, type Check } from './task.ts';
 import { sentenceDiff } from './diff.ts';
 import { replacement } from './edit.ts';
 
@@ -23,7 +23,7 @@ const badge = (status: Status) => `<span class="pst st-${status}">${STATUS[statu
 export function historyHtml(records: ProofRecord[], current: string, href: (id: string) => string) {
   if (!records.length) return '<p class="muted hist-empty">还没有校稿记录。</p>';
   return records.map((r) => `<a class="navlink hist" href="${esc(href(r.id))}" data-novel-view="proof" data-id="${esc(r.id)}"${r.id === current ? ' aria-current="page"' : ''}>` +
-    `<span><b>${esc(r.title)}</b><small>${esc(when(r.createdAt))} · ${STATUS[r.status] ?? r.status}${r.skipProse ? ' · 不验语病' : ''}</small></span></a>`).join('');
+    `<span><b>${esc(displayTitle(r.title))}</b><small>${esc(when(r.createdAt))} · ${STATUS[r.status] ?? r.status}${r.skipProse ? ' · 不验语病' : ''}</small></span></a>`).join('');
 }
 
 /** A stored report read again from its raw text (the raw text is what counts). */
@@ -42,9 +42,10 @@ function stepHtml(name: string, about: string, step: Step, resend: Check | '') {
  * ended (the watcher is not working on it), resend buttons. */
 export function statusHtml(record: ProofRecord) {
   const ended = ENDED.includes(record.status);
+  const recheck = recheckSources(record.title).length > 0;
   const steps = [
     record.source === 'drive' && record.fetch ? stepHtml(`取稿：${record.driveName ?? ''}`, ABOUT.fetch, record.fetch, '') : '',
-    ...checksOf(record).map((c) => stepHtml(`${MARK[c]} ${NAME[c]}`, ABOUT[c], record.checks[c]!, ended ? c : '')),
+    ...checksOf(record).map((c) => stepHtml(recheck && c === 'open' ? '修改稿复校' : `${MARK[c]} ${NAME[c]}`, recheck && c === 'open' ? '仅机械文字错误，旧报告去重' : ABOUT[c], record.checks[c]!, ended ? c : '')),
   ];
   const all = ended ? '<button type="button" class="btn" data-resend="">全部重新发送</button>' : '';
   return `<section class="pstatus" aria-label="校稿进度" aria-live="polite"><div class="pstatus-head">${badge(record.status)}` +
@@ -52,7 +53,7 @@ export function statusHtml(record: ProofRecord) {
     `${record.error ? `<p class="perr" role="alert">${esc(record.error)}</p>` : ''}<ol>${steps.join('')}</ol></section>`;
 }
 
-type Tagged = ReportItem & { check: Check; key: string; accepted: boolean; disabled: string };
+type Tagged = ReportItem & { check: Check; key: string; accepted: boolean; disabled: string; recheck?: boolean };
 
 function fixHtml(item: Tagged, at: number) {
   if (item.fix === undefined) return '';
@@ -75,7 +76,7 @@ function itemHtml({ item, at, range }: PlacedItem<Tagged>, index: number, placed
   const off = at < 0 ? '没有这一段' : range ? '' : '未对上原文';
   return `<article class="pitem${level ? ` lv-${level}` : ''}${off ? ' off' : ''}" data-key="${esc(item.key)}" data-check="${item.check}"${at >= 0 ? ` data-at="${at}"` : ''} tabindex="0">` +
     `<blockquote>${esc(item.quote || '（没有引文）')}</blockquote>` +
-    `<div class="tags"><span class="src" title="${NAME[item.check]}">${MARK[item.check]} ${NAME[item.check]}</span>${level ? `<span class="lv">${esc(level)}</span>` : ''}` +
+    `<div class="tags"><span class="src" title="${item.recheck ? '修改稿复校' : NAME[item.check]}">${item.recheck ? '复校' : `${MARK[item.check]} ${NAME[item.check]}`}</span>${level ? `<span class="lv">${esc(level)}</span>` : ''}` +
     `${item.kind ? `<span class="pill">${esc(item.kind)}</span>` : ''}${item.para ? `<span class="pill">${esc(item.para)}</span>` : ''}${off ? `<span class="pill warn">${off}</span>` : ''}</div>` +
     fixHtml(item, at) +
     `<p class="issue">${item.fix === undefined ? '' : '<b>理由</b>'}${esc(item.issue)}</p>` +
@@ -133,6 +134,7 @@ export function resultHtml(paras: Para[], record: ProofRecord, chosen: Record<st
   if (!paras.length) return '<p class="muted pnote">新稿还没取到，取到后会显示在这里。</p>';
   const shown: Partial<Record<Check, ProofReport>> = {};
   const items: Tagged[] = [];
+  const recheck = recheckSources(record.title).length > 0;
   const errors: string[] = [];
   for (const c of CHECKS) {
     const reports = reportsOf(record, c);
@@ -141,7 +143,7 @@ export function resultHtml(paras: Para[], record: ProofRecord, chosen: Record<st
     const read = readReport(report);
     if (read.ok) items.push(...read.report.items.map((item, index) => {
       const key = JSON.stringify([c, report.id, index]);
-      return { ...item, check: c, key, accepted: !!accepted[key], disabled: item.fix === undefined ? ''
+      return { ...item, check: c, key, recheck, accepted: !!accepted[key], disabled: item.fix === undefined ? ''
         : replacement(paras[paraNumber(item.para) - 1]?.text, item, !!accepted[key]).reason };
     }));
     else errors.push(`<div class="perr" role="alert"><b>${MARK[c]} 第 ${report.attempt} 次的回复读不出来：</b>${esc(read.error)}</div>` +
@@ -151,7 +153,7 @@ export function resultHtml(paras: Para[], record: ProofRecord, chosen: Record<st
   if (!shown.manuscript && !shown.open) return `${tools}<p class="muted pnote">结果回来后会自动显示在这里。下面是分好段的原文。</p>${proofHtml(paras, [])}`;
   const count = (f: Filter) => items.filter((i) => f === 'all' || i.check === f).length;
   const filters = `<div class="seg pfilter" role="group" aria-label="按来源筛选">${(['all', ...checksOf(record)] as Filter[]).map((f) =>
-    `<button type="button" data-filter="${f}" aria-pressed="${f === filter}">${f === 'all' ? '全部' : `${MARK[f]} ${NAME[f]}`} ${count(f)}</button>`).join('')}</div>`;
+    `<button type="button" data-filter="${f}" aria-pressed="${f === filter}">${f === 'all' ? '全部' : recheck && f === 'open' ? '修改稿复校' : `${MARK[f]} ${NAME[f]}`} ${count(f)}</button>`).join('')}</div>`;
   const sourceItems = items.filter((i) => filter === 'all' || i.check === filter);
   const kinds = `<div class="seg pfilter" role="group" aria-label="按 Tag 筛选">${(['all', ...KINDS] as KindFilter[]).map((k) =>
     `<button type="button" data-kind="${k}" aria-pressed="${k === kind}">${k === 'all' ? '全部类型' : k} ${sourceItems.filter((i) => k === 'all' || i.kind === k).length}</button>`).join('')}</div>`;

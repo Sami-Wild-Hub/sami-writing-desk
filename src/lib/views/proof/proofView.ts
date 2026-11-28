@@ -14,11 +14,13 @@ import { chapterName, nextTitle } from './compose.ts';
 import { proofDraft, fields, signature, type DraftFields } from './draft.ts';
 import { updateResult } from './result.ts';
 import { ProofEditor } from './editor.ts';
+import { displayTitle, recheckSources, recheckTitle } from './task.ts';
 
 const ID = /^\d{8}-\d{6}-[0-9a-z]{4}$/;
 interface ProofMemo {
   source: 'paste' | 'drive'; title: string; draft: string; driveName: string; skipProse: boolean;
   titleEdited?: boolean;
+  recheckOf?: string[];
   /** Per record: the report chosen for each check, and the item filter. */
   report: Record<string, Record<string, string>>; filter: Record<string, Filter>; kind: Record<string, KindFilter>; y?: number;
 }
@@ -121,22 +123,24 @@ class ProofPanel {
 
   private renderCompose() {
     this.editor?.dispose(); this.editor = null;
-    const drive = this.st.source === 'drive';
+    const recheck = !!this.st.recheckOf?.length;
+    const drive = !recheck && this.st.source === 'drive';
     this.prefillTitle();
     const seg = (source: ProofMemo['source'], label: string) => `<button type="button" data-source="${source}" aria-pressed="${this.st.source === source}">${label}</button>`;
     delete this.main.dataset.record;
-    this.main.innerHTML = this.head('新校稿') +
-      `<div class="seg psource" role="group" aria-label="稿子从哪来">${seg('paste', '贴入或上传')}${seg('drive', '从 Drive 取')}</div>` +
+    this.main.innerHTML = this.head(recheck ? '修改稿复校' : '新校稿', '', recheck ? '<button type="button" class="btn" data-cancel-recheck>取消复校</button>' : '') +
+      (recheck ? '<p class="hint">已载入当前修改后的正文，可在此粘贴最新版本。只查新出现的机械文字错误；原报告只用于去重，不再重复旧反馈。</p>' :
+        `<div class="seg psource" role="group" aria-label="稿子从哪来">${seg('paste', '贴入或上传')}${seg('drive', '从 Drive 取')}</div>`) +
       (drive ? '<label class="field"><span>章节</span><input type="text" name="driveName" maxlength="200" placeholder="如：第22章" autocomplete="off"></label>' : '') +
       '<label class="field"><span>标题</span><input type="text" name="title" maxlength="100" placeholder="如：C23 初稿" autocomplete="off"></label>' +
       (drive
         ? '<p class="hint">后台让本机 Luna 用 Google Drive 只读查找这一章，取到后接着校。</p>'
         : '<label class="field"><span>新稿</span><textarea name="draft" rows="16" placeholder="把新稿贴在这里"></textarea></label>' +
           '<p class="hint">每个非空行算一段，# 开头的标题行不算。</p>') +
-      '<label class="poption"><input type="checkbox" name="skipProse">不验语病</label>' +
+      (recheck ? '' : '<label class="poption"><input type="checkbox" name="skipProse">不验语病</label>') +
       `<div class="prow-tools">${drive ? '' : '<label class="btn file">上传文件<input type="file" accept=".txt,.md,text/plain,text/markdown"></label><span class="count" data-count></span>'}` +
-      '<span class="sp"></span><button type="button" class="btn primary" data-send>发送校稿</button></div>' +
-      `<p class="hint">${drive ? '发出后自动做两项校验：① 对照正文（本机 Luna 读已写各章）、② 开放式（ChatGPT 读资料库）。' : '贴入或上传的稿子只做② 开放式（ChatGPT 读资料库）。'}结果回来自动显示。</p>` +
+      `<span class="sp"></span><button type="button" class="btn primary" data-send>${recheck ? '发送复校' : '发送校稿'}</button></div>` +
+      `<p class="hint">${recheck ? '仅发送一次机械复校，不读取历史 KB 或其他章节。' : drive ? '发出后自动做两项校验：① 对照正文（本机 Luna 读已写各章）、② 开放式（ChatGPT 读资料库）。' : '贴入或上传的稿子只做② 开放式（ChatGPT 读资料库）。'}结果回来自动显示。</p>` +
       '<p class="perr" role="alert" data-err hidden></p>';
     const bind = (name: 'title' | 'draft' | 'driveName', after = () => {}) => {
       const field = this.main.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name=${name}]`);
@@ -152,9 +156,11 @@ class ProofPanel {
     bind('title', () => { this.st.titleEdited = !!this.st.title.trim(); this.prefillTitle(); });
     bind('driveName', () => this.prefillTitle());
     bind('draft', recount);
-    const skipProse = this.main.querySelector<HTMLInputElement>('[name=skipProse]')!;
-    skipProse.checked = this.st.skipProse;
-    skipProse.addEventListener('change', () => { this.st.skipProse = skipProse.checked; this.persistDraft(); });
+    const skipProse = this.main.querySelector<HTMLInputElement>('[name=skipProse]');
+    if (skipProse) {
+      skipProse.checked = this.st.skipProse;
+      skipProse.addEventListener('change', () => { this.st.skipProse = skipProse.checked; this.persistDraft(); });
+    }
     this.sendState();
     recount();
     this.main.querySelector<HTMLInputElement>('[type=file]')?.addEventListener('change', event => void this.upload(event.target as HTMLInputElement));
@@ -163,7 +169,7 @@ class ProofPanel {
   private persistDraft() { this.draftVersion++; this.local.save(this.st); }
   private sendState() {
     const button = this.main.querySelector<HTMLButtonElement>('[data-send]');
-    if (button) { button.disabled = this.sending; button.textContent = this.sending ? '发送中…' : '发送校稿'; }
+    if (button) { button.disabled = this.sending; button.textContent = this.sending ? '发送中…' : this.st.recheckOf?.length ? '发送复校' : '发送校稿'; }
   }
   private async upload(input: HTMLInputElement) {
     const file = input.files?.[0]; if (!file) return;
@@ -197,17 +203,19 @@ class ProofPanel {
   private async send(button: HTMLButtonElement) {
     if (this.sending) return;
     const err = this.main.querySelector<HTMLElement>('[data-err]')!;
-    const { source } = this.st;
+    const recheck = this.st.recheckOf;
+    const source = recheck?.length ? 'paste' : this.st.source;
     const title = this.st.title.trim();
     const driveName = chapterName(this.st.driveName);
-    const problem = !title ? '先写个标题，如「C23 初稿」。'
+    const problem = recheck?.length && !this.records.some(r => r.id === recheck[0] && reportsOf(r).length) ? '找不到原校稿报告，不能安全去重。'
+      : !title ? '先写个标题，如「C23 初稿」。'
       : source === 'paste' && !splitParagraphs(this.st.draft).length ? '新稿是空的。'
         : source === 'drive' && !driveName.trim() ? '写上要取的章节名，如「第22章」。' : '';
     err.hidden = !problem;
     err.textContent = problem;
     if (problem) return;
     const now = Date.now();
-    const record = queuedRecord({ id: newId(now), title, createdAt: now, source, draft: this.st.draft, driveName, skipProse: this.st.skipProse });
+    const record = queuedRecord({ id: newId(now), title: recheck?.length ? recheckTitle(title, recheck) : title, createdAt: now, source, draft: this.st.draft, driveName, skipProse: recheck?.length ? false : this.st.skipProse });
     const submitted = signature(this.st), context = this.context;
     this.sending = true;
     button.disabled = true;
@@ -224,7 +232,7 @@ class ProofPanel {
     }
     const unchanged = signature(this.st) === submitted && (!this.disposed || signature(this.local.load() as DraftFields) === submitted);
     if (unchanged) {
-      this.st.title = this.st.draft = this.st.driveName = ''; this.st.titleEdited = false; this.st.skipProse = false; this.persistDraft();
+      this.st.title = this.st.draft = this.st.driveName = ''; this.st.titleEdited = false; this.st.skipProse = false; delete this.st.recheckOf; this.persistDraft();
     }
     if (unchanged && !this.disposed && this.visible && !this.open && context?.latest()) this.host.go({ view: 'proof', doc: record.id }, 'nav');
     else this.host.toast('校稿已发送', { label: '打开记录', action: () => this.host.go({ view: 'proof', doc: record.id }, 'nav') });
@@ -242,14 +250,14 @@ class ProofPanel {
     const meta = `${esc(when(record.createdAt))} · ${from} · ${paras.length ? `${paras.length} 段` : '待取稿'}${record.skipProse ? ' · 不验语病' : ''}`;
     // While the watcher works on a record it is not deleted (its writes would bring parts back).
     const idle = record.status === 'queued' || ENDED.includes(record.status);
-    const tools = idle ? '<button type="button" class="btn" data-delete>删除</button>' : '';
+    const tools = idle ? (ENDED.includes(record.status) && reportsOf(record).length && paras.length ? '<button type="button" class="btn primary" data-recheck>修改稿复校</button>' : '') + '<button type="button" class="btn" data-delete>删除</button>' : '';
     if (this.main.dataset.record !== record.id || !this.main.querySelector('.result')) {
       this.returnItem = '';
       this.main.innerHTML = '<div data-record-head></div><div data-progress></div><section class="result" aria-label="校稿结果"></section>';
       this.main.dataset.record = record.id;
     }
     const head = this.main.querySelector<HTMLElement>('[data-record-head]')!, progress = this.main.querySelector<HTMLElement>('[data-progress]')!;
-    const heading = this.head(record.title, meta, tools), status = statusHtml(record);
+    const heading = this.head(displayTitle(record.title), meta, tools), status = statusHtml(record);
     if (head.dataset.html !== heading) { head.innerHTML = heading; head.dataset.html = heading; }
     if (progress.dataset.html !== status) { progress.innerHTML = status; progress.dataset.html = status; }
     updateResult(this.main.querySelector('.result')!, resultHtml(paras, record, this.st.report[record.id] ?? {}, this.st.filter[record.id] ?? 'all', this.st.kind[record.id] ?? 'all', this.editor.state.accepted));
@@ -257,6 +265,20 @@ class ProofPanel {
       this.returnItem = ''; this.main.querySelector('[data-back-note]')?.remove();
     }
     this.shown = JSON.stringify(record);
+  }
+
+  private startRecheck() {
+    const record = this.open;
+    if (!record || !this.editor || !ENDED.includes(record.status) || !reportsOf(record).length) return;
+    if ((this.st.draft || this.st.title || this.st.driveName) && !confirm('已有未发送校稿草稿。用当前修改稿替换它并开始复校？')) return;
+    const root = recheckSources(record.title)[0] ?? record.id;
+    this.st.recheckOf = root === record.id ? [root] : [root, record.id];
+    this.st.source = 'paste'; this.st.driveName = ''; this.st.skipProse = false;
+    this.st.draft = this.editor.state.paragraphs.join('\n');
+    this.st.title = displayTitle(record.title).replace(/ · 修改稿复校$/, '') + ' · 修改稿复校';
+    this.st.titleEdited = true;
+    this.persistDraft();
+    this.host.go({ view: 'proof', doc: '' }, 'nav');
   }
 
   private async resend(check: string) {
@@ -323,6 +345,10 @@ class ProofPanel {
       this.persistDraft();
       return this.renderCompose();
     }
+    if (button?.matches('[data-recheck]')) return this.startRecheck();
+    if (button?.matches('[data-cancel-recheck]')) {
+      delete this.st.recheckOf; this.persistDraft(); return this.renderCompose();
+    }
     if (button?.matches('[data-send]')) return void this.send(button);
     if (button?.matches('[data-resend]')) return void this.resend(button.dataset.resend!);
     if (button?.matches('[data-delete]')) return void this.remove();
@@ -355,7 +381,7 @@ class ProofPanel {
     this.visible = false;
   }
   dispose() { this.disposed = true; this.stop(); this.editor?.dispose(); }
-  label() { return this.open?.title ?? '校稿台'; }
+  label() { return this.open ? displayTitle(this.open.title) : '校稿台'; }
 }
 
 const createProof: CreateNovelView = (host) => {
