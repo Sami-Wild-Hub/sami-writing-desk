@@ -50,6 +50,50 @@ async function create(page: Page, title = 'C23 初稿', skipProse = false) {
   return new URL(page.url()).searchParams.get('doc')!;
 }
 
+test('new requests choose models, reject an empty selection, and remember each prose mode separately', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const stub = await stubFirebase(page);
+  await page.goto('book/?book=maritime-story&view=proof');
+  const form = view(page);
+  await form.getByLabel('GPT chat').uncheck();
+  await form.getByLabel('标题').fill('多模型测试');
+  await form.getByLabel('新稿').fill('甲。');
+  await form.getByRole('button', { name: '发送校稿' }).click();
+  await expect(form.locator('[data-err]')).toHaveText('至少勾选一个校稿模型。');
+  await form.getByLabel('Opus 5.5 high').check();
+  await form.getByLabel('GPT chat').check();
+  await form.getByLabel('Terra 6.1 max').check();
+  await form.getByRole('button', { name: '发送校稿' }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get('doc') ?? '').toMatch(/^[0-9]{8}-[0-9]{6}-[0-9a-z]{4}$/);
+  const recordId = new URL(page.url()).searchParams.get('doc')!;
+  expect(stub.at(`${book}/${recordId}/checks`)).toEqual({ open: { status: 'queued' }, opus: { status: 'queued' }, terra: { status: 'queued' } });
+  await page.goto('book/?book=maritime-story&view=proof');
+  await form.getByLabel('不验语病').check();
+  await expect(form.getByLabel('GPT chat')).toBeChecked();
+  await expect(form.getByLabel('Opus 5.5 high')).not.toBeChecked();
+  await expect(form.getByLabel('Terra 6.1 max')).not.toBeChecked();
+  await form.getByLabel('Terra 6.1 max').check();
+  await form.getByLabel('不验语病').uncheck();
+  await expect(form.getByLabel('Opus 5.5 high')).toBeChecked();
+  await expect(form.getByLabel('Terra 6.1 max')).toBeChecked();
+});
+
+test('revision recheck defaults to the current models used by its source record', async ({ page }) => {
+  const stub = await stubFirebase(page);
+  const id = '20261128-120000-rech';
+  const report = (check: string) => ({ id: `${check}-1`, check, attempt: 1, createdAt: 1, report: open });
+  stub.server(`${book}/${id}`, { id, title: 'C23 初稿', source: 'paste', draft, createdAt: 1, updatedAt: 1, status: 'done',
+    checks: { open: { status: 'done', attempt: 1 }, opus: { status: 'done', attempt: 1 } },
+    reports: { 'open-1': report('open'), 'opus-1': report('opus') } });
+  await page.goto(`book/?book=maritime-story&view=proof&doc=${id}`);
+  await page.getByRole('button', { name: '修改稿复校' }).click();
+  const form = view(page);
+  await expect(form.getByRole('heading', { name: '修改稿复校' })).toBeVisible();
+  await expect(form.getByLabel('GPT chat')).toBeChecked();
+  await expect(form.getByLabel('Opus 5.5 high')).toBeChecked();
+  await expect(form.getByLabel('Terra 6.1 max')).not.toBeChecked();
+});
+
 /** What the watcher writes as it works: both checks sent, then both reports and done. */
 function sent(stub: Stub, id: string) {
   const at = Date.now();
@@ -87,19 +131,19 @@ test('an existing paste record retains both checks beside the draft', async ({ p
 
   sent(stub, id);
   await expect(view(page).locator('.pstatus-head .pst')).toHaveText('已发送');
-  await expect(step(page, '② 开放式').getByRole('link', { name: '打开对话 ↗' })).toHaveAttribute('href', 'https://chatgpt.com/g/g-p-x/c/abc');
+  await expect(step(page, 'GPT chat').getByRole('link', { name: '打开对话 ↗' })).toHaveAttribute('href', 'https://chatgpt.com/g/g-p-x/c/abc');
   await expect(step(page, '① 对照正文').locator('code')).toHaveText(`proofdesk-${id}-manuscript-1`);
   await expect(view(page).getByRole('button', { name: '重新发送' })).toHaveCount(0);
 
   report(stub, id, 'open', 1, open);
   await expect(items(page)).toHaveCount(1);
-  await expect(step(page, '② 开放式').locator('.pst')).toHaveText('完成');
+  await expect(step(page, 'GPT chat').locator('.pst')).toHaveText('完成');
   done(stub, id);
   await expect(view(page).locator('.pstatus-head .pst')).toHaveText('完成');
   await expect(view(page).locator('.pcount')).toContainText('3 条反馈');
   await expect(items(page).locator('blockquote')).toHaveText([JSON.parse(manuscript).items[0].quote, '昨天的船', JSON.parse(open).items[0].quote]);
-  await expect(items(page).locator('.src')).toHaveText(['① 对照正文', '① 对照正文', '② 开放式']);
-  await expect(view(page).locator('.psum')).toHaveText(['① 和已写正文有一处冲突。', '② 时间线上有一处存疑。']);
+  await expect(items(page).locator('.src')).toHaveText(['① 对照正文', '① 对照正文', 'GPT chat']);
+  await expect(view(page).locator('.psum')).toHaveText(['GPT chat 时间线上有一处存疑。', '① 对照正文 和已写正文有一处冲突。']);
   await expect(view(page).locator('#pp-1 mark')).toHaveText(JSON.parse(manuscript).items[0].quote);
   await expect(items(page).first().locator('.lv')).toHaveCount(0);
   await expect(view(page).locator('.prob')).toHaveCount(0);
@@ -108,12 +152,12 @@ test('an existing paste record retains both checks beside the draft', async ({ p
   const top = async (selector: string) => (await view(page).locator(selector).boundingBox())!.y;
   expect(Math.abs(await top('#pp-4 .ptext') - await top('#pp-4 .pitem'))).toBeLessThan(16);
 
-  await view(page).getByRole('button', { name: '② 开放式 1' }).click();
+  await view(page).getByRole('button', { name: 'GPT chat 1' }).click();
   await expect(items(page).locator('blockquote')).toHaveText([JSON.parse(open).items[0].quote]);
-  await expect(view(page).locator('.psum')).toHaveText(['② 时间线上有一处存疑。']);
+  await expect(view(page).locator('.psum')).toHaveText(['GPT chat 时间线上有一处存疑。']);
   await view(page).getByRole('group', { name: '按 Tag 筛选' }).getByRole('button', { name: '连续性 0', exact: true }).click();
   await expect(items(page)).toHaveCount(0);
-  await view(page).getByRole('group', { name: '按来源筛选' }).getByRole('button', { name: '全部 3', exact: true }).click();
+  await view(page).getByRole('group', { name: '按模型筛选' }).getByRole('button', { name: '全部 3', exact: true }).click();
   await expect(items(page)).toHaveCount(1);
   await expect(items(page).first()).toContainText('连续性');
   await page.reload();
@@ -138,28 +182,28 @@ test('a failed check says why; resending it queues it again and keeps the old re
   sent(stub, id);
   report(stub, id, 'manuscript', 1, manuscript);
   stub.server(`${book}/${id}/checks/open`, { status: 'failed', attempt: 1, chat: 'https://chatgpt.com/c/abc', error: '60 分钟内没收到报告', at: Date.now() });
-  stub.server(`${book}/${id}/error`, '② 开放式：60 分钟内没收到报告');
+  stub.server(`${book}/${id}/error`, 'GPT chat：60 分钟内没收到报告');
   stub.server(`${book}/${id}/status`, 'failed');
   await expect(view(page).locator('.pstatus-head .pst')).toHaveText('失败');
-  await expect(view(page).locator('.pstatus > .perr')).toHaveText('② 开放式：60 分钟内没收到报告');
-  await expect(step(page, '② 开放式').locator('.perr')).toHaveText('60 分钟内没收到报告');
+  await expect(view(page).locator('.pstatus > .perr')).toHaveText('GPT chat：60 分钟内没收到报告');
+  await expect(step(page, 'GPT chat').locator('.perr')).toHaveText('60 分钟内没收到报告');
   await expect(items(page)).toHaveCount(2);
 
-  await step(page, '② 开放式').getByRole('button', { name: '重新发送' }).click();
+  await step(page, 'GPT chat').getByRole('button', { name: '重新发送' }).click();
   await expect(page.locator('.toast')).toContainText('已重新排队');
   await expect.poll(() => stub.at(`${book}/${id}/status`)).toBe('queued');
   expect(stub.at(`${book}/${id}/checks/open/status`)).toBe('queued');
   expect(stub.at(`${book}/${id}/checks/manuscript/status`)).toBe('done');
   expect(stub.at(`${book}/${id}/checks/open/attempt`)).toBe(1);
   expect(stub.at(`${book}/${id}/skipProse`)).toBe(true);
-  await expect(step(page, '② 开放式').locator('.pst')).toHaveText('排队');
+  await expect(step(page, 'GPT chat').locator('.pst')).toHaveText('排队');
 
   // The second send's report arrives next to the first check's; a bad reply is shown as is.
   stub.server(`${book}/${id}/checks/open`, { status: 'done', attempt: 2, chat: 'https://chatgpt.com/c/def', at: Date.now() });
   report(stub, id, 'open', 2, '抱歉，我暂时无法访问这个仓库。');
   stub.server(`${book}/${id}/error`, null);
   stub.server(`${book}/${id}/status`, 'done');
-  await expect(view(page).locator('.perr')).toContainText('② 第 2 次的回复读不出来');
+  await expect(view(page).locator('.perr')).toContainText('GPT chat 第 2 次的回复读不出来');
   await expect(view(page).locator('.raw pre')).toHaveText('抱歉，我暂时无法访问这个仓库。');
   report(stub, id, 'open', 3, open);
   await expect(view(page).locator('.rtabs button')).toHaveCount(2);

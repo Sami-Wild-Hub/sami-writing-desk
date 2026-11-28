@@ -6,15 +6,18 @@ import { esc } from '../../archive/ui.ts';
 import { paraNumber, type Para } from './paragraphs.ts';
 import { parseReport, placeItems, type PlacedItem, type ReportItem, type ReportResult } from './report.ts';
 import { checksOf, ENDED, reportsOf, type ProofRecord, type ProofReport, type Status, type Step } from './store.ts';
-import { CHECKS, KINDS, LEVELS, displayTitle, recheckSources, type Check } from './task.ts';
+import { KINDS, LEVELS, displayTitle, recheckSources, type Check } from './task.ts';
+import { MODELS, modelConfig } from './models.ts';
 import { sentenceDiff } from './diff.ts';
 import { replacement } from './edit.ts';
 
 export type Filter = 'all' | Check;
 export type KindFilter = 'all' | (typeof KINDS)[number];
-export const MARK: Record<Check, string> = { manuscript: '①', open: '②' };
-export const NAME: Record<Check, string> = { manuscript: '对照正文', open: '开放式' };
-const ABOUT: Record<Check | 'fetch', string> = { fetch: '本机 Luna 用 Google Drive 只读查找这一章', manuscript: '本机 Luna 对照资料库里的已写正文', open: 'ChatGPT 读 Novel Archivist 资料库' };
+export const MARK: Partial<Record<Check, string>> = { manuscript: '①' };
+export const NAME: Record<string, string> = { manuscript: '对照正文', ...Object.fromEntries(MODELS.map((model) => [model.id, model.label])) };
+export const checkLabel = (check: Check) => check === 'manuscript' ? '① 对照正文' : NAME[check] ?? check;
+const about = (check: Check | 'fetch') => check === 'fetch' ? '本机 Luna 用 Google Drive 只读查找这一章' :
+  check === 'manuscript' ? '本机 Luna 对照资料库里的已写正文' : modelConfig(check)?.transport === 'gpt' ? 'ChatGPT 读 Novel Archivist 资料库' : '本机 CLI 读 KB 只读副本';
 const STATUS: Record<Status, string> = { queued: '排队', sending: '发送中', sent: '已发送', done: '完成', failed: '失败' };
 
 export const when = (ms: number) => new Date(ms).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -44,8 +47,8 @@ export function statusHtml(record: ProofRecord) {
   const ended = ENDED.includes(record.status);
   const recheck = recheckSources(record.title).length > 0;
   const steps = [
-    record.source === 'drive' && record.fetch ? stepHtml(`取稿：${record.driveName ?? ''}`, ABOUT.fetch, record.fetch, '') : '',
-    ...checksOf(record).map((c) => stepHtml(recheck && c === 'open' ? '修改稿复校' : `${MARK[c]} ${NAME[c]}`, recheck && c === 'open' ? '仅机械文字错误，旧报告去重' : ABOUT[c], record.checks[c]!, ended ? c : '')),
+    record.source === 'drive' && record.fetch ? stepHtml(`取稿：${record.driveName ?? ''}`, about('fetch'), record.fetch, '') : '',
+    ...checksOf(record).map((c) => stepHtml(recheck ? `修改稿复校 · ${checkLabel(c)}` : checkLabel(c), recheck ? '仅机械文字错误，旧报告去重' : about(c), record.checks[c]!, ended ? c : '')),
   ];
   const all = ended ? '<button type="button" class="btn" data-resend="">全部重新发送</button>' : '';
   return `<section class="pstatus" aria-label="校稿进度" aria-live="polite"><div class="pstatus-head">${badge(record.status)}` +
@@ -76,7 +79,7 @@ function itemHtml({ item, at, range }: PlacedItem<Tagged>, index: number, placed
   const off = at < 0 ? '没有这一段' : range ? '' : '未对上原文';
   return `<article class="pitem${level ? ` lv-${level}` : ''}${off ? ' off' : ''}" data-key="${esc(item.key)}" data-check="${item.check}"${at >= 0 ? ` data-at="${at}"` : ''} tabindex="0">` +
     `<blockquote>${esc(item.quote || '（没有引文）')}</blockquote>` +
-    `<div class="tags"><span class="src" title="${item.recheck ? '修改稿复校' : NAME[item.check]}">${item.recheck ? '复校' : `${MARK[item.check]} ${NAME[item.check]}`}</span>${level ? `<span class="lv">${esc(level)}</span>` : ''}` +
+    `<div class="tags"><span class="src" title="${item.recheck ? '修改稿复校' : checkLabel(item.check)}">${item.recheck ? '复校 · ' + checkLabel(item.check) : checkLabel(item.check)}</span>${level ? `<span class="lv">${esc(level)}</span>` : ''}` +
     `${item.kind ? `<span class="pill">${esc(item.kind)}</span>` : ''}${item.para ? `<span class="pill">${esc(item.para)}</span>` : ''}${off ? `<span class="pill warn">${off}</span>` : ''}</div>` +
     fixHtml(item, at) +
     `<p class="issue">${item.fix === undefined ? '' : '<b>理由</b>'}${esc(item.issue)}</p>` +
@@ -124,8 +127,8 @@ export function countsHtml(placed: PlacedItem<Tagged>[]) {
 }
 
 function attemptsHtml(record: ProofRecord, shown: Partial<Record<Check, ProofReport>>) {
-  const rows = CHECKS.map((c) => [c, reportsOf(record, c)] as const).filter(([, reports]) => reports.length > 1);
-  return rows.map(([c, reports]) => `<div class="seg rtabs" role="group" aria-label="${MARK[c]} ${NAME[c]} 的各次报告"><span class="seg-label">${MARK[c]}</span>` +
+  const rows = checksOf(record).map((c) => [c, reportsOf(record, c)] as const).filter(([, reports]) => reports.length > 1);
+  return rows.map(([c, reports]) => `<div class="seg rtabs" role="group" aria-label="${checkLabel(c)} 的各次报告"><span class="seg-label">${esc(checkLabel(c))}</span>` +
     reports.map((r) => `<button type="button" data-report="${esc(r.id)}" aria-pressed="${r.id === shown[c]?.id}">第 ${r.attempt} 次 · ${esc(when(r.createdAt))}</button>`).join('') + '</div>').join('');
 }
 
@@ -136,31 +139,32 @@ export function resultHtml(paras: Para[], record: ProofRecord, chosen: Record<st
   const items: Tagged[] = [];
   const recheck = recheckSources(record.title).length > 0;
   const errors: string[] = [];
-  for (const c of CHECKS) {
+  for (const c of checksOf(record)) {
     const reports = reportsOf(record, c);
-    const report = shown[c] = reports.find((r) => r.id === chosen[c]) ?? reports.at(-1);
+    const report = reports.find((r) => r.id === chosen[c]) ?? reports.at(-1);
     if (!report) continue;
+    shown[c] = report;
     const read = readReport(report);
     if (read.ok) items.push(...read.report.items.map((item, index) => {
       const key = JSON.stringify([c, report.id, index]);
       return { ...item, check: c, key, recheck, accepted: !!accepted[key], disabled: item.fix === undefined ? ''
         : replacement(paras[paraNumber(item.para) - 1]?.text, item, !!accepted[key]).reason };
     }));
-    else errors.push(`<div class="perr" role="alert"><b>${MARK[c]} 第 ${report.attempt} 次的回复读不出来：</b>${esc(read.error)}</div>` +
-      `<details class="raw" data-report="${esc(report.id)}"><summary>${MARK[c]} 收到的原文</summary><pre>${esc(report.report)}</pre></details>`);
+    else errors.push(`<div class="perr" role="alert"><b>${checkLabel(c)} 第 ${report.attempt} 次的回复读不出来：</b>${esc(read.error)}</div>` +
+      `<details class="raw" data-report="${esc(report.id)}"><summary>${checkLabel(c)} 收到的原文</summary><pre>${esc(report.report)}</pre></details>`);
   }
   const tools = '<div class="pedit-tools"><span class="hint">可直接修改正文 · 改动仅存此浏览器</span><span class="sp"></span><button type="button" class="btn" data-reset-body>还原原稿</button><button type="button" class="btn primary" data-copy-body>复制正文</button></div>';
-  if (!shown.manuscript && !shown.open) return `${tools}<p class="muted pnote">结果回来后会自动显示在这里。下面是分好段的原文。</p>${proofHtml(paras, [])}`;
+  if (!Object.keys(shown).length) return `${tools}<p class="muted pnote">结果回来后会自动显示在这里。下面是分好段的原文。</p>${proofHtml(paras, [])}`;
   const count = (f: Filter) => items.filter((i) => f === 'all' || i.check === f).length;
-  const filters = `<div class="seg pfilter" role="group" aria-label="按来源筛选">${(['all', ...checksOf(record)] as Filter[]).map((f) =>
-    `<button type="button" data-filter="${f}" aria-pressed="${f === filter}">${f === 'all' ? '全部' : recheck && f === 'open' ? '修改稿复校' : `${MARK[f]} ${NAME[f]}`} ${count(f)}</button>`).join('')}</div>`;
+  const filters = `<div class="seg pfilter" role="group" aria-label="按模型筛选">${(['all', ...checksOf(record)] as Filter[]).map((f) =>
+    `<button type="button" data-filter="${f}" aria-pressed="${f === filter}">${f === 'all' ? '全部' : checkLabel(f)} ${count(f)}</button>`).join('')}</div>`;
   const sourceItems = items.filter((i) => filter === 'all' || i.check === filter);
   const kinds = `<div class="seg pfilter" role="group" aria-label="按 Tag 筛选">${(['all', ...KINDS] as KindFilter[]).map((k) =>
     `<button type="button" data-kind="${k}" aria-pressed="${k === kind}">${k === 'all' ? '全部类型' : k} ${sourceItems.filter((i) => k === 'all' || i.kind === k).length}</button>`).join('')}</div>`;
   const placed = placeItems(paras, sourceItems.filter((i) => kind === 'all' || i.kind === kind));
   const bad = placed.filter((p) => p.item.problems.length).length;
-  const sums = CHECKS.map((c) => [c, shown[c] && readReport(shown[c]!)] as const)
-    .map(([c, read]) => (read && read.ok && read.report.summary && (filter === 'all' || filter === c) ? `<p class="psum"><b>${MARK[c]}</b> ${esc(read.report.summary)}</p>` : '')).join('');
+  const sums = checksOf(record).map((c) => [c, shown[c] && readReport(shown[c]!)] as const)
+    .map(([c, read]) => (read && read.ok && read.report.summary && (filter === 'all' || filter === c) ? `<p class="psum"><b>${esc(checkLabel(c))}</b> ${esc(read.report.summary)}</p>` : '')).join('');
   return tools + filters + kinds + attemptsHtml(record, shown) + errors.join('') + countsHtml(placed) + sums +
     (bad ? `<div class="perr" role="alert">有 ${bad} 条格式不对，已照样列出并注明问题。</div>` : '') + proofHtml(paras, placed);
 }

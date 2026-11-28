@@ -1,27 +1,27 @@
 # 校稿台
 
-书页的第三个视图（`?book=<slug>&view=proof`）。交一份新稿，后台自动做 Manuscript Check（MC）：贴入或上传只做②开放式，Drive 仍做①②。结果逐条显示在原文旁边，可直接改稿、接受建议并复制正文。
+书页的第三个视图（`?book=<slug>&view=proof`）。交一份新稿，可勾选多个模型分别做 Manuscript Check（MC），结果逐条显示在同一页的原文旁边，可直接改稿、接受建议并复制正文。
 
-- **① 对照正文**：本机的 Luna（`delegate.py --agent luna-medium`）在 Novel Archivist 仓库（`leahthemule/novel-knowledge-base`）的只读副本里，拿新稿和 `novels/<slug>/manuscript/` 的已写各章对照。
-- **② 开放式**：在 ChatGPT 项目（默认「Novel Archivist 维护」）里新开一个对话，读同一仓库的 `novels/<slug>/` 资料库。
+- **GPT chat**：在 ChatGPT 项目（默认「Novel Archivist 维护」）里新开一个对话，读同一仓库的 `novels/<slug>/` 资料库。
+- **Opus 5.5 high / Terra 6.1 max**：由本机 CLI 读取 Novel Archivist 的只读 KB 副本。
 
-两项都按 `leahthemule/novel-knowledge-base@main` 的 `contracts/shared/kb-use/manuscript-check.md` 入口和 `contracts/manuscript-check/semantic.md` 核心合同执行，不在任务里另写检查规则。② 使用历史 KB；① 不读 KB，以已写正文为历史，先找这一章旧版本逐段对照。网页用同一种 JSON 承载合同报告项，覆盖合同的 `report.md` 输出格式。
+所有模型都按 `leahthemule/novel-knowledge-base@main` 的 `contracts/shared/kb-use/manuscript-check.md` 入口和 `contracts/manuscript-check/semantic.md` 核心合同执行，不在任务里另写检查规则。网页用同一种 JSON 承载合同报告项，覆盖合同的 `report.md` 输出格式。
 
 ## 用法
 
 1. 「＋ 新校稿」：选择稿子来源：
    - 「贴入或上传」：写标题（如「C23 初稿」），贴入新稿，或上传 `.txt` / `.md`；
    - 「从 Drive 取」：先填标题上面的「章节」。`22`、`c22`、`第22章`、`22章`、`第二十二章` 统一存为现有字段 `driveName: C22`；其他名字照填照存。标题自动建议如 `C22 第2稿`：本书历史里同章标题的最大稿次加一，`初稿` 算 1，没有历史从 1 开始，取稿失败的记录不算。历史稍后到达也更新建议；手改标题后保留手改，清空标题恢复自动填。后台让本机 Luna 用 Google Drive plugin 只读扫描并取回正文。
-2. 「不验语病」默认不勾，执行完整 MC。勾选后跳过 Tag `文字`（字词、语法、标点校勘），其他按合同执行。点「发送校稿」后，记录马上存进历史，页面跟着显示进度：排队 → 发送中 → 已发送（附对话链接或 Luna 任务号）→ 完成 / 失败（写明原因）。
-3. 新 paste 记录只有 `checks.open`，只建、只发、只显示②；Drive 仍做①②。已有的旧 paste 记录带①的照旧显示，不迁移。左边是分段编号的原文、完整原句标黄，右边每条反馈对齐段落，标①/②，可按来源及 MC Tag 组合筛选；手机上反馈列在上面，点一条跳到原文。每张卡片底部的「上一条 / 下一条」在当前筛选后的反馈之间跳：桌面上跳到那张卡片并闪一下它的原句，手机上跳到那张卡片本身；第一张没有「上一条」，最后一张没有「下一条」。
+2. 勾选本次要运行的模型，至少勾选一个；第一次默认只勾 GPT chat。模型选择按「不验语病」分别记在本浏览器，切换该选项会切换对应记忆。「不验语病」默认不勾，勾选后跳过 Tag `文字`（字词、语法、标点校勘），其他按合同执行。点「发送校稿」后，记录马上存进历史，页面跟着显示进度：排队 → 发送中 → 已发送（附对话链接或 CLI 任务号）→ 完成 / 失败（写明原因）。
+3. 新记录的 `checks` 为每个勾选模型各一个 step；Drive 不再隐含增加检查。已有旧记录（包括 `manuscript`/①）照旧显示，不迁移。左边是分段编号的原文、完整原句标黄，右边每条反馈对齐段落，标模型名，可按模型及 MC Tag 组合筛选；手机上反馈列在上面，点一条跳到原文。每张卡片底部的「上一条 / 下一条」在当前筛选后的反馈之间跳：桌面上跳到那张卡片并闪一下它的原句，手机上跳到那张卡片本身；第一张没有「上一条」，最后一张没有「下一条」。
 4. 每段正文可直接编辑，段号不变。有 `fix` 的反馈显示逐字增删高亮的「建议」句，可「接受」或「撤销」；原句手改、找不到或重复出现无法确定位置时按钮不可用并写明原因。
 5. 随滚动可见的「复制正文」复制当前全文，每段一行、不带段号。「还原原稿」确认后清除本条记录的本机修改。改动按账号、书和记录 id 存本浏览器 localStorage，刷新保留，不回写数据库或 data repo 的 `draft.md`。
 
-一项失败可以单独「重新发送」，也可以「全部重新发送」；沿用本条记录创建时的「不验语病」选项，每次发送的报告都留着，用「第 1 次 / 第 2 次」切换，新的不覆盖旧的。历史在左栏（手机点「历史」），最新的在上；历史和记录标题旁都显示「不验语病：是/否」。排队中或已结束的记录可以删除（删除前确认；data 仓库里的文件不删）。
+一项失败可以单独「重新发送」，也可以「全部重新发送」；沿用本条记录创建时的「不验语病」选项，每次发送的报告都留着，按模型用「第 1 次 / 第 2 次」切换，新的不覆盖旧的。历史在左栏（手机点「历史」），最新的在上；历史和记录标题旁都显示「不验语病：是/否」。排队中或已结束的记录可以删除（删除前确认；data 仓库里的文件不删）。
 
 ## 修改稿复校
 
-在已有报告且已结束的记录页点「修改稿复校」，载入本浏览器当前修改后的正文，可直接替换为外部编辑后的最新稿。确认发送后创建独立 paste 记录，仅使用既有 open 通道；原始报告及正文保持不变。任务只检查明确的机械错误，不执行 MC、不读其他章或 KB。来源记录的旧报告全部用于排除已经讨论过的事项，连仍未修复的旧项也不复述；来源无法读取时注明去重未完成，不生成未经去重的意见。再次复校同时引用原校稿记录和最近一次复校。
+在已有报告且已结束的记录页点「修改稿复校」，载入本浏览器当前修改后的正文，可直接替换为外部编辑后的最新稿。确认发送时可重新勾选模型，默认勾上原记录使用过的当前模型；创建独立 paste 记录，原始报告及正文保持不变。任务只检查明确的机械错误，不执行 MC、不读其他章或 KB。来源记录的所有模型旧报告全部用于排除已经讨论过的事项，连仍未修复的旧项也不复述；来源无法读取时注明去重未完成，不生成未经去重的意见。再次复校同时引用原校稿记录和最近一次复校。
 
 当前 RTDB 规则不支持增加字段或检查类型，因此不可变 title 尾部使用内部来源标识 `[复校来源:记录id]`（后续复校最多两个 id）；页面隐藏来源标识。watcher 的 CLI 按此标识选择独立复校模板，不需要新增数据库权限。部署后本机 watcher 使用的 site_root 必须更新到包含新模板的版本，再发送复校。
 
@@ -49,14 +49,14 @@ households/<householdId>/proofdesk/<slug>/<id>
   { id, title, createdAt, updatedAt, source: "paste" | "drive", draft?, driveName?, skipProse?: boolean,
     status: queued | sending | sent | done | failed, error?,
     fetch?: Step,                                   // 只有 Drive 来源
-    checks: { manuscript?: Step, open: Step },
+    checks: { "<model>": Step },
     reports?: { "<check>-<n>": { id, check, attempt, createdAt, report, parsed?, path } } }
 Step = { status, attempt?, chat?, job?, error?, at? }
 ```
 
 - `id` 形如 `20261121-153012-1a2b`（UTC 时间 + 4 位随机），既是键也按时间排。
-- 新请求存 `skipProse: false | true`；缺省按完整 MC 处理。成员只可在新建记录时选择此字段，之后不可添加、更改或移除，重发保留原值。后台把保存的值经 `cli.ts` 传给两项任务模板。
-- 网页只向数据库写新请求（paste 只有 `open`，Drive 有两项，都是 `queued`），和重新发送（只把记录里已有的检查改回 `queued`）。其余字段由后台用服务账号写；FamilyHub 规则要求 Drive 两项、paste 至少有 `open`，且不许重发时增删检查、不许成员写 `sending` 以后的状态、`fetch`、`error`、`reports` 或修改已存新稿。网页改稿只写 localStorage。
+- 新请求存 `skipProse: false | true`；缺省按完整 MC 处理。成员只可在新建记录时选择此字段，之后不可添加、更改或移除，重发保留原值。后台把保存的值经 `cli.ts` 传给每个所选模型的任务模板。
+- 网页只向数据库写新请求（`checks` 是所选模型的 queued steps），和重新发送（只把记录里已有的检查改回 `queued`）。其余字段由后台用服务账号写；FamilyHub 规则允许小写字母、数字和连字符组成且不超过 20 字符的模型 key，并限制成员写入的 step 状态为 `queued`。网页改稿和模型选择只写 localStorage。
 - `report` 是收到的回复原文，`parsed` 是读出的结果（JSON 字符串；读不出来时没有）。页面显示时以原文为准重新读一遍。
 
 **后台留档的** 私有仓库 `Sami-Wild-Hub/sami-writing-desk-data` 分支 `main` 的 `proofdesk/<slug>/<id>/`：
@@ -64,8 +64,8 @@ Step = { status, attempt?, chat?, job?, error?, at? }
 | 文件 | 内容 |
 | --- | --- |
 | `draft.md` | 新稿（贴入的，或 Luna 从 Drive 取回本机、由 watcher 发布的） |
-| `task-open.md`、`task-manuscript.md` | 记录里已有检查的任务全文（paste 只存 `task-open.md`） |
-| `report-open-<n>.json`、`report-manuscript-<n>.json` | 第 n 次发送收到的回复原文 |
+| `task-<model>.md` | 记录里已有模型检查的任务全文 |
+| `report-<model>-<n>.json` | 该模型第 n 次发送收到的回复原文 |
 
 ## 后台
 
@@ -73,17 +73,17 @@ Step = { status, attempt?, chat?, job?, error?, at? }
 
 1. 先把记录标成 `sending`，这样同一请求不会被取两次。
 2. Drive 来源经 `delegate.py --agent <luna_agent>` 起 Luna，`fetch.job` 记录任务号。只读扫描本书相关文件夹和最近改动，按内容认章（独立文件、合订文档章节或 tab）；编辑确认 `ChatGPT Manuscript` 的现行稿优先，那里没有才用别处，不能确定时列出候选并失败。Luna 将正文原样写到本机，重新读取 Drive 核对段数、首尾和逐段文字；watcher 等任务成功结束后发布 `draft.md` 并回写 `draft`。plugin 不可用、找不到、没读全、核对失败或进程结束却没产出时，立即写明 `fetch.error`，不等 60 分钟。
-3. 只推进记录里已有的检查；paste 只发②，Drive 两项并行发送，各自记 `checks.<check>`；取稿和①共用一个 Luna 并发位，②独占一个 GPT 并发位。
+3. 只推进记录里已有的检查；GPT 可并行发送，CLI 模型一次只跑一个，各自记 `checks.<model>`；取稿和旧记录的①共用一个 Luna 并发位。模型配置由 `cli.ts models` 提供；CLI 派发使用 `delegate.py --agent <agent> --account sami --collab`，只读本机 KB 副本，成功退出且有本机报告才发布。
 4. 等报告出现在 data 仓库（默认最多 60 分钟），用和网页相同的规则读，把原文和读出的结果写进 `reports`。
 5. 记录里已有的步骤都结束：都完成为 `done`；有一项失败为 `failed`，`error` 写明是哪一项、为什么。
 
-后台重启后从数据库的状态接着做，同一 Luna job 的本机输出标记阻止重复启动，保存的进程号用于判断无输出退出。取稿及①显示 Luna 任务号，②显示对话链接。仍在运行的任务保留默认 60 分钟超时。
+后台重启后从数据库的状态接着做，同一 CLI job 的本机输出标记阻止重复启动，保存的进程号用于判断无输出退出。取稿、CLI 模型和旧记录的①显示任务号，GPT 显示对话链接。仍在运行的任务保留默认 60 分钟超时。
 
 ## 任务全文
 
 任务文字在 `src/lib/views/proof/task.ts`，下面是它对 `maritime-story`、标题「C23 初稿」、两段占位新稿生成的全文（`tests/proof.test.mjs` 会检查这里和代码一致；改了模板要同步改这里）。后台把它存成 data 仓库里的 `task-*.md`，ChatGPT 收到的消息只是一句「读这个文件，按它做，把 JSON 推到某路径」。
 
-### ② 开放式
+### 模型任务（GPT chat、Opus 5.5 high、Terra 6.1 max 共用）
 
 ```text
 请按 leahthemule/novel-knowledge-base（main 分支）的 contracts/shared/kb-use/manuscript-check.md 入口及 contracts/manuscript-check/semantic.md 核心合同执行 Manuscript Check（MC）。
@@ -145,12 +145,12 @@ items 按受检原文顺序排列；没有报告项就回 "items": []。
 [P2] （新稿第二段）
 ```
 
-以上是默认完整 MC；勾选「不验语病」时，两份任务都在新稿后追加一句：本次跳过 Tag `文字`（字词、语法、标点校勘），其他按合同执行。
+以上是默认完整 MC；勾选「不验语病」时，每个模型任务都在新稿后追加一句：本次跳过 Tag `文字`（字词、语法、标点校勘），其他按合同执行。
 
 ## 代码
 
-- `src/lib/views/proof/`：`proofView.ts`（视图）、`compose.ts`（章节归一化、标题稿次）、`task.ts`（两份任务模板）、`paragraphs.ts`（分段、找引文）、`report.ts`（读回复、对齐段落）、`render.ts`（HTML）、`store.ts`（RTDB）、`cli.ts`（后台入口）、`diff.ts`（逐字 LCS）、`edit.ts`（替换规则）、`editor.ts`（本机改稿）。
+- `src/lib/views/proof/`：`proofView.ts`（视图与模型选择）、`models.ts`（模型注册表）、`compose.ts`（章节归一化、标题稿次）、`task.ts`（模型任务模板）、`paragraphs.ts`（分段、找引文）、`report.ts`（读回复、对齐段落）、`render.ts`（HTML）、`store.ts`（RTDB）、`cli.ts`（后台入口）、`diff.ts`（逐字 LCS）、`edit.ts`（替换规则）、`editor.ts`（本机改稿）。
 - `src/styles/proof.css`。
-- 测试：`tests/proof.test.mjs`（分段、任务、cli、回复、新请求形状及模板与本文一致），`tests/proof.spec.ts`（旧 paste 两项保留、进度、筛选、重发、Drive 取稿、手机跳转及删除；后台写入在测试里模拟）。
+- 测试：`tests/proof.test.mjs`（分段、任务、模型列表、回复、新请求形状及模板与本文一致），`tests/proof.spec.ts`（多模型选择与记忆、旧记录保留、进度、筛选、重发、Drive 取稿、手机跳转及删除；后台写入在测试里模拟）。
 - `tests/proof-edit.test.mjs`、`tests/proof-edit.spec.ts`：逐字 diff、可选和无效 fix、接受/撤销、手改后禁用、本机保存、复制与确认还原；桌面和手机均覆盖。`tests/proof-edit-screens.spec.ts` 在设 `PROOF_EDIT_SHOTS_DIR` 时只读真实报告、在内存加 fix，输出 1440 / 390 截图。
 - `tests/proof-compose.test.mjs`、`tests/proof-compose.spec.ts`：章节别名、同章最大稿次、失败取稿排除、先章节后标题、晚到历史、手改保护、清空恢复和发送后稿次递增。

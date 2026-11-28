@@ -7,6 +7,7 @@ import { findQuote, paraNumber, splitParagraphs } from '../src/lib/views/proof/p
 import { parseReport, placeItems } from '../src/lib/views/proof/report.ts';
 import { newId, queuedRecord, reportsOf } from '../src/lib/views/proof/store.ts';
 import { CHECKS, TASKS, manuscriptTask, openTask, recheckTitle, recheckSources, displayTitle } from '../src/lib/views/proof/task.ts';
+import { MODELS } from '../src/lib/views/proof/models.ts';
 
 const cli = fileURLToPath(new URL('../src/lib/views/proof/cli.ts', import.meta.url));
 
@@ -80,8 +81,9 @@ test('docs/proofdesk.md shows both task texts verbatim', async () => {
   for (const check of CHECKS) assert.ok(docs.includes(`\`\`\`text\n${TASKS[check](input)}\`\`\``), `docs/proofdesk.md is out of date with task.ts (${check})`);
 });
 
-test('the watcher CLI prints a task, reads a reply, and refuses an empty draft', () => {
+test('the watcher CLI prints models and tasks, reads a reply, and refuses an empty draft', () => {
   const run = (args, input) => spawnSync(process.execPath, [cli, ...args], { input, encoding: 'utf8' });
+  assert.deepEqual(JSON.parse(run(['models'], '').stdout), MODELS);
   for (const check of CHECKS) for (const skipProse of [false, true]) {
     const input = { check, slug: 'maritime-story', title: 'T', draft: '# 第1章\n甲。', skipProse };
     const output = run(['task'], JSON.stringify(input));
@@ -99,18 +101,18 @@ test('the watcher CLI prints a task, reads a reply, and refuses an empty draft',
   assert.equal(run([], '').status, 2);
 });
 
-test('paste queues only open; Drive queues both checks and keeps only its own source', () => {
+test('queued records contain exactly the selected models and keep only their own source', () => {
   const base = { id: 'x', title: 'T', createdAt: 5, draft: '甲', driveName: '第22章' };
-  assert.deepEqual(queuedRecord({ ...base, source: 'paste' }), {
+  assert.deepEqual(queuedRecord({ ...base, source: 'paste' }, ['open']), {
     id: 'x', title: 'T', createdAt: 5, updatedAt: 5, source: 'paste', draft: '甲', status: 'queued',
     checks: { open: { status: 'queued' } },
   });
-  const drive = queuedRecord({ ...base, source: 'drive' });
+  const drive = queuedRecord({ ...base, source: 'drive' }, ['open', 'opus']);
   assert.equal(drive.driveName, '第22章');
-  assert.deepEqual(drive.checks, { manuscript: { status: 'queued' }, open: { status: 'queued' } });
+  assert.deepEqual(drive.checks, { open: { status: 'queued' }, opus: { status: 'queued' } });
   assert.equal('draft' in drive, false);
   for (const source of ['paste', 'drive']) for (const skipProse of [false, true]) {
-    assert.equal(queuedRecord({ ...base, source, skipProse }).skipProse, skipProse);
+    assert.equal(queuedRecord({ ...base, source, skipProse }, ['open']).skipProse, skipProse);
   }
   assert.match(newId(Date.UTC(2026, 10, 21, 15, 30, 12)), /^20261121-153012-[0-9a-f]{4}$/);
 });
@@ -211,6 +213,6 @@ test('revision recheck routes through one open check and never invokes full MC',
   const output = spawnSync(process.execPath, [cli, 'task'], { input: JSON.stringify(input), encoding: 'utf8' });
   assert.equal(output.status, 0);
   assert.equal(output.stdout, task);
-  const record = queuedRecord({ id: '20261128-010152-aa92', title, createdAt: 1, source: 'paste', draft: input.draft, driveName: '', skipProse: false });
+  const record = queuedRecord({ id: '20261128-010152-aa92', title, createdAt: 1, source: 'paste', draft: input.draft, driveName: '', skipProse: false }, ['open']);
   assert.deepEqual(Object.keys(record.checks), ['open']);
 });

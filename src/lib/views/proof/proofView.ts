@@ -10,6 +10,7 @@ import type { CreateNovelView, NovelViewHost, ShowContext } from '../types.ts';
 import { splitParagraphs } from './paragraphs.ts';
 import { historyHtml, resultHtml, statusHtml, when, type Filter, type KindFilter } from './render.ts';
 import { checksOf, ENDED, newId, proofStore, queuedRecord, reportsOf, type ProofRecord } from './store.ts';
+import { isModelId, MODELS, type ModelId } from './models.ts';
 import { chapterName, nextTitle } from './compose.ts';
 import { proofDraft, fields, signature, type DraftFields } from './draft.ts';
 import { updateResult } from './result.ts';
@@ -19,6 +20,7 @@ import { displayTitle, recheckSources, recheckTitle } from './task.ts';
 const ID = /^\d{8}-\d{6}-[0-9a-z]{4}$/;
 interface ProofMemo {
   source: 'paste' | 'drive'; title: string; draft: string; driveName: string; skipProse: boolean;
+  models: ModelId[];
   titleEdited?: boolean;
   recheckOf?: string[];
   /** Per record: the report chosen for each check, and the item filter. */
@@ -53,7 +55,8 @@ class ProofPanel {
     this.host = host;
     this.store = proofStore(host.householdRef, host.slug);
     this.local = proofDraft(host.outlineDraftKey + ':proof', text => host.toast(text));
-    this.st = (host.memo.state as ProofMemo | undefined) ?? { source: 'paste', title: '', draft: '', driveName: '', skipProse: false, ...this.local.load(), report: {}, filter: {}, kind: {} };
+    this.st = (host.memo.state as ProofMemo | undefined) ?? { source: 'paste', title: '', draft: '', driveName: '', skipProse: false, models: this.rememberedModels(false), ...this.local.load(), report: {}, filter: {}, kind: {} };
+    if (!Array.isArray(this.st.models)) this.st.models = this.rememberedModels(this.st.skipProse);
     host.memo.state = this.st;
     const frame = document.createElement('div');
     frame.className = 'proof frame';
@@ -128,6 +131,7 @@ class ProofPanel {
     this.prefillTitle();
     const seg = (source: ProofMemo['source'], label: string) => `<button type="button" data-source="${source}" aria-pressed="${this.st.source === source}">${label}</button>`;
     delete this.main.dataset.record;
+    const modelOptions = `<fieldset class="pmodels"><legend>校稿模型</legend>${MODELS.map((model) => `<label class="poption"><input type="checkbox" name="model" value="${model.id}"${this.st.models.includes(model.id) ? ' checked' : ''}>${esc(model.label)}</label>`).join('')}</fieldset>`;
     this.main.innerHTML = this.head(recheck ? '修改稿复校' : '新校稿', '', recheck ? '<button type="button" class="btn" data-cancel-recheck>取消复校</button>' : '') +
       (recheck ? '<p class="hint">已载入当前修改后的正文，可在此粘贴最新版本。只查新出现的机械文字错误；原报告只用于去重，不再重复旧反馈。</p>' :
         `<div class="seg psource" role="group" aria-label="稿子从哪来">${seg('paste', '贴入或上传')}${seg('drive', '从 Drive 取')}</div>`) +
@@ -137,10 +141,10 @@ class ProofPanel {
         ? '<p class="hint">后台让本机 Luna 用 Google Drive 只读查找这一章，取到后接着校。</p>'
         : '<label class="field"><span>新稿</span><textarea name="draft" rows="16" placeholder="把新稿贴在这里"></textarea></label>' +
           '<p class="hint">每个非空行算一段，# 开头的标题行不算。</p>') +
-      (recheck ? '' : '<label class="poption"><input type="checkbox" name="skipProse">不验语病</label>') +
+      modelOptions + (recheck ? '' : '<label class="poption"><input type="checkbox" name="skipProse">不验语病</label>') +
       `<div class="prow-tools">${drive ? '' : '<label class="btn file">上传文件<input type="file" accept=".txt,.md,text/plain,text/markdown"></label><span class="count" data-count></span>'}` +
       `<span class="sp"></span><button type="button" class="btn primary" data-send>${recheck ? '发送复校' : '发送校稿'}</button></div>` +
-      `<p class="hint">${recheck ? '仅发送一次机械复校，不读取历史 KB 或其他章节。' : drive ? '发出后自动做两项校验：① 对照正文（本机 Luna 读已写各章）、② 开放式（ChatGPT 读资料库）。' : '贴入或上传的稿子只做② 开放式（ChatGPT 读资料库）。'}结果回来自动显示。</p>` +
+      `<p class="hint">${recheck ? '仅发送一次机械复校，不读取历史 KB 或其他章节。' : '每个勾选的模型分别校稿，结果回来自动显示。'}</p>` +
       '<p class="perr" role="alert" data-err hidden></p>';
     const bind = (name: 'title' | 'draft' | 'driveName', after = () => {}) => {
       const field = this.main.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name=${name}]`);
@@ -159,8 +163,12 @@ class ProofPanel {
     const skipProse = this.main.querySelector<HTMLInputElement>('[name=skipProse]');
     if (skipProse) {
       skipProse.checked = this.st.skipProse;
-      skipProse.addEventListener('change', () => { this.st.skipProse = skipProse.checked; this.persistDraft(); });
+      skipProse.addEventListener('change', () => { this.rememberModels(this.st.skipProse, this.st.models); this.st.skipProse = skipProse.checked; this.st.models = this.rememberedModels(this.st.skipProse); this.persistDraft(); this.renderCompose(); });
     }
+    this.main.querySelectorAll<HTMLInputElement>('[name=model]').forEach((input) => input.addEventListener('change', () => {
+      this.st.models = [...this.main.querySelectorAll<HTMLInputElement>('[name=model]:checked')].map((item) => item.value).filter(isModelId);
+      this.rememberModels(this.st.skipProse, this.st.models);
+    }));
     this.sendState();
     recount();
     this.main.querySelector<HTMLInputElement>('[type=file]')?.addEventListener('change', event => void this.upload(event.target as HTMLInputElement));
@@ -205,9 +213,11 @@ class ProofPanel {
     const err = this.main.querySelector<HTMLElement>('[data-err]')!;
     const recheck = this.st.recheckOf;
     const source = recheck?.length ? 'paste' : this.st.source;
+    const checks = this.st.models.filter(isModelId);
     const title = this.st.title.trim();
     const driveName = chapterName(this.st.driveName);
     const problem = recheck?.length && !this.records.some(r => r.id === recheck[0] && reportsOf(r).length) ? '找不到原校稿报告，不能安全去重。'
+      : !checks.length ? '至少勾选一个校稿模型。'
       : !title ? '先写个标题，如「C23 初稿」。'
       : source === 'paste' && !splitParagraphs(this.st.draft).length ? '新稿是空的。'
         : source === 'drive' && !driveName.trim() ? '写上要取的章节名，如「第22章」。' : '';
@@ -215,7 +225,7 @@ class ProofPanel {
     err.textContent = problem;
     if (problem) return;
     const now = Date.now();
-    const record = queuedRecord({ id: newId(now), title: recheck?.length ? recheckTitle(title, recheck) : title, createdAt: now, source, draft: this.st.draft, driveName, skipProse: recheck?.length ? false : this.st.skipProse });
+    const record = queuedRecord({ id: newId(now), title: recheck?.length ? recheckTitle(title, recheck) : title, createdAt: now, source, draft: this.st.draft, driveName, skipProse: recheck?.length ? false : this.st.skipProse }, checks);
     const submitted = signature(this.st), context = this.context;
     this.sending = true;
     button.disabled = true;
@@ -273,6 +283,8 @@ class ProofPanel {
     if ((this.st.draft || this.st.title || this.st.driveName) && !confirm('已有未发送校稿草稿。用当前修改稿替换它并开始复校？')) return;
     const root = recheckSources(record.title)[0] ?? record.id;
     this.st.recheckOf = root === record.id ? [root] : [root, record.id];
+    const used = checksOf(record).filter(isModelId);
+    this.st.models = used.length ? used : ['open'];
     this.st.source = 'paste'; this.st.driveName = ''; this.st.skipProse = false;
     this.st.draft = this.editor.state.paragraphs.join('\n');
     this.st.title = displayTitle(record.title).replace(/ · 修改稿复校$/, '') + ' · 修改稿复校';
@@ -290,6 +302,20 @@ class ProofPanel {
       return this.host.toast(`没发出去：${failed(error)}`);
     }
     this.host.toast('已重新排队，之前的报告都留着');
+  }
+
+  private selectionKey(skipProse: boolean) { return `${this.host.outlineDraftKey}:proof-models:${skipProse ? 'skip' : 'all'}`; }
+
+  private rememberedModels(skipProse: boolean): ModelId[] {
+    try {
+      const value = JSON.parse(localStorage.getItem(this.selectionKey(skipProse)) ?? 'null');
+      return Array.isArray(value) ? value.filter(isModelId) : ['open'];
+    } catch { return ['open']; }
+  }
+
+  private rememberModels(skipProse: boolean, models: readonly ModelId[]) {
+    try { localStorage.setItem(this.selectionKey(skipProse), JSON.stringify(models)); }
+    catch { this.host.toast('校稿模型选择未能保存在此浏览器'); }
   }
 
   private async remove() {

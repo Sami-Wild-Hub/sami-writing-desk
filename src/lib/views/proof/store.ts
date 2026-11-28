@@ -45,7 +45,7 @@ export interface ProofRecord {
   status: Status;
   error?: string;
   fetch?: Step;
-  checks: { open: Step; manuscript?: Step };
+  checks: Record<string, Step>;
   reports?: Record<string, ProofReport>;
 }
 
@@ -60,12 +60,14 @@ export const reportsOf = (record: ProofRecord, check?: Check) => Object.values(r
   .filter((r) => !check || r.check === check)
   .sort((a, b) => a.createdAt - b.createdAt);
 
-export const checksOf = (record: ProofRecord) => CHECKS.filter(c => record.checks[c]);
+export const checksOf = (record: ProofRecord): Check[] => [...CHECKS, ...Object.keys(record.checks).filter((check) => check === 'manuscript')]
+  .filter((check): check is Check => !!record.checks[check]);
 
 /** Paste requests queue open only; Drive requests queue both checks. */
-export function queuedRecord(fields: Pick<ProofRecord, 'id' | 'title' | 'createdAt' | 'source' | 'draft' | 'driveName' | 'skipProse'>): ProofRecord {
-  const record: ProofRecord = { ...fields, updatedAt: fields.createdAt, status: 'queued', checks: { manuscript: { status: 'queued' }, open: { status: 'queued' } } };
-  if (record.source === 'paste') { delete record.driveName; delete record.checks.manuscript; } else delete record.draft;
+export function queuedRecord(fields: Pick<ProofRecord, 'id' | 'title' | 'createdAt' | 'source' | 'draft' | 'driveName' | 'skipProse'>, checks: readonly Check[]): ProofRecord {
+  if (!checks.length) throw new Error('至少选择一个校稿模型');
+  const record: ProofRecord = { ...fields, updatedAt: fields.createdAt, status: 'queued', checks: Object.fromEntries(checks.map((check) => [check, { status: 'queued' }])) };
+  if (record.source === 'paste') delete record.driveName; else delete record.draft;
   return record;
 }
 

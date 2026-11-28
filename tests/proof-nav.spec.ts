@@ -47,7 +47,7 @@ test('beside the draft, 下一条 and 上一条 step through the filtered cards'
   await cards.first().getByRole('button', { name: '下一条' }).click();
   await expect(view(page).locator('#pp-10 .pitem')).toBeFocused();
   await expect(view(page).locator('#pp-10 mark')).toHaveClass(/flash/);
-  await view(page).getByRole('group', { name: '按来源筛选' }).getByRole('button', { name: '② 开放式 2', exact: true }).click();
+  await view(page).getByRole('group', { name: '按模型筛选' }).getByRole('button', { name: 'GPT chat 2', exact: true }).click();
   await expect(cards).toHaveCount(1);
   await expect(cards.locator('.pnav')).toHaveCount(0);
 });

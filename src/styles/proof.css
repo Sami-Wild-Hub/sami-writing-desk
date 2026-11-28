@@ -29,6 +29,9 @@
 .psource { margin-bottom: 1rem; }
 .poption { display: flex; align-items: center; gap: 8px; min-height: 2.75rem; margin-bottom: .6rem; font-size: var(--fs-ui); cursor: pointer; }
 .poption input { width: 1rem; height: 1rem; margin: 0; accent-color: var(--accent); }
+.pmodels { max-width: 60rem; margin: 0 0 .6rem; padding: .5rem .8rem .2rem; border: 1px solid var(--line); border-radius: var(--r-2); }
+.pmodels legend { padding: 0 .35rem; color: var(--ink-2); font-size: var(--fs-md); font-weight: 600; }
+.pmodels .poption { display: inline-flex; margin: 0 1rem .35rem 0; }
 
 /* the record's progress: one line per step */
 .pstatus { max-width: 60rem; margin: 0 0 1rem; padding: .8rem 1rem; border: 1px solid var(--line); border-radius: var(--r-4); background: var(--surface); }
