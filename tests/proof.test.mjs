@@ -20,6 +20,24 @@ test('every non-empty line is a paragraph; blank lines and headings are not numb
   assert.deepEqual(splitParagraphs(' \n\n'), []);
 });
 
+test('imported task exports number only the matching marked manuscript', () => {
+  const id = 'f6c9aaf0-ff47-40ee-b714-e94debc0c93b';
+  const draft = ['# 校稿任务', '只审校以下指定新稿。', 'JSON 格式示例', '{"findings":[]}',
+    '<<< ' + id + ' 受检正文 开始 >>>', '甲。', '', '乙。', '<<< ' + id + ' 受检正文 结束 >>>',
+    '作者确认补录，不属于新稿。'].join('\r\n');
+  assert.deepEqual(splitParagraphs(draft), splitParagraphs('甲。\n乙。'));
+  for (const check of CHECKS) {
+    const output = spawnSync(process.execPath, [cli, 'task'], {
+      input: JSON.stringify({ check, slug: 'maritime-story', title: 'T', draft }), encoding: 'utf8'
+    });
+    assert.equal(output.status, 0);
+    assert.ok(output.stdout.endsWith('新稿：\n[P1] 甲。\n[P2] 乙。\n'));
+    assert.doesNotMatch(output.stdout, /只审校以下指定新稿|作者确认补录/);
+  }
+  const mismatched = draft.replace(id + ' 受检正文 结束', '00000000-0000-0000-0000-000000000000 受检正文 结束');
+  assert.equal(splitParagraphs(mismatched)[0].text, '只审校以下指定新稿。');
+});
+
 test('paragraph labels and quotes are matched loosely across whitespace', () => {
   assert.equal(paraNumber('P12'), 12);
   assert.equal(paraNumber(' p 3 '), 3);
